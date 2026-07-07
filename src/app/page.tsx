@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
-import { DASHBOARD_BY_ROLE } from "@/types/auth";
+import { DASHBOARD_BY_ROLE, type UserRole } from "@/types/auth";
 
 export default function Home() {
   const router = useRouter();
@@ -11,7 +11,7 @@ export default function Home() {
 
   useEffect(() => {
     if (loading) return;
-    router.replace(user ? DASHBOARD_BY_ROLE[user.role] : "/login");
+    router.replace(user ? DASHBOARD_BY_ROLE[user.role as UserRole] : "/login");
   }, [loading, user, router]);
 
   return (

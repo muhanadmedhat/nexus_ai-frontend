@@ -19,7 +19,8 @@ export function ProtectedRoute({ role, children }: ProtectedRouteProps) {
     if (!user) {
       router.replace("/login");
     } else if (user.role !== role) {
-      router.replace(DASHBOARD_BY_ROLE[user.role]);
+      router.replace(DASHBOARD_BY_ROLE[user.role as UserRole]);
+
     }
   }, [loading, user, role, router]);
 
