@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -10,13 +9,13 @@ import { z } from "zod";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Logo } from "@/components/common/logo";
+import { AuthVisualPanel } from "@/components/layout/auth-visual-panel";
 import { useAuth } from "@/hooks/use-auth";
 import { getMe, signIn } from "@/services/auth";
 import { DASHBOARD_BY_ROLE } from "@/types/auth";
 
 const schema = z.object({
-  email: z.string().email("Enter a valid email"),
+  email: z.string().trim().email("Enter a valid email"),
   password: z.string().min(1, "Password is required"),
 });
 
@@ -47,23 +46,28 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="flex min-h-screen w-full flex-col md:flex-row">
-      <section className="sticky top-0 hidden h-screen overflow-hidden bg-primary md:block md:w-[45%] lg:w-1/2">
-        <Image
-          src="/auth-visual.png"
-          alt="Nexus AI"
-          fill
-          priority
-          className="object-cover"
-          sizes="50vw"
-        />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-primary/20 to-transparent" />
-      </section>
+    <main className="flex min-h-screen w-full flex-col bg-[#f5f5f0] lg:h-screen lg:overflow-hidden lg:flex-row">
+      <AuthVisualPanel
+        imageSrc="/auth-panel-nexus.png"
+        alt="AI project workspace"
+        title={
+          <>
+            From messy briefs
+            <br />
+            to verified delivery.
+          </>
+        }
+        description={
+          <>
+            AI agents structure requirements, match freelancers to tasks, evaluate submissions,
+            and support escrow release.
+          </>
+        }
+      />
 
-      <section className="flex flex-1 flex-col items-center justify-center bg-surface p-8 md:p-12 lg:p-16">
+      <section className="flex flex-1 flex-col items-center justify-center bg-surface p-8 md:p-12 lg:h-screen lg:overflow-hidden lg:p-12">
         <div className="w-full max-w-[448px]">
           <div className="mb-10">
-            <Logo className="mb-10 text-lg" />
             <h1 className="mb-4 font-headline text-4xl font-bold leading-tight tracking-tight text-on-surface md:text-5xl">
               Welcome back
             </h1>
