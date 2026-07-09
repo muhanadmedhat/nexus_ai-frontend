@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useCallback, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
 import { getMe, signOut } from "@/services/auth";
 import type { AuthUser } from "@/types/auth";
 
@@ -19,7 +18,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    setUser(await getMe());
+    try {
+      setUser(await getMe());
+    } catch {
+      setUser(null);
+    }
   }, []);
 
   const logout = useCallback(async () => {
@@ -28,15 +31,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // Fires immediately with the current session, then on every auth change.
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async () => {
-      setUser(await getMe());
-      setLoading(false);
-    });
+    let active = true;
 
-    return () => subscription.unsubscribe();
+    async function loadUser() {
+      try {
+        const currentUser = await getMe();
+        if (active) setUser(currentUser);
+      } catch {
+        if (active) setUser(null);
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    void loadUser();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   return (

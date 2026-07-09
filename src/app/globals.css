@@ -1,3 +1,4 @@
+@import "react-phone-number-input/style.css";
 @import "tailwindcss";
 
 /* Nexus AI design system — "Digital Craftsmanship". See stitch DESIGN.md. */
@@ -61,4 +62,29 @@ body {
 .input-halo:focus-within {
   border-color: var(--color-primary-container);
   box-shadow: 0 0 0 1px var(--color-primary-container);
+}
+
+.phone-number-input {
+  --PhoneInput-color--focus: var(--color-primary-container);
+  --PhoneInputCountryFlag-height: 1.05rem;
+  min-height: 50px;
+}
+
+.phone-number-input .PhoneInputCountry {
+  margin-right: 0.75rem;
+}
+
+.phone-number-input .PhoneInputCountrySelect {
+  border-radius: 0.5rem;
+}
+
+.phone-number-input .PhoneInputInput {
+  background: transparent;
+  color: var(--color-on-surface);
+  outline: none;
+  padding-block: 0.75rem;
+}
+
+.phone-number-input .PhoneInputInput::placeholder {
+  color: color-mix(in oklab, var(--color-outline) 50%, transparent);
 }
