@@ -1,0 +1,145 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { ArrowLeft, MessageSquare, CalendarClock, Wallet, Sparkles } from "lucide-react";
+import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { useAuth } from "@/hooks/use-auth";
+import { getProject } from "@/services/projects";
+import { getBrief } from "@/services/brief";
+import type { Brief, Project } from "@/types/project";
+import { formatBudget, formatDate } from "@/utils/format";
+
+export default function ProjectDetailsPage() {
+  const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const role = (user?.role || "customer") as "customer" | "freelancer" | "admin";
+
+  const [project, setProject] = useState<Project | null>(null);
+  const [brief, setBrief] = useState<Brief | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!id) return;
+    Promise.all([getProject(id), getBrief(id)])
+      .then(([p, b]) => {
+        setProject(p);
+        setBrief(b);
+      })
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  return (
+    <DashboardShell role={role} title="Project details" subtitle="Overview, budget, and next steps.">
+      <Link
+        href="/projects"
+        className="mb-4 inline-flex items-center gap-1.5 text-sm text-on-surface-variant hover:text-primary"
+      >
+        <ArrowLeft size={16} /> Back to projects
+      </Link>
+
+      {loading ? (
+        <p className="text-sm text-on-surface-variant">Loading…</p>
+      ) : !project ? (
+        <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-12 text-center card-shadow">
+          <h3 className="text-lg font-semibold text-on-surface">Project not found</h3>
+          <p className="mt-1 text-sm text-on-surface-variant">
+            It may have been removed, or the link is invalid.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          {/* Main */}
+          <div className="space-y-6 lg:col-span-2">
+            <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <h2 className="font-headline text-2xl font-semibold text-on-surface">
+                  {project.title}
+                </h2>
+                <StatusBadge status={project.status} />
+              </div>
+              <p className="text-sm leading-relaxed text-on-surface-variant">
+                {project.description || "No description provided."}
+              </p>
+
+              <dl className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="flex items-start gap-3">
+                  <Wallet size={18} className="mt-0.5 text-outline" />
+                  <div>
+                    <dt className="text-xs text-on-surface-variant">Budget</dt>
+                    <dd className="text-sm font-medium text-on-surface">{formatBudget(project)}</dd>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <CalendarClock size={18} className="mt-0.5 text-outline" />
+                  <div>
+                    <dt className="text-xs text-on-surface-variant">Deadline</dt>
+                    <dd className="text-sm font-medium text-on-surface">
+                      {project.deadline ? formatDate(project.deadline) : "—"}
+                      {project.isDeadlineFlexible && (
+                        <span className="ml-1 text-xs text-on-surface-variant">(flexible)</span>
+                      )}
+                    </dd>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Sparkles size={18} className="mt-0.5 text-outline" />
+                  <div>
+                    <dt className="text-xs text-on-surface-variant">Created</dt>
+                    <dd className="text-sm font-medium text-on-surface">
+                      {formatDate(project.createdAt)}
+                    </dd>
+                  </div>
+                </div>
+              </dl>
+            </div>
+
+            {/* Brief status */}
+            <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
+              <h3 className="font-headline text-lg font-semibold text-on-surface">Requirements brief</h3>
+              {brief && brief.completionPercent > 0 ? (
+                <>
+                  <p className="mt-1 text-sm text-on-surface-variant">{brief.summary}</p>
+                  <div className="mt-3 h-1.5 w-full rounded-full bg-surface-container-high">
+                    <div
+                      className="h-1.5 rounded-full bg-primary-container"
+                      style={{ width: `${brief.completionPercent}%` }}
+                    />
+                  </div>
+                  <p className="mt-1 text-xs text-on-surface-variant">
+                    {brief.completionPercent}% complete
+                  </p>
+                </>
+              ) : (
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  No brief yet. Start the requirements chat to define your project.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Sidebar: next action */}
+          <div className="space-y-4">
+            <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
+              <h3 className="font-headline text-base font-semibold text-on-surface">Next action</h3>
+              <p className="mt-1 text-sm text-on-surface-variant">
+                {brief?.isComplete
+                  ? "Brief complete — awaiting agent processing."
+                  : "Define your requirements with the AI agent."}
+              </p>
+              <Link href={`/projects/${project.id}/requirements`}>
+                <Button className="mt-4 inline-flex w-full items-center justify-center">
+                  <MessageSquare size={18} className="mr-2" />
+                  {brief && brief.completionPercent > 0 ? "Continue requirements" : "Start requirements"}
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+    </DashboardShell>
+  );
+}
