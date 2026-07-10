@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Menu, Bell, Search, LogOut, User, Settings, HelpCircle } from "lucide-react";
 import { Logo } from "@/components/common/logo";
 import { useAuth } from "@/hooks/use-auth";
+import { listNotifications } from "@/services/notifications";
+import type { Notification } from "@/types/project";
 import { clsx } from "clsx";
 
 interface TopbarProps {
@@ -17,6 +19,14 @@ export function Topbar({ title, subtitle, onMenuClick }: TopbarProps) {
   const router = useRouter();
   const { user, logout } = useAuth();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  useEffect(() => {
+    listNotifications().then(setNotifications);
+  }, []);
+
+  const unread = notifications.filter((n) => !n.isRead).length;
 
   const handleLogout = async () => {
     await logout();
@@ -57,12 +67,53 @@ export function Topbar({ title, subtitle, onMenuClick }: TopbarProps) {
         </div>
 
         {/* Notifications */}
-        <button
-          className="rounded-lg p-2 text-on-surface-variant hover:bg-surface-container-low"
-          aria-label="Notifications"
-        >
-          <Bell size={20} />
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => setIsNotifOpen((v) => !v)}
+            className="relative rounded-lg p-2 text-on-surface-variant hover:bg-surface-container-low"
+            aria-label="Notifications"
+          >
+            <Bell size={20} />
+            {unread > 0 && (
+              <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary-container px-1 text-[10px] font-semibold text-on-primary">
+                {unread}
+              </span>
+            )}
+          </button>
+
+          {isNotifOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setIsNotifOpen(false)} />
+              <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border border-outline-variant/30 bg-surface-container-lowest py-1.5 shadow-lg">
+                <div className="border-b border-outline-variant/30 px-4 py-2.5">
+                  <p className="text-sm font-semibold text-on-surface">Notifications</p>
+                </div>
+                {notifications.length === 0 ? (
+                  <p className="px-4 py-6 text-center text-sm text-on-surface-variant">
+                    You&apos;re all caught up.
+                  </p>
+                ) : (
+                  <div className="max-h-80 overflow-y-auto">
+                    {notifications.map((n) => (
+                      <div
+                        key={n.id}
+                        className={clsx(
+                          "border-b border-outline-variant/20 px-4 py-3 last:border-0",
+                          !n.isRead && "bg-primary-container/[0.04]",
+                        )}
+                      >
+                        <p className="text-sm font-medium text-on-surface">{n.title}</p>
+                        {n.body && (
+                          <p className="mt-0.5 text-xs text-on-surface-variant">{n.body}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
 
         {/* User menu */}
         <div className="relative">
