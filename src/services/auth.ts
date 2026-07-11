@@ -16,6 +16,7 @@ interface BackendUser {
   phoneNumber: string | null;
   role: AuthUser["role"];
   photoUrl: string | null;
+  isEmailVerified: boolean;
 }
 
 interface TokenResponse {
@@ -36,6 +37,7 @@ function toAuthUser(row: BackendUser): AuthUser {
     phoneNumber: row.phoneNumber,
     role: row.role,
     photoUrl: row.photoUrl,
+    isEmailVerified: row.isEmailVerified ?? false,
   };
 }
 

@@ -16,9 +16,44 @@ export const API_ENDPOINTS = {
     login: "/auth/login",
     logout: "/auth/logout",
     refresh: "/auth/refresh",
+    google: "/auth/google",
+    googleCallback: "/auth/google/callback",
+    exchange: "/auth/exchange",
+    completeProfile: "/auth/complete-profile",
+    resendVerification: "/auth/resend-verification",
+    verifyEmail: "/auth/verify-email",
   },
   users: {
     me: "/users/me",
+    profileImage: "/users/profile-image",
+    freelancerCv: "/users/freelancer-cv",
+  },
+  freelancers: {
+    me: "/freelancers/me",
+  },
+  projects: {
+    base: "/projects",
+    detail: (id: string) => `/projects/${id}`,
+  },
+  admin: {
+    users: "/admin/users",
+    projects: "/admin/projects",
+    stats: "/admin/stats",
+  },
+  freelancerVerification: {
+    me: "/freelancer-verification/me",
+  },
+  freelancerAssessments: {
+    start: "/freelancer-assessments/start",
+    current: "/freelancer-assessments/current",
+    answers: (id: string) => `/freelancer-assessments/${id}/answers`,
+    submit: (id: string) => `/freelancer-assessments/${id}/submit`,
+    events: (id: string) => `/freelancer-assessments/${id}/events`,
+  },
+  notifications: {
+    base: "/notifications",
+    markRead: (id: string) => `/notifications/${id}/read`,
+    markAllRead: "/notifications/read-all",
   },
 } as const;
 

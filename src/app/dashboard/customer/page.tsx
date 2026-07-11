@@ -32,6 +32,54 @@ export default function CustomerDashboardPage() {
       title="Customer Dashboard"
       subtitle="Track your active projects, AI agent progress, and escrow status."
     >
+      {/* Welcome Text (BEFORE the video) */}
+      <div className="mb-4">
+        <h2 className="text-3xl md:text-4xl font-headline font-bold text-on-surface">
+          Welcome back, {user?.firstName} {user?.lastName}!
+        </h2>
+        <p className="mt-1 text-lg text-on-surface-variant">
+          Your projects are in good hands with Nexus AI.
+        </p>
+      </div>
+
+      {/* Video Banner – fills container, no black bars */}
+      <div className="relative mb-8 overflow-hidden rounded-xl h-64 lg:h-80 bg-black">
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="absolute inset-0 w-full h-full object-cover object-center"
+        >
+          <source src="/customer-dashboard3.mp4" type="video/mp4" />
+          Your browser does not support the video tag.
+        </video>
+      </div>
+
+      {/* Welcome Text (BEFORE the video) */}
+      <div className="mb-4">
+        <h2 className="text-3xl md:text-4xl font-headline font-bold text-on-surface">
+          Welcome back, {user?.firstName} {user?.lastName}!
+        </h2>
+        <p className="mt-1 text-lg text-on-surface-variant">
+          Your projects are in good hands with Nexus AI.
+        </p>
+      </div>
+
+      {/* Video Banner – fills container, no black bars */}
+      <div className="relative mb-8 overflow-hidden rounded-xl h-64 lg:h-80 bg-black">
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="absolute inset-0 w-full h-full object-cover object-center"
+        >
+          <source src="/customer-dashboard3.mp4" type="video/mp4" />
+          Your browser does not support the video tag.
+        </video>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatsCard label="Total Projects" value={projects.length} icon={<FolderOpen size={20} />} />
         <StatsCard label="Active" value={active} icon={<CheckCircle size={20} />} />
