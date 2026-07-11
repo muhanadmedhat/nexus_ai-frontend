@@ -21,6 +21,31 @@ export default function FreelancerDashboardPage() {
       title="Freelancer Dashboard"
       subtitle="Manage your profile, matched tasks, and submissions."
     >
+      {/* Welcome Text */}
+      <div className="mb-4">
+        <h2 className="text-3xl md:text-4xl font-headline font-bold text-on-surface">
+          Welcome back, {user?.firstName} {user?.lastName}!
+        </h2>
+        <p className="mt-1 text-lg text-on-surface-variant">
+          You're ready to take on new challenges.
+        </p>
+      </div>
+
+      {/* Video Banner – fills container, centered, no black bars */}
+      <div className="relative mb-8 overflow-hidden rounded-xl h-64 lg:h-80 bg-black">
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="absolute inset-0 w-full h-full object-cover object-center"
+        >
+          <source src="/freelancer-dashboard1.mp4" type="video/mp4" />
+          Your browser does not support the video tag.
+        </video>
+      </div>
+
+      {/* Stats Grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatsCard label="Active Tasks" value={stats.activeTasks} icon={<Briefcase size={20} />} />
         <StatsCard label="Pending Submissions" value={stats.pendingSubmissions} icon={<Clock size={20} />} />

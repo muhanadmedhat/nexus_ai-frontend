@@ -15,7 +15,6 @@ import { Button } from "@/components/ui/button";
 import { AuthVisualPanel } from "@/components/layout/auth-visual-panel";
 import { useAuth } from "@/hooks/use-auth";
 import { signUp } from "@/services/auth";
-import { DASHBOARD_BY_ROLE } from "@/types/auth";
 
 const schema = z
   .object({
@@ -91,7 +90,8 @@ export default function RegisterPage() {
         role: values.role,
       });
       await refresh();
-      router.replace(DASHBOARD_BY_ROLE[values.role]);
+      // 🔴 Redirect to verification success page
+      router.replace("/register/success");
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Registration failed");
     }

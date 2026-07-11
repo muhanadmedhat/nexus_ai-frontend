@@ -1,6 +1,5 @@
 export type UserRole = "customer" | "freelancer" | "admin";
 
-// Public role options — admin is created manually by the team, never here.
 export const PUBLIC_ROLES: Exclude<UserRole, "admin">[] = ["customer", "freelancer"];
 
 export interface AuthUser {
@@ -11,6 +10,7 @@ export interface AuthUser {
   phoneNumber: string | null;
   role: UserRole;
   photoUrl: string | null;
+  isEmailVerified: boolean;
 }
 
 export interface RegisterInput {
