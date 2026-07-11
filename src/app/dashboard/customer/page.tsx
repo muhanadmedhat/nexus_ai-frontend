@@ -7,11 +7,13 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { StatsCard } from "@/components/ui/stats-card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/use-auth";
 import { listProjects } from "@/services/projects";
 import type { Project } from "@/types/project";
 import { formatBudget, formatDate } from "@/utils/format";
 
 export default function CustomerDashboardPage() {
+  const { user } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -56,6 +58,7 @@ export default function CustomerDashboardPage() {
         </video>
       </div>
 
+      {/* Stats grid */}
       {/* Welcome Text (BEFORE the video) */}
       <div className="mb-4">
         <h2 className="text-3xl md:text-4xl font-headline font-bold text-on-surface">
