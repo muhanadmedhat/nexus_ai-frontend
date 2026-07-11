@@ -9,12 +9,9 @@ import {
   CheckSquare,
   MessageSquare,
   CreditCard,
-  User,
-  Settings,
   ShieldCheck,
   Users,
   Briefcase,
-  FileCheck,
   ClipboardCheck,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
@@ -34,8 +31,6 @@ const NAV_ITEMS: Record<UserRole, NavItem[]> = {
     { label: "Tasks", href: "/tasks", icon: <CheckSquare size={20} /> },
     { label: "Messages", href: "/messages", icon: <MessageSquare size={20} /> },
     { label: "Payments", href: "/payments", icon: <CreditCard size={20} /> },
-    { label: "Profile", href: "/profile", icon: <User size={20} /> },
-    { label: "Settings", href: "/settings", icon: <Settings size={20} /> },
   ],
   freelancer: [
     { label: "Dashboard", href: "/dashboard/freelancer", icon: <LayoutDashboard size={20} /> },
@@ -43,8 +38,6 @@ const NAV_ITEMS: Record<UserRole, NavItem[]> = {
     { label: "Tasks", href: "/tasks", icon: <CheckSquare size={20} /> },
     { label: "Messages", href: "/messages", icon: <MessageSquare size={20} /> },
     { label: "Payments", href: "/payments", icon: <CreditCard size={20} /> },
-    { label: "Profile", href: "/profile", icon: <User size={20} /> },
-    { label: "Settings", href: "/settings", icon: <Settings size={20} /> },
   ],
   admin: [
     { label: "Dashboard", href: "/dashboard/admin", icon: <LayoutDashboard size={20} /> },
@@ -52,7 +45,6 @@ const NAV_ITEMS: Record<UserRole, NavItem[]> = {
     { label: "Agent Jobs", href: "/admin/agent-jobs", icon: <Briefcase size={20} /> },
     { label: "Reviews", href: "/admin/reviews", icon: <ClipboardCheck size={20} /> },
     { label: "Users", href: "/admin/users", icon: <Users size={20} /> },
-    { label: "Settings", href: "/settings", icon: <Settings size={20} /> },
   ],
 };
 
@@ -81,7 +73,7 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
       {/* Sidebar */}
       <aside
         className={clsx(
-          "fixed inset-y-0 left-0 z-50 w-72 transform border-r border-outline-variant/30 bg-surface-container-lowest transition-transform duration-300 ease-in-out md:sticky md:top-0 md:h-screen md:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 flex w-72 transform flex-col border-r border-outline-variant/30 bg-surface-container-lowest transition-transform duration-300 ease-in-out md:sticky md:top-0 md:h-screen md:translate-x-0",
           isMobileOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
@@ -91,7 +83,7 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {navItems.map((item) => {
             const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
             return (
@@ -116,10 +108,21 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
         </nav>
 
         {/* User profile area */}
-        <div className="border-t border-outline-variant/30 px-6 py-4">
+        <div className="mt-auto border-t border-outline-variant/30 px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-container text-sm font-semibold text-on-primary">
-              {user?.firstName?.[0]}{user?.lastName?.[0]}
+            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-primary-container text-sm font-semibold text-on-primary">
+              {user?.photoUrl ? (
+                <span
+                  aria-hidden="true"
+                  className="h-full w-full bg-cover bg-center"
+                  style={{ backgroundImage: `url(${user.photoUrl})` }}
+                />
+              ) : (
+                <>
+                  {user?.firstName?.[0]}
+                  {user?.lastName?.[0]}
+                </>
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <p className="truncate text-sm font-medium text-on-surface">

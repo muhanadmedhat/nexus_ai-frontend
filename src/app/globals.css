@@ -53,6 +53,30 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+:where(
+  a[href],
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  label[for],
+  select:not(:disabled),
+  summary,
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  input[type="file"]:not(:disabled)
+) {
+  cursor: pointer;
+}
+
+:where(
+  button:disabled,
+  [aria-disabled="true"],
+  input:disabled,
+  select:disabled,
+  textarea:disabled
+) {
+  cursor: not-allowed;
+}
+
 /* Level 2 elevation for cards/modals (DESIGN.md). */
 .card-shadow {
   box-shadow: 0px 8px 24px rgba(20, 24, 31, 0.08);

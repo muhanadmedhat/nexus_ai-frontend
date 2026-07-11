@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { updateMe } from "@/services/users";
 import { uploadProfileImage, uploadCv } from "@/services/uploads";
 import { ProfileCard } from "@/components/profile/profile-card";
+import { useToast } from "@/components/ui/toast";
 
 interface ProfileFormValues {
   firstName: string;
@@ -25,23 +26,21 @@ function isEgyptianPhoneNumber(value: string) {
 
 export default function ProfilePage() {
   const { user, refresh } = useAuth();
+  const toast = useToast();
   const role = user?.role || "customer";
   const initials =
     `${user?.firstName?.[0] ?? ""}${user?.lastName?.[0] ?? ""}`.toUpperCase() || "?";
 
-  const [formError, setFormError] = useState<string | null>(null);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(user?.photoUrl || null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const [isUploadingCV, setIsUploadingCV] = useState(false);
   const [cvUploadError, setCvUploadError] = useState<string | null>(null);
   const [cvStatusMessage, setCvStatusMessage] = useState<string | null>(null);
   const [cvFileName, setCvFileName] = useState<string | null>(null);
   const [cvUrl, setCvUrl] = useState<string | null>(null);
+  const displayedCvUrl = cvUrl ?? user?.cvUrl ?? null;
   const cvInputRef = useRef<HTMLInputElement>(null);
 
   const {
@@ -65,12 +64,9 @@ export default function ProfilePage() {
       lastName: user.lastName,
       phoneNumber: user.phoneNumber ?? "",
     });
-    if (user.photoUrl) setPreviewUrl(user.photoUrl);
   }, [reset, user]);
 
   const onSubmit = async (values: ProfileFormValues) => {
-    setFormError(null);
-    setStatusMessage(null);
     const nextValues = {
       firstName: values.firstName.trim(),
       lastName: values.lastName.trim(),
@@ -80,9 +76,12 @@ export default function ProfilePage() {
       await updateMe(nextValues);
       await refresh();
       reset(nextValues);
-      setStatusMessage("Profile updated.");
+      toast.success("Profile updated");
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Could not update profile");
+      toast.error(
+        "Could not update profile",
+        error instanceof Error ? error.message : "Please try again.",
+      );
     }
   };
 
@@ -90,10 +89,12 @@ export default function ProfilePage() {
     const validTypes = ["image/jpeg", "image/png", "image/webp"];
     if (!validTypes.includes(file.type)) {
       setUploadError("Only JPG, PNG, and WebP images are allowed");
+      toast.error("Invalid image", "Only JPG, PNG, and WebP images are allowed.");
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
       setUploadError("Image must be smaller than 2MB");
+      toast.error("Image too large", "Image must be smaller than 2MB.");
       return;
     }
     setUploadError(null);
@@ -104,10 +105,14 @@ export default function ProfilePage() {
       const { url } = await uploadProfileImage(file);
       setPreviewUrl(url);
       await refresh();
-      setStatusMessage("Profile image updated");
+      toast.success("Profile image updated");
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "Upload failed");
-      setPreviewUrl(user?.photoUrl || null);
+      toast.error(
+        "Upload failed",
+        err instanceof Error ? err.message : "Could not upload image.",
+      );
+      setPreviewUrl(null);
     } finally {
       setIsUploading(false);
     }
@@ -116,17 +121,15 @@ export default function ProfilePage() {
   const handleCvSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const validTypes = [
-      "application/pdf",
-      "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ];
+    const validTypes = ["application/pdf"];
     if (!validTypes.includes(file.type)) {
-      setCvUploadError("Only PDF, DOC, and DOCX files are allowed");
+      setCvUploadError("Only PDF files are allowed");
+      toast.error("Invalid CV", "Only PDF files are allowed.");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
       setCvUploadError("CV must be smaller than 5MB");
+      toast.error("CV too large", "CV must be smaller than 5MB.");
       return;
     }
     setCvUploadError(null);
@@ -138,8 +141,13 @@ export default function ProfilePage() {
       setCvUrl(url);
       await refresh();
       setCvStatusMessage("CV uploaded successfully");
+      toast.success("CV uploaded successfully");
     } catch (err) {
       setCvUploadError(err instanceof Error ? err.message : "CV upload failed");
+      toast.error(
+        "CV upload failed",
+        err instanceof Error ? err.message : "Please try again.",
+      );
       setCvFileName(null);
     } finally {
       setIsUploadingCV(false);
@@ -160,7 +168,7 @@ export default function ProfilePage() {
           lastName={user?.lastName || ""}
           role={role}
           email={user?.email || ""}
-          photoUrl={previewUrl}
+          photoUrl={previewUrl ?? user?.photoUrl ?? null}
           initials={initials}
           isUploading={isUploading}
           onFileSelect={handleFileSelect}
@@ -263,7 +271,7 @@ export default function ProfilePage() {
                     <input
                       ref={cvInputRef}
                       type="file"
-                      accept=".pdf,.doc,.docx"
+                      accept=".pdf,application/pdf"
                       className="hidden"
                       onChange={handleCvSelect}
                       disabled={isUploadingCV}
@@ -294,9 +302,9 @@ export default function ProfilePage() {
                           {cvFileName}
                         </span>
                       )}
-                      {cvUrl && (
+                      {displayedCvUrl && (
                         <a
-                          href={cvUrl}
+                          href={displayedCvUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-sm font-medium text-primary-container hover:underline"
@@ -336,13 +344,10 @@ export default function ProfilePage() {
                 </div>
               )}
 
-              {formError && <p className="text-sm text-error">{formError}</p>}
-              {statusMessage && <p className="text-sm text-primary-container">{statusMessage}</p>}
-
-              <div className="pt-4">
+              <div className="flex justify-end pt-4">
                 <Button
                   type="submit"
-                  className="w-full sm:w-auto"
+                  className="inline-flex w-auto items-center justify-center px-4 py-2.5 text-sm"
                   loading={isSubmitting}
                   disabled={!isDirty || isSubmitting}
                 >

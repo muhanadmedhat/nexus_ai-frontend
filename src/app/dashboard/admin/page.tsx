@@ -1,26 +1,23 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Users, FolderOpen, Cpu, AlertTriangle, Activity } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { StatsCard } from "@/components/ui/stats-card";
-import { useAuth } from "@/hooks/use-auth";
+import { getAdminStats, type AdminStats } from "@/services/admin";
 
 export default function AdminDashboardPage() {
-  const { user } = useAuth();
-
-  const stats = {
+  const [stats, setStats] = useState<AdminStats>({
     totalUsers: 0,
-    activeProjects: 0,
-    runningAgentJobs: 0,
-    humanReviewRequired: 0,
-  };
+    totalProjects: 0,
+  });
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const recentActivity = [
-    { time: "Just now", action: "New user registered", user: "john@example.com" },
-    { time: "5 min ago", action: "Project created", user: "sarah@example.com" },
-    { time: "12 min ago", action: "Agent job completed", user: "System" },
-    { time: "1 hour ago", action: "Payment released", user: "ahmed@example.com" },
-  ];
+  useEffect(() => {
+    getAdminStats()
+      .then(setStats)
+      .catch((err) => setLoadError(err instanceof Error ? err.message : "Could not load stats"));
+  }, []);
 
   return (
     <DashboardShell
@@ -30,26 +27,30 @@ export default function AdminDashboardPage() {
     >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatsCard label="Total Users" value={stats.totalUsers} icon={<Users size={20} />} />
-        <StatsCard label="Active Projects" value={stats.activeProjects} icon={<FolderOpen size={20} />} />
-        <StatsCard label="Running Agent Jobs" value={stats.runningAgentJobs} icon={<Cpu size={20} />} />
-        <StatsCard label="Human Review Required" value={stats.humanReviewRequired} icon={<AlertTriangle size={20} />} />
+        <StatsCard label="Total Projects" value={stats.totalProjects} icon={<FolderOpen size={20} />} />
+        <StatsCard label="Running Agent Jobs" value={0} icon={<Cpu size={20} />} />
+        <StatsCard label="Human Review Required" value={0} icon={<AlertTriangle size={20} />} />
       </div>
+      {loadError && <p className="mt-4 text-sm text-error">{loadError}</p>}
 
       <div className="mt-8 rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="font-headline text-lg font-semibold text-on-surface">Recent Activity</h3>
+          <h3 className="font-headline text-lg font-semibold text-on-surface">Operational overview</h3>
           <Activity size={18} className="text-outline" />
         </div>
-        <div className="space-y-3">
-          {recentActivity.map((item, index) => (
-            <div key={index} className="flex items-center justify-between border-b border-outline-variant/20 pb-3 last:border-0 last:pb-0">
-              <div>
-                <p className="text-sm text-on-surface">{item.action}</p>
-                <p className="text-xs text-on-surface-variant">{item.user}</p>
-              </div>
-              <span className="text-xs text-on-surface-variant/60">{item.time}</span>
-            </div>
-          ))}
+        <div className="grid gap-3 text-sm text-on-surface-variant md:grid-cols-3">
+          <div className="rounded-lg bg-surface-container-low p-4">
+            <p className="font-medium text-on-surface">Users and projects</p>
+            <p className="mt-1 leading-6">Connected to the current admin stats endpoint.</p>
+          </div>
+          <div className="rounded-lg bg-surface-container-low p-4">
+            <p className="font-medium text-on-surface">Agent monitoring</p>
+            <p className="mt-1 leading-6">Ready for Sprint 3 live job health and failures.</p>
+          </div>
+          <div className="rounded-lg bg-surface-container-low p-4">
+            <p className="font-medium text-on-surface">Human review</p>
+            <p className="mt-1 leading-6">Ready for assessment and review queue routes.</p>
+          </div>
         </div>
       </div>
     </DashboardShell>

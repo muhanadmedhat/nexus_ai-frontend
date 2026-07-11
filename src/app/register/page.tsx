@@ -13,8 +13,10 @@ import { Input } from "@/components/ui/input";
 import { PhoneNumberInput } from "@/components/ui/phone-number-input";
 import { Button } from "@/components/ui/button";
 import { AuthVisualPanel } from "@/components/layout/auth-visual-panel";
+import { GoogleAuthButton } from "@/components/auth/google-auth-button";
 import { useAuth } from "@/hooks/use-auth";
 import { signUp } from "@/services/auth";
+import { useToast } from "@/components/ui/toast";
 
 const schema = z
   .object({
@@ -63,7 +65,7 @@ const ROLE_CARDS = [
 export default function RegisterPage() {
   const router = useRouter();
   const { refresh } = useAuth();
-  const [formError, setFormError] = useState<string | null>(null);
+  const toast = useToast();
 
   const {
     register,
@@ -79,7 +81,6 @@ export default function RegisterPage() {
   const [role, setRole] = useState<FormValues["role"]>("customer");
 
   const onSubmit = async (values: FormValues) => {
-    setFormError(null);
     try {
       await signUp({
         firstName: values.firstName,
@@ -90,10 +91,13 @@ export default function RegisterPage() {
         role: values.role,
       });
       await refresh();
-      // 🔴 Redirect to verification success page
+      toast.success("Account created", "Check your email for the verification code.");
       router.replace("/register/success");
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Registration failed");
+      toast.error(
+        "Registration failed",
+        err instanceof Error ? err.message : "Please check your details and try again.",
+      );
     }
   };
 
@@ -223,13 +227,25 @@ export default function RegisterPage() {
                 error={errors.confirmPassword?.message}
               />
             </div>
-
-            {formError && <p className="text-sm text-error">{formError}</p>}
-
             <Button type="submit" loading={isSubmitting}>
               Create account
             </Button>
           </form>
+
+          <div className="relative my-5">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-outline-variant/30" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-surface px-4 text-on-surface-variant">Or sign up with</span>
+            </div>
+          </div>
+
+          <GoogleAuthButton
+            onBeforeRedirect={() => {
+              window.localStorage.setItem("nexus_google_signup_role", role);
+            }}
+          />
 
           <p className="mt-5 text-center text-sm text-on-surface-variant">
             Already have an account?{" "}

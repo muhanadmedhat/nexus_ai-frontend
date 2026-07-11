@@ -18,19 +18,19 @@ export function DashboardShell({ role, title, subtitle, children }: DashboardShe
 
   return (
     <ProtectedRoute role={role}>
-      <div className="flex min-h-screen bg-background">
+      <div className="flex min-h-screen min-w-0 bg-background">
         <Sidebar
           isMobileOpen={isMobileMenuOpen}
           onMobileClose={() => setIsMobileMenuOpen(false)}
         />
-        <div className="flex flex-1 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col">
           <Topbar
             title={title}
             subtitle={subtitle}
             onMenuClick={() => setIsMobileMenuOpen(true)}
           />
-          <main className="flex-1 p-4 md:p-6">
-            <div className="mx-auto max-w-[1280px]">
+          <main className="min-w-0 flex-1 overflow-x-hidden p-3 sm:p-4 md:p-6">
+            <div className="mx-auto min-w-0 max-w-[1280px]">
               {children}
             </div>
           </main>

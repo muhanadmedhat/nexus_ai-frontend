@@ -17,7 +17,7 @@ export function Button({
     <button
       disabled={disabled || loading}
       className={clsx(
-        "w-full rounded-lg py-3.5 font-headline font-semibold shadow-sm transition-all active:scale-[0.98]",
+        "inline-flex w-full min-w-0 items-center justify-center gap-2 rounded-lg py-3.5 font-headline font-semibold shadow-sm transition-all active:scale-[0.98]",
         "disabled:cursor-not-allowed disabled:opacity-60",
         variant === "primary"
           ? "bg-primary-container text-on-primary hover:bg-primary"

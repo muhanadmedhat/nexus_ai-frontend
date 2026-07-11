@@ -1,132 +1,367 @@
-import { api } from "@/lib/api";
-import type { Brief, BriefMessage } from "@/types/project";
+import { API_ENDPOINTS, api, getApiErrorMessage } from "@/lib/api";
+import type {
+  Brief,
+  BriefFieldValues,
+  BriefMessage,
+  BriefSender,
+} from "@/types/project";
 
-// ---------------------------------------------------------------------------
-// Requirements agent mock chat. The brief routes do not exist yet:
-//   GET  /api/projects/:id/brief
-//   GET  /api/projects/:id/brief/messages
-//   POST /api/projects/:id/brief/messages
-// Until then this drives a deterministic local mock agent so the UI works.
-// ---------------------------------------------------------------------------
+const AI_REVISION_LIMIT = 3;
 
-const BRIEF_FIELDS = [
-  "Goal",
-  "Target users",
-  "Core features",
-  "Tech preferences",
-  "Timeline",
-  "Budget",
+const REQUIRED_BRIEF_FIELDS = [
+  { key: "businessDomain", label: "Business domain" },
+  { key: "mainGoal", label: "Main goal" },
+  { key: "targetUsers", label: "Target users" },
+  { key: "coreFeatures", label: "Core features" },
+  { key: "platforms", label: "Platforms" },
+  { key: "deliverables", label: "Deliverables" },
+  { key: "constraintsPreferences", label: "Constraints / preferences" },
+  { key: "clientBackground", label: "Client background" },
+  { key: "suggestedTeamSize", label: "Suggested team size" },
+  { key: "experienceLevel", label: "Experience level" },
+  { key: "experienceMinYears", label: "Experience min years" },
 ];
 
-interface BriefState {
-  brief: Brief;
-  messages: BriefMessage[];
-  askedIndex: number;
+const PROJECT_DERIVED_FIELD_LABELS = new Set([
+  "project type",
+  "budget",
+  "deadline",
+]);
+
+interface BackendBrief {
+  id: string;
+  projectId: string;
+  isComplete: boolean;
+  summary: string | null;
+  projectType?: string | null;
+  domain?: string | null;
+  clientBackground?: string | null;
+  suggestedTeamSize?: number | null;
+  experienceLevel?: string | null;
+  experienceMinYears?: number | null;
+  technical?: Record<string, unknown> | null;
+  nonFunctional?: Record<string, unknown> | null;
+  deliverables?: Record<string, unknown> | null;
+  preferredTimeline?: string | null;
+  deadlineDate?: string | null;
+  briefText?: string | null;
+  aiDecided: Record<string, unknown> | null;
 }
 
-const briefsByProject = new Map<string, BriefState>();
-let seq = 0;
-
-function ensureState(projectId: string): BriefState {
-  let state = briefsByProject.get(projectId);
-  if (!state) {
-    const briefId = `brief-${projectId}`;
-    state = {
-      brief: {
-        id: briefId,
-        projectId,
-        isComplete: false,
-        summary: null,
-        completionPercent: 0,
-        missingFields: [...BRIEF_FIELDS],
-      },
-      messages: [
-        {
-          id: `msg-${++seq}`,
-          briefId,
-          senderType: "agent",
-          message:
-            "Hi! I'm your requirements agent. Let's define your project. First — what is the main goal you want to achieve?",
-          createdAt: new Date().toISOString(),
-        },
-      ],
-      askedIndex: 0,
-    };
-    briefsByProject.set(projectId, state);
-  }
-  return state;
+interface BackendBriefMessage {
+  id: string;
+  briefId: string;
+  senderType: string;
+  message: string;
+  createdAt: string;
 }
 
-// Contract: GET /api/projects/:id/brief
+interface BackendAiResult {
+  completionPercentage?: unknown;
+  missingFields?: unknown;
+}
+
+interface BackendSendBriefMessageResponse {
+  brief: BackendBrief;
+  customerMessage: BackendBriefMessage;
+  agentMessage: BackendBriefMessage;
+  ai?: BackendAiResult;
+}
+
+interface BackendReopenBriefResponse {
+  brief: BackendBrief;
+  messages: BackendBriefMessage[];
+}
+
+function humanizeField(field: string): string {
+  return field
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/^./, (letter) => letter.toUpperCase());
+}
+
+function toStringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value
+        .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        .map((item) => humanizeField(item))
+    : [];
+}
+
+function asPlainObject(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function hasValue(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "string") return value.trim().length > 0;
+  if (Array.isArray(value)) return value.some(hasValue);
+  if (typeof value === "object") return Object.keys(value).length > 0;
+  return true;
+}
+
+function getExtractedFields(brief: BackendBrief): Record<string, unknown> {
+  return asPlainObject(brief.aiDecided?.extractedFields) ?? {};
+}
+
+function getRequirementValues(brief: BackendBrief) {
+  const extracted = getExtractedFields(brief);
+  const technical = asPlainObject(brief.technical) ?? {};
+  const nonFunctional = asPlainObject(brief.nonFunctional) ?? {};
+  const deliverables = asPlainObject(brief.deliverables) ?? {};
+  const valuesByKey: Record<string, unknown> = {
+    businessDomain: brief.domain ?? extracted.businessDomain,
+    mainGoal: technical.mainGoal ?? extracted.mainGoal,
+    targetUsers: technical.targetUsers ?? extracted.targetUsers,
+    coreFeatures: technical.coreFeatures ?? extracted.coreFeatures,
+    platforms: technical.platforms ?? extracted.platforms,
+    deliverables: deliverables.items ?? extracted.deliverables,
+    constraintsPreferences:
+      nonFunctional.constraintsPreferences ?? extracted.constraintsPreferences,
+    clientBackground: brief.clientBackground ?? extracted.clientBackground,
+    suggestedTeamSize: brief.suggestedTeamSize ?? extracted.suggestedTeamSize,
+    experienceLevel: brief.experienceLevel ?? extracted.experienceLevel,
+    experienceMinYears: brief.experienceMinYears ?? extracted.experienceMinYears,
+  };
+
+  return REQUIRED_BRIEF_FIELDS.map((field) => ({
+    ...field,
+    value: valuesByKey[field.key],
+  }));
+}
+
+function deriveMissingFields(brief: BackendBrief): string[] {
+  return getRequirementValues(brief)
+    .filter((field) => !hasValue(field.value))
+    .map((field) => field.label);
+}
+
+function deriveCompletionPercent(brief: BackendBrief): number {
+  const fields = getRequirementValues(brief);
+  const completed = fields.filter((field) => hasValue(field.value)).length;
+
+  if (fields.length === 0) return 0;
+  return Math.round((completed / fields.length) * 100);
+}
+
+function previewValue(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.filter(Boolean).join(", ");
+  if (typeof value === "number") return String(value);
+  return "";
+}
+
+function getAiString(brief: BackendBrief, key: string): string | null {
+  const value = brief.aiDecided?.[key];
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function getAiNumber(brief: BackendBrief, key: string, fallback: number): number {
+  const value = brief.aiDecided?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function getAiBoolean(brief: BackendBrief, key: string): boolean {
+  return brief.aiDecided?.[key] === true;
+}
+
+function toBriefFields(brief: BackendBrief): BriefFieldValues {
+  const values = getRequirementValues(brief);
+  const byKey = Object.fromEntries(
+    values.map((field) => [field.key, previewValue(field.value)]),
+  ) as Partial<BriefFieldValues>;
+
+  return {
+    businessDomain: byKey.businessDomain ?? "",
+    mainGoal: byKey.mainGoal ?? "",
+    targetUsers: byKey.targetUsers ?? "",
+    coreFeatures: byKey.coreFeatures ?? "",
+    platforms: byKey.platforms ?? "",
+    deliverables: byKey.deliverables ?? "",
+    constraintsPreferences: byKey.constraintsPreferences ?? "",
+    clientBackground: byKey.clientBackground ?? "",
+    suggestedTeamSize: byKey.suggestedTeamSize ?? "",
+    experienceLevel: byKey.experienceLevel ?? "",
+    experienceMinYears: byKey.experienceMinYears ?? "",
+  };
+}
+
+function toOptionalInteger(value: string): number | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function deriveSummary(brief: BackendBrief): string | null {
+  const captured = getRequirementValues(brief)
+    .filter((field) => hasValue(field.value))
+    .map((field) => {
+      const value = previewValue(field.value);
+      return value ? `${field.label}: ${value}` : null;
+    })
+    .filter((item): item is string => Boolean(item));
+
+  return captured.length > 0 ? captured.slice(0, 3).join(" · ") : null;
+}
+
+function toCompletionPercent(brief: BackendBrief, ai?: BackendAiResult): number {
+  const raw =
+    ai?.completionPercentage ?? brief.aiDecided?.completionPercentage ?? 0;
+  const derived = deriveCompletionPercent(brief);
+  const value =
+    typeof raw === "number" && Number.isFinite(raw)
+      ? Math.max(raw, derived)
+      : derived;
+
+  if (brief.isComplete) return 100;
+  return Math.min(100, Math.max(0, Math.round(value)));
+}
+
+function toBrief(brief: BackendBrief, ai?: BackendAiResult): Brief {
+  const rawMissingFields = ai?.missingFields ?? brief.aiDecided?.missingFields;
+  const revisionCount = getAiNumber(brief, "revisionCount", 0);
+  const revisionLimit = getAiNumber(brief, "revisionLimit", AI_REVISION_LIMIT);
+  const capturedLabels = new Set(
+    getRequirementValues(brief)
+      .filter((field) => hasValue(field.value))
+      .map((field) => field.label.toLowerCase()),
+  );
+  const rawMissingList = Array.isArray(rawMissingFields)
+    ? toStringList(rawMissingFields)
+    : [];
+  const sourceMissingFields =
+    rawMissingList.length > 0 ? rawMissingList : deriveMissingFields(brief);
+  const missingFields = sourceMissingFields.filter(
+    (field) =>
+      !capturedLabels.has(field.toLowerCase()) &&
+      !PROJECT_DERIVED_FIELD_LABELS.has(field.toLowerCase()),
+  );
+
+  return {
+    id: brief.id,
+    projectId: brief.projectId,
+    isComplete: brief.isComplete,
+    summary: brief.summary ?? deriveSummary(brief),
+    completionPercent: toCompletionPercent(brief, ai),
+    missingFields: brief.isComplete ? [] : missingFields,
+    fields: toBriefFields(brief),
+    aiRevisionOpen: getAiBoolean(brief, "aiRevisionOpen"),
+    revisionCount,
+    revisionLimit,
+    canReopenAi: brief.isComplete && revisionCount < revisionLimit,
+    confirmedAt: getAiString(brief, "confirmedAt"),
+  };
+}
+
+function toSenderType(senderType: string): BriefSender {
+  return senderType === "customer" ? "customer" : "agent";
+}
+
+function toBriefMessage(message: BackendBriefMessage): BriefMessage {
+  return {
+    id: message.id,
+    briefId: message.briefId,
+    senderType: toSenderType(message.senderType),
+    message: message.message,
+    createdAt: message.createdAt,
+  };
+}
+
 export async function getBrief(projectId: string): Promise<Brief> {
   try {
-    const { data } = await api.get<Brief>(`/projects/${projectId}/brief`);
-    return data;
-  } catch {
-    return { ...ensureState(projectId).brief };
+    const { data } = await api.get<BackendBrief>(
+      API_ENDPOINTS.projects.brief(projectId),
+    );
+
+    return toBrief(data);
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, "Could not load brief"));
   }
 }
 
-// Contract: GET /api/projects/:id/brief/messages
 export async function getBriefMessages(projectId: string): Promise<BriefMessage[]> {
   try {
-    const { data } = await api.get<BriefMessage[]>(
-      `/projects/${projectId}/brief/messages`,
+    const { data } = await api.get<BackendBriefMessage[]>(
+      API_ENDPOINTS.projects.briefMessages(projectId),
     );
-    return data;
-  } catch {
-    return [...ensureState(projectId).messages];
+
+    return data.map(toBriefMessage);
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, "Could not load brief messages"));
   }
 }
 
-// Contract: POST /api/projects/:id/brief/messages
-// Returns the full updated conversation + brief so the UI can render in one pass.
 export async function sendBriefMessage(
   projectId: string,
   message: string,
 ): Promise<{ messages: BriefMessage[]; brief: Brief }> {
   try {
-    const { data } = await api.post<{ messages: BriefMessage[]; brief: Brief }>(
-      `/projects/${projectId}/brief/messages`,
-      { message },
+    const { data } = await api.post<BackendSendBriefMessageResponse>(
+      API_ENDPOINTS.projects.briefMessages(projectId),
+      { content: message },
     );
-    return data;
-  } catch {
-    const state = ensureState(projectId);
-    const briefId = state.brief.id;
 
-    state.messages.push({
-      id: `msg-${++seq}`,
-      briefId,
-      senderType: "customer",
-      message,
-      createdAt: new Date().toISOString(),
-    });
+    return {
+      messages: [data.customerMessage, data.agentMessage].map(toBriefMessage),
+      brief: toBrief(data.brief, data.ai),
+    };
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, "Could not send brief message"));
+  }
+}
 
-    // Mock agent: acknowledge the answered field, then ask the next one.
-    const answered = Math.min(state.askedIndex + 1, BRIEF_FIELDS.length);
-    state.askedIndex = answered;
-    state.brief.completionPercent = Math.round(
-      (answered / BRIEF_FIELDS.length) * 100,
+export async function updateBrief(
+  projectId: string,
+  fields: BriefFieldValues,
+): Promise<Brief> {
+  try {
+    const payload = {
+      ...fields,
+      suggestedTeamSize: toOptionalInteger(fields.suggestedTeamSize),
+      experienceMinYears: toOptionalInteger(fields.experienceMinYears),
+    };
+    const { data } = await api.patch<BackendBrief>(
+      API_ENDPOINTS.projects.brief(projectId),
+      payload,
     );
-    state.brief.missingFields = BRIEF_FIELDS.slice(answered);
-    state.brief.summary = `Captured ${answered} of ${BRIEF_FIELDS.length} requirement areas.`;
 
-    const nextField = BRIEF_FIELDS[answered];
-    const reply = nextField
-      ? `Got it. Next: tell me about the "${nextField.toLowerCase()}".`
-      : "Thanks — I have everything I need. Your brief is complete and ready for review.";
+    return toBrief(data);
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, "Could not update brief"));
+  }
+}
 
-    if (!nextField) state.brief.isComplete = true;
+export async function reopenBriefAiHelp(
+  projectId: string,
+): Promise<{ messages: BriefMessage[]; brief: Brief }> {
+  try {
+    const { data } = await api.post<BackendReopenBriefResponse>(
+      API_ENDPOINTS.projects.briefReopen(projectId),
+    );
 
-    state.messages.push({
-      id: `msg-${++seq}`,
-      briefId,
-      senderType: "agent",
-      message: reply,
-      createdAt: new Date().toISOString(),
-    });
+    return {
+      messages: data.messages.map(toBriefMessage),
+      brief: toBrief(data.brief),
+    };
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, "Could not reopen AI help"));
+  }
+}
 
-    return { messages: [...state.messages], brief: { ...state.brief } };
+export async function confirmBrief(projectId: string): Promise<Brief> {
+  try {
+    const { data } = await api.post<BackendBrief>(
+      API_ENDPOINTS.projects.briefConfirm(projectId),
+    );
+
+    return toBrief(data);
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, "Could not confirm brief"));
   }
 }

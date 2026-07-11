@@ -18,13 +18,15 @@ export function ProtectedRoute({ role, children }: ProtectedRouteProps) {
     if (loading) return;
     if (!user) {
       router.replace("/login");
+    } else if (!user.isEmailVerified) {
+      router.replace("/email-not-verified");
     } else if (user.role !== role) {
       router.replace(DASHBOARD_BY_ROLE[user.role as UserRole]);
 
     }
   }, [loading, user, role, router]);
 
-  if (loading || !user || user.role !== role) {
+  if (loading || !user || !user.isEmailVerified || user.role !== role) {
     return (
       <div className="flex min-h-screen flex-1 items-center justify-center text-sm text-on-surface-variant">
         Loading…

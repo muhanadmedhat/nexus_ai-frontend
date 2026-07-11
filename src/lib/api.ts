@@ -2,7 +2,6 @@ import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
 import {
   clearAuthTokens,
   getAccessToken,
-  getRefreshToken,
   setAuthTokens,
 } from "./auth-tokens";
 
@@ -25,41 +24,37 @@ export const API_ENDPOINTS = {
   },
   users: {
     me: "/users/me",
-    profileImage: "/users/profile-image",
-    freelancerCv: "/users/freelancer-cv",
   },
-  freelancers: {
-    me: "/freelancers/me",
+  uploads: {
+    profileImage: "/uploads/profile-image",
+    freelancerCv: "/uploads/freelancer-cv",
   },
   projects: {
     base: "/projects",
     detail: (id: string) => `/projects/${id}`,
+    brief: (projectId: string) => `/projects/${projectId}/brief`,
+    briefMessages: (projectId: string) => `/projects/${projectId}/brief/messages`,
+    briefReopen: (projectId: string) => `/projects/${projectId}/brief/reopen`,
+    briefConfirm: (projectId: string) => `/projects/${projectId}/brief/confirm`,
+  },
+  freelancers: {
+    me: "/freelancers/me",
   },
   admin: {
     users: "/admin/users",
     projects: "/admin/projects",
     stats: "/admin/stats",
   },
-  freelancerVerification: {
-    me: "/freelancer-verification/me",
-  },
-  freelancerAssessments: {
-    start: "/freelancer-assessments/start",
-    current: "/freelancer-assessments/current",
-    answers: (id: string) => `/freelancer-assessments/${id}/answers`,
-    submit: (id: string) => `/freelancer-assessments/${id}/submit`,
-    events: (id: string) => `/freelancer-assessments/${id}/events`,
-  },
-  notifications: {
-    base: "/notifications",
-    markRead: (id: string) => `/notifications/${id}/read`,
-    markAllRead: "/notifications/read-all",
+  ai: {
+    extractCv: "/ai/extract-cv",
+    validateBrief: "/ai/validate-brief",
+    generateAssessment: "/ai/generate-assessment",
+    gradeAssessment: "/ai/grade-assessment",
   },
 } as const;
 
 interface TokenResponse {
   accessToken: string;
-  refreshToken: string;
 }
 
 interface ApiErrorResponse {
@@ -73,6 +68,7 @@ interface RetryableRequestConfig extends InternalAxiosRequestConfig {
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true,
 });
 
 export function getApiErrorMessage(error: unknown, fallback: string) {
@@ -81,6 +77,7 @@ export function getApiErrorMessage(error: unknown, fallback: string) {
     if (Array.isArray(message)) return message.join(", ");
     if (message) return message;
     if (error.response?.data?.error) return error.response.data.error;
+    if (error.response) return fallback;
   }
 
   return error instanceof Error ? error.message : fallback;
@@ -104,24 +101,17 @@ api.interceptors.response.use(
       throw error;
     }
 
-    const refreshToken = getRefreshToken();
-    if (!refreshToken) {
-      clearAuthTokens();
-      throw error;
-    }
-
     originalRequest._retry = true;
 
     try {
       const { data } = await axios.post<TokenResponse>(
         API_ENDPOINTS.auth.refresh,
-        { refreshToken },
-        { baseURL: API_BASE_URL },
+        null,
+        { baseURL: API_BASE_URL, withCredentials: true },
       );
 
       setAuthTokens({
         accessToken: data.accessToken,
-        refreshToken: data.refreshToken,
       });
 
       return api(originalRequest);
