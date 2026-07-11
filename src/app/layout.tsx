@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Manrope, Hanken_Grotesk } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/providers/auth-provider";
+import { ToastProvider } from "@/components/ui/toast";
 
 const manrope = Manrope({
   variable: "--font-manrope",
@@ -31,7 +32,9 @@ export default function RootLayout({
       className={`${manrope.variable} ${hanken.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-surface text-on-surface">
-        <AuthProvider>{children}</AuthProvider>
+        <ToastProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </ToastProvider>
       </body>
     </html>
   );

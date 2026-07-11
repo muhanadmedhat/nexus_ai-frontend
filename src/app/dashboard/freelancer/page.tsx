@@ -1,8 +1,10 @@
 "use client";
 
-import { Briefcase, Clock, Star, DollarSign, AlertCircle } from "lucide-react";
+import Link from "next/link";
+import { Briefcase, Clock, Star, DollarSign, AlertCircle, UserRound } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { StatsCard } from "@/components/ui/stats-card";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 
 export default function FreelancerDashboardPage() {
@@ -21,31 +23,25 @@ export default function FreelancerDashboardPage() {
       title="Freelancer Dashboard"
       subtitle="Manage your profile, matched tasks, and submissions."
     >
-      {/* Welcome Text */}
-      <div className="mb-4">
-        <h2 className="text-3xl md:text-4xl font-headline font-bold text-on-surface">
-          Welcome back, {user?.firstName} {user?.lastName}!
-        </h2>
-        <p className="mt-1 text-lg text-on-surface-variant">
-          You're ready to take on new challenges.
-        </p>
-      </div>
+      <section className="mb-6 rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 card-shadow sm:p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0">
+            <h2 className="font-headline text-2xl font-bold text-on-surface sm:text-3xl">
+              Welcome back, {user?.firstName || "there"}.
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-on-surface-variant">
+              Keep your profile ready so the matching flow can recommend the right project work.
+            </p>
+          </div>
+          <Link href="/profile" className="shrink-0">
+            <Button variant="outline" className="w-full px-5 py-2.5 sm:w-auto">
+              <UserRound size={18} />
+              Update profile
+            </Button>
+          </Link>
+        </div>
+      </section>
 
-      {/* Video Banner – fills container, centered, no black bars */}
-      <div className="relative mb-8 overflow-hidden rounded-xl h-64 lg:h-80 bg-black">
-        <video
-          autoPlay
-          loop
-          muted
-          playsInline
-          className="absolute inset-0 w-full h-full object-cover object-center"
-        >
-          <source src="/freelancer-dashboard1.mp4" type="video/mp4" />
-          Your browser does not support the video tag.
-        </video>
-      </div>
-
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatsCard label="Active Tasks" value={stats.activeTasks} icon={<Briefcase size={20} />} />
         <StatsCard label="Pending Submissions" value={stats.pendingSubmissions} icon={<Clock size={20} />} />

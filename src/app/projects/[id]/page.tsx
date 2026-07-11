@@ -2,25 +2,32 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { ArrowLeft, MessageSquare, CalendarClock, Wallet, Sparkles } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { ArrowLeft, MessageSquare, CalendarClock, Wallet, Sparkles, Trash2 } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/hooks/use-auth";
-import { getProject } from "@/services/projects";
+import { deleteProject, getProject } from "@/services/projects";
 import { getBrief } from "@/services/brief";
-import type { Brief, Project } from "@/types/project";
+import { PROJECT_DELETION_BLOCKED_STATUSES, type Brief, type Project } from "@/types/project";
 import { formatBudget, formatDate } from "@/utils/format";
 
 export default function ProjectDetailsPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const { user } = useAuth();
+  const toast = useToast();
   const role = (user?.role || "customer") as "customer" | "freelancer" | "admin";
 
   const [project, setProject] = useState<Project | null>(null);
   const [brief, setBrief] = useState<Brief | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -29,8 +36,26 @@ export default function ProjectDetailsPage() {
         setProject(p);
         setBrief(b);
       })
+      .catch((err) => setLoadError(err instanceof Error ? err.message : "Could not load project"))
       .finally(() => setLoading(false));
   }, [id]);
+
+  const handleDeleteProject = async () => {
+    if (!project || PROJECT_DELETION_BLOCKED_STATUSES.includes(project.status)) return;
+
+    setDeleting(true);
+    try {
+      await deleteProject(project.id);
+      toast.success("Project deleted", `${project.title} was removed.`);
+      router.replace("/projects");
+    } catch (error) {
+      toast.error(
+        "Could not delete project",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+      setDeleting(false);
+    }
+  };
 
   return (
     <DashboardShell role={role} title="Project details" subtitle="Overview, budget, and next steps.">
@@ -43,6 +68,11 @@ export default function ProjectDetailsPage() {
 
       {loading ? (
         <p className="text-sm text-on-surface-variant">Loading…</p>
+      ) : loadError ? (
+        <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-12 text-center card-shadow">
+          <h3 className="text-lg font-semibold text-on-surface">Could not load project</h3>
+          <p className="mt-1 text-sm text-error">{loadError}</p>
+        </div>
       ) : !project ? (
         <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-12 text-center card-shadow">
           <h3 className="text-lg font-semibold text-on-surface">Project not found</h3>
@@ -137,7 +167,44 @@ export default function ProjectDetailsPage() {
                 </Button>
               </Link>
             </div>
+
+            {(role === "customer" || role === "admin") && (
+              <div className="rounded-xl border border-error/20 bg-surface-container-lowest p-6 card-shadow">
+                <h3 className="font-headline text-base font-semibold text-on-surface">Delete project</h3>
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  Remove this project while it is still unassigned.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsDeleteDialogOpen(true)}
+                  loading={deleting}
+                  disabled={PROJECT_DELETION_BLOCKED_STATUSES.includes(project.status)}
+                  className="mt-4 inline-flex items-center justify-center border-error/30 px-4 py-2.5 text-error hover:bg-error/5"
+                >
+                  <Trash2 size={18} className="mr-2" />
+                  Delete project
+                </Button>
+                {PROJECT_DELETION_BLOCKED_STATUSES.includes(project.status) && (
+                  <p className="mt-2 text-xs text-on-surface-variant">
+                    Projects cannot be deleted after they are assigned to freelancers.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
+          <ConfirmDialog
+            open={isDeleteDialogOpen}
+            title="Delete project?"
+            description={`This will remove "${project.title}" from your projects.`}
+            confirmLabel="Delete project"
+            loading={deleting}
+            danger
+            onCancel={() => {
+              if (!deleting) setIsDeleteDialogOpen(false);
+            }}
+            onConfirm={handleDeleteProject}
+          />
         </div>
       )}
     </DashboardShell>

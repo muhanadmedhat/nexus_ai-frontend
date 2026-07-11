@@ -3,7 +3,6 @@ import { API_ENDPOINTS, api, getApiErrorMessage } from "@/lib/api";
 import {
   clearAuthTokens,
   getAccessToken,
-  getRefreshToken,
   setAuthTokens,
 } from "@/lib/auth-tokens";
 import type { AuthUser, RegisterInput } from "@/types/auth";
@@ -17,11 +16,15 @@ interface BackendUser {
   role: AuthUser["role"];
   photoUrl: string | null;
   isEmailVerified: boolean;
+  cvUrl?: string | null;
 }
 
 interface TokenResponse {
   accessToken: string;
-  refreshToken: string;
+}
+
+interface AuthExchangeResponse extends TokenResponse {
+  isProfileComplete: boolean;
 }
 
 interface MeResponse {
@@ -38,7 +41,14 @@ function toAuthUser(row: BackendUser): AuthUser {
     role: row.role,
     photoUrl: row.photoUrl,
     isEmailVerified: row.isEmailVerified ?? false,
+    cvUrl: row.cvUrl ?? null,
   };
+}
+
+export async function refreshAccessToken(): Promise<string> {
+  const { data } = await api.post<TokenResponse>(API_ENDPOINTS.auth.refresh);
+  setAuthTokens({ accessToken: data.accessToken });
+  return data.accessToken;
 }
 
 export async function signIn(email: string, password: string) {
@@ -50,7 +60,6 @@ export async function signIn(email: string, password: string) {
 
     setAuthTokens({
       accessToken: data.accessToken,
-      refreshToken: data.refreshToken,
     });
   } catch (error) {
     throw new Error(getApiErrorMessage(error, "Invalid email or password"));
@@ -59,11 +68,10 @@ export async function signIn(email: string, password: string) {
 
 export async function signOut() {
   const accessToken = getAccessToken();
-  const refreshToken = getRefreshToken();
 
   try {
-    if (accessToken && refreshToken) {
-      await api.post(API_ENDPOINTS.auth.logout, { refreshToken });
+    if (accessToken) {
+      await api.post(API_ENDPOINTS.auth.logout);
     }
   } finally {
     clearAuthTokens();
@@ -76,15 +84,72 @@ export async function signUp(input: RegisterInput): Promise<void> {
 
     setAuthTokens({
       accessToken: data.accessToken,
-      refreshToken: data.refreshToken,
     });
   } catch (error) {
     throw new Error(getApiErrorMessage(error, "Registration failed"));
   }
 }
 
+export async function exchangeAuthCode(code: string): Promise<AuthExchangeResponse> {
+  try {
+    const { data } = await api.post<AuthExchangeResponse>(API_ENDPOINTS.auth.exchange, {
+      code,
+    });
+
+    setAuthTokens({ accessToken: data.accessToken });
+    return data;
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, "Could not complete Google sign in"));
+  }
+}
+
+export async function completeProfile(input: {
+  firstName?: string;
+  lastName?: string;
+  phoneNumber: string;
+  role: Exclude<AuthUser["role"], "admin">;
+}): Promise<AuthUser> {
+  try {
+    const { data } = await api.post<TokenResponse & { user: BackendUser }>(
+      API_ENDPOINTS.auth.completeProfile,
+      input,
+    );
+
+    setAuthTokens({ accessToken: data.accessToken });
+    return toAuthUser(data.user);
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, "Could not complete profile"));
+  }
+}
+
+export async function resendVerificationEmail(): Promise<void> {
+  try {
+    await api.post(API_ENDPOINTS.auth.resendVerification);
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, "Could not send verification code"));
+  }
+}
+
+export async function verifyEmail(code: string): Promise<void> {
+  try {
+    const { data } = await api.post<TokenResponse>(API_ENDPOINTS.auth.verifyEmail, {
+      code,
+    });
+    setAuthTokens({ accessToken: data.accessToken });
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, "Could not verify email"));
+  }
+}
+
 export async function getMe(): Promise<AuthUser | null> {
-  if (!getAccessToken()) return null;
+  if (!getAccessToken()) {
+    try {
+      await refreshAccessToken();
+    } catch {
+      clearAuthTokens();
+      return null;
+    }
+  }
 
   try {
     const { data } = await api.get<MeResponse>(API_ENDPOINTS.users.me);

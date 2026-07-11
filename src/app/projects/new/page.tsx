@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -11,6 +10,7 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { createProject } from "@/services/projects";
+import { useToast } from "@/components/ui/toast";
 
 const schema = z
   .object({
@@ -31,7 +31,7 @@ type FormValues = z.infer<typeof schema>;
 
 export default function NewProjectPage() {
   const router = useRouter();
-  const [formError, setFormError] = useState<string | null>(null);
+  const toast = useToast();
 
   const {
     register,
@@ -43,12 +43,15 @@ export default function NewProjectPage() {
   });
 
   const onSubmit = async (values: FormValues) => {
-    setFormError(null);
     try {
       const project = await createProject(values);
+      toast.success("Project created", "You can now shape the requirements brief.");
       router.replace(`/projects/${project.id}`);
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Could not create project");
+      toast.error(
+        "Could not create project",
+        err instanceof Error ? err.message : "Please check the form and try again.",
+      );
     }
   };
 
@@ -134,9 +137,6 @@ export default function NewProjectPage() {
           />
           Deadline is flexible
         </label>
-
-        {formError && <p className="text-sm text-error">{formError}</p>}
-
         <div className="flex gap-3">
           <Button type="submit" loading={isSubmitting} className="inline-flex w-auto px-6">
             Create project

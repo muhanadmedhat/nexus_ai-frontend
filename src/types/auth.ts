@@ -11,6 +11,7 @@ export interface AuthUser {
   role: UserRole;
   photoUrl: string | null;
   isEmailVerified: boolean;
+  cvUrl: string | null;
 }
 
 export interface RegisterInput {
