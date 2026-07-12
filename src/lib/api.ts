@@ -55,6 +55,14 @@ export const API_ENDPOINTS = {
     users: "/admin/users",
     projects: "/admin/projects",
     stats: "/admin/stats",
+    freelancers: "/admin/freelancers",
+    freelancerDetail: (id: string) => `/admin/freelancers/${id}`,
+    freelancerVerification: (id: string) => `/admin/freelancers/${id}/verification`,
+    agentsOverview: "/admin/agents/overview",
+    agentJobs: "/admin/agent-jobs",
+    agentJobDetail: (id: string) => `/admin/agent-jobs/${id}`,
+    assessmentDetail: (id: string) => `/admin/assessments/${id}`,
+    assessmentReview: (id: string) => `/admin/assessments/${id}/review`,
   },
   ai: {
     extractCv: "/ai/extract-cv",
@@ -62,6 +70,12 @@ export const API_ENDPOINTS = {
     generateAssessment: "/ai/generate-assessment",
     gradeAssessment: "/ai/grade-assessment",
   },
+  notifications: {
+    base: "/notifications",
+    markRead: (id: string) => `/notifications/${id}/read`,
+    markAllRead: "/notifications/read-all",
+  },
+
 } as const;
 
 interface TokenResponse {
