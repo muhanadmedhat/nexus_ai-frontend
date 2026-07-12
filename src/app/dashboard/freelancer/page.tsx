@@ -1,14 +1,40 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Briefcase, Clock, Star, DollarSign, AlertCircle, UserRound } from "lucide-react";
+import { Briefcase, Clock, Star, DollarSign, AlertCircle, UserRound, ShieldCheck, X, Check } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { StatsCard } from "@/components/ui/stats-card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
+import { getVerification, type Verification } from "@/services/assessments";
 
 export default function FreelancerDashboardPage() {
   const { user } = useAuth();
+  const [verification, setVerification] = useState<Verification | null>(null);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+
+  useEffect(() => {
+    const dismissed =
+      typeof window !== "undefined" &&
+      sessionStorage.getItem("verificationBannerDismissed") === "1";
+    getVerification()
+      .then((v) => {
+        setVerification(v);
+        if (dismissed) setBannerDismissed(true);
+      })
+      .catch(() => {});
+  }, []);
+
+  function dismissBanner() {
+    setBannerDismissed(true);
+    sessionStorage.setItem("verificationBannerDismissed", "1");
+  }
+
+  const showVerificationBanner =
+    !bannerDismissed &&
+    verification !== null &&
+    verification.verificationStatus !== "approved";
 
   const stats = {
     activeTasks: 0,
@@ -23,6 +49,33 @@ export default function FreelancerDashboardPage() {
       title="Freelancer Dashboard"
       subtitle="Manage your profile, matched tasks, and submissions."
     >
+      {showVerificationBanner ? (
+        <div className="mb-6 flex items-start gap-3 rounded-xl border border-secondary-container/40 bg-secondary-container/20 p-4 card-shadow">
+          <ShieldCheck size={20} className="mt-0.5 shrink-0 text-secondary" />
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-on-surface">Finish your verification</p>
+            <p className="text-sm text-on-surface-variant">
+              Complete the remaining steps to get verified and start getting matched to work.
+            </p>
+            <Link
+              href="/freelancer/verification"
+              className="mt-1 inline-flex items-center gap-1 text-sm font-semibold text-primary-container hover:underline"
+            >
+              Go to verification
+              <Check size={16} />
+            </Link>
+          </div>
+          <button
+            type="button"
+            onClick={dismissBanner}
+            aria-label="Dismiss"
+            className="shrink-0 rounded-md p-1 text-on-surface-variant transition-colors hover:bg-surface-container-high"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      ) : null}
+
       <section className="mb-6 rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 card-shadow sm:p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="min-w-0">

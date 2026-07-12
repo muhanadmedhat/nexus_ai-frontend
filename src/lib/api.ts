@@ -40,6 +40,9 @@ export const API_ENDPOINTS = {
   freelancers: {
     me: "/freelancers/me",
   },
+  freelancerVerification: {
+    me: "/freelancer-verification/me",
+  },
   admin: {
     users: "/admin/users",
     projects: "/admin/projects",
