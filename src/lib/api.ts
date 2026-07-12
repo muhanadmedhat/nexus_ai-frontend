@@ -5,8 +5,7 @@ import {
   setAuthTokens,
 } from "./auth-tokens";
 
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
+export const API_BASE_URL = "http://localhost:3001/api";
 
 export const API_ENDPOINTS = {
   health: "/health",
@@ -75,7 +74,6 @@ export const API_ENDPOINTS = {
     markRead: (id: string) => `/notifications/${id}/read`,
     markAllRead: "/notifications/read-all",
   },
-
 } as const;
 
 interface TokenResponse {
@@ -85,10 +83,6 @@ interface TokenResponse {
 interface ApiErrorResponse {
   message?: string | string[];
   error?: string;
-}
-
-interface RetryableRequestConfig extends InternalAxiosRequestConfig {
-  _retry?: boolean;
 }
 
 export const api = axios.create({
@@ -117,32 +111,14 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Disable refresh interceptor – for now, just throw the error on 401
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config as RetryableRequestConfig | undefined;
-
-    if (error.response?.status !== 401 || !originalRequest || originalRequest._retry) {
-      throw error;
-    }
-
-    originalRequest._retry = true;
-
-    try {
-      const { data } = await axios.post<TokenResponse>(
-        API_ENDPOINTS.auth.refresh,
-        null,
-        { baseURL: API_BASE_URL, withCredentials: true },
-      );
-
-      setAuthTokens({
-        accessToken: data.accessToken,
-      });
-
-      return api(originalRequest);
-    } catch (refreshError) {
+    // If 401, clear tokens and reject the error; the user will need to log in again
+    if (error.response?.status === 401) {
       clearAuthTokens();
-      throw refreshError;
     }
+    throw error;
   },
 );
