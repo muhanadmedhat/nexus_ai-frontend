@@ -23,7 +23,7 @@ import type {
 
 const AUTOSAVE_DELAY_MS = 700;
 
-type SaveStatus = "idle" | "saving" | "saved" | "error";
+type SaveStatus = "idle" | "saving" | "saved" | "error" | "offline";
 
 function answerText(a: AssessmentAnswerValue | undefined): string {
   return a && "value" in a && typeof a.value === "string" ? a.value : "";
@@ -103,6 +103,10 @@ export default function ExamPage() {
     const id = idRef.current;
     const payload = toPayload(answersRef.current);
     if (!id || payload.length === 0) return;
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setSaveStatus("offline");
+      return;
+    }
     setSaveStatus("saving");
     try {
       await saveAnswers(id, payload, true);
@@ -178,6 +182,18 @@ export default function ExamPage() {
     };
   }, [logEvent]);
 
+  // ---- autosave "Offline" state + retry when the connection returns ----
+  useEffect(() => {
+    const onOffline = () => setSaveStatus("offline");
+    const onOnline = () => void persist();
+    window.addEventListener("offline", onOffline);
+    window.addEventListener("online", onOnline);
+    return () => {
+      window.removeEventListener("offline", onOffline);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [persist]);
+
   function setAnswer(questionId: string, value: AssessmentAnswerValue, immediate = false) {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -237,6 +253,11 @@ export default function ExamPage() {
             {answeredCount}/{questions.length} answered
           </span>
           <SaveIndicator status={saveStatus} />
+          {warnings > 0 ? (
+            <span className="inline-flex items-center gap-1 rounded-lg bg-error/10 px-2 py-1 text-xs font-medium text-error">
+              <AlertCircle size={13} /> {warnings}
+            </span>
+          ) : null}
         </div>
         <Button onClick={openSubmit} className="w-auto px-4 py-2">
           <Send size={16} /> Submit
@@ -255,7 +276,7 @@ export default function ExamPage() {
         </div>
       ) : null}
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-4 flex gap-2 overflow-x-auto pb-2">
         {questions.map((item, i) => {
           const answered = isAnswered(answers[item.id]);
           return (
@@ -264,7 +285,7 @@ export default function ExamPage() {
               onClick={() => goTo(i)}
               aria-label={`Question ${i + 1}${answered ? " (answered)" : ""}`}
               className={clsx(
-                "flex h-9 w-9 items-center justify-center rounded-lg border text-sm font-medium transition-colors",
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-sm font-medium transition-colors",
                 i === current
                   ? "border-primary-container bg-primary-container text-on-primary"
                   : answered
@@ -369,6 +390,7 @@ function SaveIndicator({ status }: { status: SaveStatus }) {
     saving: { text: "Saving…", cls: "text-on-surface-variant" },
     saved: { text: "Saved", cls: "text-primary-container" },
     error: { text: "Couldn't save", cls: "text-error" },
+    offline: { text: "Offline", cls: "text-secondary" },
   } as const;
   const s = map[status];
   return (
