@@ -45,6 +45,11 @@ export const API_ENDPOINTS = {
   },
   freelancerAssessments: {
     start: "/freelancer-assessments/start",
+    current: "/freelancer-assessments/current",
+    detail: (id: string) => `/freelancer-assessments/${id}`,
+    answers: (id: string) => `/freelancer-assessments/${id}/answers`,
+    submit: (id: string) => `/freelancer-assessments/${id}/submit`,
+    events: (id: string) => `/freelancer-assessments/${id}/events`,
   },
   admin: {
     users: "/admin/users",
