@@ -1,12 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Menu, Bell, Search, LogOut, User, Settings, HelpCircle, ChevronDown } from "lucide-react";
+import { Menu, Search, LogOut, User, Settings, HelpCircle, ChevronDown } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { listNotifications } from "@/services/notifications";
-import type { Notification } from "@/types/project";
-import { clsx } from "clsx";
+import { NotificationDropdown } from "@/components/ui/notification-dropdown";
 
 interface TopbarProps {
   title: string;
@@ -18,26 +16,6 @@ export function Topbar({ title, subtitle, onMenuClick }: TopbarProps) {
   const router = useRouter();
   const { user, logout } = useAuth();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-
-  useEffect(() => {
-    let active = true;
-
-    listNotifications()
-      .then((items) => {
-        if (active) setNotifications(items);
-      })
-      .catch(() => {
-        if (active) setNotifications([]);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const unread = notifications.filter((n) => !n.isRead).length;
 
   const handleLogout = async () => {
     await logout();
@@ -78,54 +56,8 @@ export function Topbar({ title, subtitle, onMenuClick }: TopbarProps) {
           </kbd>
         </div>
 
-        {/* Notifications */}
-        <div className="relative">
-          <button
-            onClick={() => setIsNotifOpen((v) => !v)}
-            className="relative rounded-lg p-2 text-on-surface-variant hover:bg-surface-container-low"
-            aria-label="Notifications"
-          >
-            <Bell size={20} />
-            {unread > 0 && (
-              <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary-container px-1 text-[10px] font-semibold text-on-primary">
-                {unread}
-              </span>
-            )}
-          </button>
-
-          {isNotifOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setIsNotifOpen(false)} />
-              <div className="absolute right-0 top-full z-50 mt-2 w-[min(calc(100vw-1.5rem),20rem)] rounded-xl border border-outline-variant/30 bg-surface-container-lowest py-1.5 shadow-lg">
-                <div className="border-b border-outline-variant/30 px-4 py-2.5">
-                  <p className="text-sm font-semibold text-on-surface">Notifications</p>
-                </div>
-                {notifications.length === 0 ? (
-                  <p className="px-4 py-6 text-center text-sm text-on-surface-variant">
-                    You&apos;re all caught up.
-                  </p>
-                ) : (
-                  <div className="max-h-80 overflow-y-auto">
-                    {notifications.map((n) => (
-                      <div
-                        key={n.id}
-                        className={clsx(
-                          "border-b border-outline-variant/20 px-4 py-3 last:border-0",
-                          !n.isRead && "bg-primary-container/[0.04]",
-                        )}
-                      >
-                        <p className="text-sm font-medium text-on-surface">{n.title}</p>
-                        {n.body && (
-                          <p className="mt-0.5 text-xs text-on-surface-variant">{n.body}</p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
+        {/* Notification Dropdown */}
+        <NotificationDropdown />
 
         {/* User menu */}
         <div className="relative">
@@ -150,10 +82,7 @@ export function Topbar({ title, subtitle, onMenuClick }: TopbarProps) {
 
           {isDropdownOpen && (
             <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setIsDropdownOpen(false)}
-              />
+              <div className="fixed inset-0 z-40" onClick={() => setIsDropdownOpen(false)} />
               <div className="absolute right-0 top-full z-50 mt-2 w-52 rounded-xl border border-outline-variant/30 bg-surface-container-lowest py-1.5 shadow-lg">
                 <button
                   onClick={() => {

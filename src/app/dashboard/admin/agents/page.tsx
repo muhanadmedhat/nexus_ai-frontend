@@ -1,0 +1,329 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { Button } from "@/components/ui/button";
+import {
+  getAgentOverview,
+  getAgentJobs,
+  type AgentHealth,
+  type AgentJob,
+} from "@/services/admin";
+import {
+  CheckCircle,
+  AlertCircle,
+  XCircle,
+  Loader2,
+  Eye,
+  RefreshCw,
+} from "lucide-react";
+
+const statusColorMap: Record<string, string> = {
+  healthy:
+    "text-green-600 bg-green-100 dark:bg-green-900/30 dark:text-green-400",
+  degraded:
+    "text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400",
+  failing:
+    "text-red-600 bg-red-100 dark:bg-red-900/30 dark:text-red-400",
+};
+
+const jobStatusColor: Record<string, string> = {
+  queued:
+    "bg-gray-100 text-gray-800 dark:bg-gray-800/30 dark:text-gray-400",
+  running:
+    "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
+  completed:
+    "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+  failed:
+    "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+  cancelled:
+    "bg-gray-200 text-gray-600 dark:bg-gray-700/30 dark:text-gray-400",
+};
+
+export default function AdminAgentsPage() {
+  const [overview, setOverview] = useState<AgentHealth[]>([]);
+  const [totals, setTotals] = useState({
+    queued: 0,
+    running: 0,
+    completedToday: 0,
+    failedToday: 0,
+  });
+  const [jobs, setJobs] = useState<AgentJob[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalJobs, setTotalJobs] = useState(0);
+  const [statusFilter, setStatusFilter] = useState<string>("");
+  const limit = 20;
+
+  const loadData = async () => {
+    try {
+      const overviewData = await getAgentOverview();
+      setOverview(overviewData.agents);
+      setTotals(overviewData.totals);
+
+      const jobsData = await getAgentJobs({
+        status: statusFilter || undefined,
+        page,
+        limit,
+      });
+      setJobs(jobsData.data);
+      setTotalJobs(jobsData.total);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load agent data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [page, statusFilter]);
+
+  const totalPages = Math.ceil(totalJobs / limit);
+
+  const getStatusIcon = (status: string) => {
+    if (status === "healthy")
+      return <CheckCircle className="h-4 w-4 text-green-600" />;
+    if (status === "degraded")
+      return <AlertCircle className="h-4 w-4 text-yellow-600" />;
+    return <XCircle className="h-4 w-4 text-red-600" />;
+  };
+
+  return (
+    <DashboardShell
+      role="admin"
+      title="Agent Overview"
+      subtitle="Monitor the health and performance of all AI agents."
+    >
+      {/* Totals */}
+      <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="rounded-lg border border-outline-variant/30 bg-surface-container-lowest p-4 text-center card-shadow">
+          <p className="text-sm text-on-surface-variant">Queued</p>
+          <p className="text-2xl font-bold text-on-surface">{totals.queued}</p>
+        </div>
+        <div className="rounded-lg border border-outline-variant/30 bg-surface-container-lowest p-4 text-center card-shadow">
+          <p className="text-sm text-on-surface-variant">Running</p>
+          <p className="text-2xl font-bold text-on-surface">{totals.running}</p>
+        </div>
+        <div className="rounded-lg border border-outline-variant/30 bg-surface-container-lowest p-4 text-center card-shadow">
+          <p className="text-sm text-on-surface-variant">Completed Today</p>
+          <p className="text-2xl font-bold text-green-600">{totals.completedToday}</p>
+        </div>
+        <div className="rounded-lg border border-outline-variant/30 bg-surface-container-lowest p-4 text-center card-shadow">
+          <p className="text-sm text-on-surface-variant">Failed Today</p>
+          <p className="text-2xl font-bold text-red-600">{totals.failedToday}</p>
+        </div>
+      </div>
+
+      {/* Agent Health Cards */}
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {overview.map((agent) => (
+          <div
+            key={agent.name}
+            className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-4 card-shadow"
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="font-semibold text-on-surface capitalize">
+                  {agent.name.replace("_", " ")}
+                </h3>
+                <div className="mt-1 flex items-center gap-2">
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${statusColorMap[agent.status]}`}
+                  >
+                    {getStatusIcon(agent.status)}
+                    {agent.status}
+                  </span>
+                </div>
+              </div>
+              <div className="text-right text-xs text-on-surface-variant">
+                <div>Queued: {agent.queued}</div>
+                <div>Running: {agent.running}</div>
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-1 text-xs text-on-surface-variant">
+              <div>
+                Completed today:{" "}
+                <span className="font-medium text-on-surface">
+                  {agent.completedToday}
+                </span>
+              </div>
+              <div>
+                Failed today:{" "}
+                <span className="font-medium text-red-600">
+                  {agent.failedToday}
+                </span>
+              </div>
+              <div>
+                Last success:{" "}
+                {agent.lastSuccessAt
+                  ? new Date(agent.lastSuccessAt).toLocaleTimeString()
+                  : "—"}
+              </div>
+              <div>
+                Last failure:{" "}
+                {agent.lastFailureAt
+                  ? new Date(agent.lastFailureAt).toLocaleTimeString()
+                  : "—"}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filter and Refresh */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => {
+              setStatusFilter("");
+              setPage(1);
+            }}
+            className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+              statusFilter === ""
+                ? "bg-primary-container text-on-primary-container"
+                : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high"
+            }`}
+          >
+            All
+          </button>
+          {["queued", "running", "completed", "failed"].map((s) => (
+            <button
+              key={s}
+              onClick={() => {
+                setStatusFilter(s);
+                setPage(1);
+              }}
+              className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                statusFilter === s
+                  ? "bg-primary-container text-on-primary-container"
+                  : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high"
+              }`}
+            >
+              {s.charAt(0).toUpperCase() + s.slice(1)}
+            </button>
+          ))}
+        </div>
+        <Button
+          variant="outline"
+          onClick={loadData}
+          className="inline-flex items-center gap-1 px-3 py-1.5 text-sm"
+        >
+          <RefreshCw size={14} />
+          Refresh
+        </Button>
+      </div>
+
+      {/* Jobs Table */}
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary-container" />
+        </div>
+      ) : error ? (
+        <div className="rounded-xl border border-error/30 bg-error-container/10 p-6 text-center text-error">
+          {error}
+        </div>
+      ) : jobs.length === 0 ? (
+        <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-12 text-center text-on-surface-variant">
+          No agent jobs found.
+        </div>
+      ) : (
+        <>
+          <div className="overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest card-shadow">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-surface-container-high">
+                <tr>
+                  <th className="px-4 py-3 font-medium text-on-surface-variant">
+                    Type
+                  </th>
+                  <th className="px-4 py-3 font-medium text-on-surface-variant">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 font-medium text-on-surface-variant">
+                    Attempts
+                  </th>
+                  <th className="px-4 py-3 font-medium text-on-surface-variant">
+                    Created
+                  </th>
+                  <th className="px-4 py-3 font-medium text-on-surface-variant text-right">
+                    Action
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {jobs.map((job) => (
+                  <tr
+                    key={job.id}
+                    className="border-t border-outline-variant/20 hover:bg-surface-container-low"
+                  >
+                    <td className="px-4 py-3 font-medium text-on-surface">
+                      {job.jobType}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
+                          jobStatusColor[job.status] ||
+                          "bg-surface-container-high text-on-surface-variant"
+                        }`}
+                      >
+                        {job.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-on-surface-variant">
+                      {job.attempts}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-on-surface-variant">
+                      {new Date(job.createdAt).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Link href={`/dashboard/admin/agent-jobs/${job.id}`}>
+                        <Button
+                          variant="outline"
+                          className="inline-flex items-center gap-1 px-3 py-1.5 text-sm"
+                        >
+                          <Eye size={14} />
+                          View
+                        </Button>
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="mt-4 flex items-center justify-between">
+              <span className="text-sm text-on-surface-variant">
+                Showing {jobs.length} of {totalJobs}
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="px-3 py-1.5 text-sm disabled:opacity-50"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  Previous
+                </Button>
+                <span className="flex items-center text-sm text-on-surface-variant">
+                  Page {page} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  className="px-3 py-1.5 text-sm disabled:opacity-50"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </DashboardShell>
+  );
+}

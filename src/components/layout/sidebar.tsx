@@ -13,6 +13,7 @@ import {
   Users,
   Briefcase,
   ClipboardCheck,
+  Cpu,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Logo } from "@/components/common/logo";
@@ -43,10 +44,13 @@ const NAV_ITEMS: Record<UserRole, NavItem[]> = {
   admin: [
     { label: "Dashboard", href: "/dashboard/admin", icon: <LayoutDashboard size={20} /> },
     { label: "Admin", href: "/admin", icon: <ShieldCheck size={20} /> },
+    { label: "Agents", href: "/dashboard/admin/agents", icon: <Cpu size={20} /> },
+    { label: "Assessments", href: "/dashboard/admin/assessments", icon: <ClipboardCheck size={20} /> },
     { label: "Agent Jobs", href: "/admin/agent-jobs", icon: <Briefcase size={20} /> },
     { label: "Reviews", href: "/admin/reviews", icon: <ClipboardCheck size={20} /> },
     { label: "Users", href: "/admin/users", icon: <Users size={20} /> },
   ],
+
 };
 
 interface SidebarProps {
@@ -59,7 +63,6 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
   const { user } = useAuth();
   const role = user?.role || "customer";
   const navItems = NAV_ITEMS[role as UserRole] || NAV_ITEMS.customer;
-
 
   return (
     <>
