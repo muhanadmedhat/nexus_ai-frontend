@@ -15,12 +15,8 @@ import {
 } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
-import {
-  getVerification,
-  getMySkills,
-  startAssessment,
-  type Verification,
-} from "@/services/assessments";
+import { getVerification, getMySkills, startAssessment } from "@/services/assessments";
+import type { VerificationChecklist } from "@/types/assessment";
 
 type Phase = "not_ready" | "ready" | "in_progress" | "submitted" | "done";
 
@@ -43,7 +39,7 @@ function phaseFor(status: string | undefined): Phase {
 
 export default function AssessmentLobbyPage() {
   const router = useRouter();
-  const [verification, setVerification] = useState<Verification | null>(null);
+  const [verification, setVerification] = useState<VerificationChecklist | null>(null);
   const [skills, setSkills] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

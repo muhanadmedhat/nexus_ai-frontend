@@ -17,11 +17,8 @@ import {
 import { clsx } from "clsx";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
-import {
-  getVerification,
-  type NextAction,
-  type Verification,
-} from "@/services/assessments";
+import { getVerification } from "@/services/assessments";
+import type { NextAction, VerificationChecklist } from "@/types/assessment";
 
 type RowState = "done" | "pending" | "action" | "blocked";
 
@@ -52,7 +49,7 @@ interface Row {
   action?: { label: string; href: string };
 }
 
-function buildRows(v: Verification): Row[] {
+function buildRows(v: VerificationChecklist): Row[] {
   const a = v.assessment;
   const submitted =
     Boolean(a?.submittedAt) ||
@@ -139,7 +136,7 @@ function humanize(value: string) {
 }
 
 export default function FreelancerVerificationPage() {
-  const [data, setData] = useState<Verification | null>(null);
+  const [data, setData] = useState<VerificationChecklist | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -160,7 +157,7 @@ export default function FreelancerVerificationPage() {
     load();
   };
 
-  const cta = data ? NEXT_ACTION_CTA[data.nextAction] : null;
+  const cta = data && data.nextAction ? NEXT_ACTION_CTA[data.nextAction] : null;
   const overallTone: RowState =
     data?.verificationStatus === "approved"
       ? "done"

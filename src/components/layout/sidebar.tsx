@@ -34,6 +34,7 @@ const NAV_ITEMS: Record<UserRole, NavItem[]> = {
   ],
   freelancer: [
     { label: "Dashboard", href: "/dashboard/freelancer", icon: <LayoutDashboard size={20} /> },
+    { label: "Verification", href: "/freelancer/verification", icon: <ShieldCheck size={20} /> },
     { label: "Projects", href: "/projects", icon: <FolderOpen size={20} /> },
     { label: "Tasks", href: "/tasks", icon: <CheckSquare size={20} /> },
     { label: "Messages", href: "/messages", icon: <MessageSquare size={20} /> },

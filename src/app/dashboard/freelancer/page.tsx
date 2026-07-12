@@ -7,11 +7,12 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { StatsCard } from "@/components/ui/stats-card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
-import { getVerification, type Verification } from "@/services/assessments";
+import { getVerification } from "@/services/assessments";
+import type { VerificationChecklist } from "@/types/assessment";
 
 export default function FreelancerDashboardPage() {
   const { user } = useAuth();
-  const [verification, setVerification] = useState<Verification | null>(null);
+  const [verification, setVerification] = useState<VerificationChecklist | null>(null);
   const [bannerDismissed, setBannerDismissed] = useState(false);
 
   useEffect(() => {
