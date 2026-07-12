@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, AlertCircle, Clock, Check, Send } from "lucide-react";
+import { Loader2, AlertCircle, Clock, Check, Send, Maximize2 } from "lucide-react";
 import { clsx } from "clsx";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
@@ -57,6 +57,7 @@ export default function ExamPage() {
   const [showWarning, setShowWarning] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const idRef = useRef<string | null>(null);
   const answersRef = useRef(answers);
@@ -163,8 +164,12 @@ export default function ExamPage() {
     const onFocus = () => logEvent("focus_returned");
     const onCopy = () => logEvent("copy_attempt");
     const onPaste = () => logEvent("paste_attempt");
-    const onFsChange = () =>
-      document.fullscreenElement ? logEvent("fullscreen_enter") : warn("fullscreen_exit");
+    const onFsChange = () => {
+      const fs = Boolean(document.fullscreenElement);
+      setIsFullscreen(fs);
+      if (fs) logEvent("fullscreen_enter");
+      else warn("fullscreen_exit");
+    };
 
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("blur", onBlur);
@@ -212,6 +217,10 @@ export default function ExamPage() {
     setConfirmOpen(true);
   }
 
+  function enterFullscreen() {
+    document.documentElement.requestFullscreen().catch(() => {});
+  }
+
   if (loading) {
     return (
       <DashboardShell role="freelancer" title="Assessment">
@@ -239,6 +248,25 @@ export default function ExamPage() {
 
   return (
     <DashboardShell role="freelancer" title="Skills assessment">
+      {!isFullscreen ? (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-background/95 p-6 text-center backdrop-blur-sm">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-container/15">
+            <Maximize2 size={26} className="text-primary-container" />
+          </div>
+          <div>
+            <h2 className="font-headline text-xl font-bold text-on-surface">
+              This assessment runs in fullscreen
+            </h2>
+            <p className="mx-auto mt-1 max-w-sm text-sm text-on-surface-variant">
+              Enter fullscreen to continue. Leaving fullscreen is recorded for reviewers.
+            </p>
+          </div>
+          <Button onClick={enterFullscreen} className="w-auto px-5 py-2.5">
+            <Maximize2 size={16} /> Enter fullscreen
+          </Button>
+        </div>
+      ) : null}
+
       <div className="sticky top-16 z-10 mb-4 flex items-center justify-between gap-3 rounded-xl border border-outline-variant/30 bg-surface-container-lowest px-4 py-3 card-shadow">
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <span
@@ -259,9 +287,13 @@ export default function ExamPage() {
             </span>
           ) : null}
         </div>
-        <Button onClick={openSubmit} className="w-auto px-4 py-2">
+        <button
+          type="button"
+          onClick={openSubmit}
+          className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-primary-container px-5 py-2.5 text-sm font-semibold text-on-primary shadow-sm transition-all hover:bg-primary active:scale-[0.98]"
+        >
           <Send size={16} /> Submit
-        </Button>
+        </button>
       </div>
 
       {showWarning ? (
