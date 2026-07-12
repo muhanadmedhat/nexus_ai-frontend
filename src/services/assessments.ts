@@ -114,3 +114,16 @@ export async function submitAssessment(
     throw new Error(getApiErrorMessage(error, "Could not submit the assessment"));
   }
 }
+
+// Skills for the "skills tested" panel come from the freelancer profile.
+// Returns [] on failure since skills are supplementary to the lobby.
+export async function getMySkills(): Promise<string[]> {
+  try {
+    const { data } = await api.get<{ status: string; profile: { skills: string[] | null } }>(
+      API_ENDPOINTS.freelancers.me,
+    );
+    return data.profile?.skills ?? [];
+  } catch {
+    return [];
+  }
+}
