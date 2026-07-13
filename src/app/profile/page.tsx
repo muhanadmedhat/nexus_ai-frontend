@@ -18,6 +18,7 @@ interface ProfileFormValues {
   firstName: string;
   lastName: string;
   phoneNumber: string;
+  cvUploaded?: boolean; // Hidden field to track CV upload
 }
 
 function isEgyptianPhoneNumber(value: string) {
@@ -48,22 +49,31 @@ export default function ProfilePage() {
     control,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors, isDirty, isSubmitting },
   } = useForm<ProfileFormValues>({
     defaultValues: {
       firstName: "",
       lastName: "",
       phoneNumber: "",
+      cvUploaded: false,
     },
   });
 
+  // Sync user.cvUrl to local state when it changes
   useEffect(() => {
     if (!user) return;
     reset({
       firstName: user.firstName,
       lastName: user.lastName,
       phoneNumber: user.phoneNumber ?? "",
+      cvUploaded: false,
     });
+
+    if (user.cvUrl) {
+      console.log('📄 [Profile] Syncing user.cvUrl to local state:', user.cvUrl);
+      setCvUrl(user.cvUrl);
+    }
   }, [reset, user]);
 
   const onSubmit = async (values: ProfileFormValues) => {
@@ -75,7 +85,7 @@ export default function ProfilePage() {
     try {
       await updateMe(nextValues);
       await refresh();
-      reset(nextValues);
+      reset({ ...nextValues, cvUploaded: false });
       toast.success("Profile updated");
     } catch (error) {
       toast.error(
@@ -139,7 +149,13 @@ export default function ProfilePage() {
     try {
       const { url } = await uploadCv(file);
       setCvUrl(url);
+      console.log('📤 [Profile] CV uploaded, URL:', url);
       await refresh();
+      console.log('🔄 [Profile] After refresh, user.cvUrl:', user?.cvUrl);
+      
+      // ✅ Mark the hidden field to enable the Save button (with shouldDirty)
+      setValue("cvUploaded", true, { shouldDirty: true });
+      
       setCvStatusMessage("CV uploaded successfully");
       toast.success("CV uploaded successfully");
     } catch (err) {
@@ -162,7 +178,6 @@ export default function ProfilePage() {
       subtitle="Manage your personal information and preferences."
     >
       <div className="flex flex-col items-center">
-        {/* Profile Card - Skew/3D effect */}
         <ProfileCard
           firstName={user?.firstName || ""}
           lastName={user?.lastName || ""}
@@ -175,7 +190,6 @@ export default function ProfilePage() {
           uploadError={uploadError}
         />
 
-        {/* Form card */}
         <div className="mt-12 w-full max-w-2xl">
           <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
             <h3 className="mb-4 font-headline text-lg font-semibold text-on-surface">
@@ -234,7 +248,7 @@ export default function ProfilePage() {
 
                   {/* CV Upload Card */}
                   <div className="relative overflow-hidden rounded-xl border border-primary-container/30 bg-primary-container/5 p-5 flex flex-col items-start gap-3 group min-h-[160px]">
-                    {/* Animated Person Icon – Layer 1 */}
+                    {/* SVG icons (unchanged) */}
                     <svg
                       className="absolute -bottom-1 -right-1 w-32 h-32 fill-surface-container-lowest stroke-primary-container/20 transition-transform duration-500 group-hover:scale-110 pointer-events-none"
                       xmlns="http://www.w3.org/2000/svg"
@@ -247,8 +261,6 @@ export default function ProfilePage() {
                         strokeWidth={5}
                       />
                     </svg>
-
-                    {/* Animated Person Icon – Layer 2 */}
                     <svg
                       className="absolute -bottom-2 -right-1 w-32 h-32 fill-surface-container-lowest stroke-primary-container/10 transition-transform duration-300 group-hover:scale-110 pointer-events-none"
                       xmlns="http://www.w3.org/2000/svg"
@@ -262,7 +274,6 @@ export default function ProfilePage() {
                       />
                     </svg>
 
-                    {/* Main content */}
                     <div className="relative z-10">
                       <span className="font-bold text-3xl text-primary-container">CV</span>
                       <p className="text-sm text-on-surface-variant">Upload your resume</p>
@@ -295,7 +306,6 @@ export default function ProfilePage() {
                       </svg>
                     </button>
 
-                    {/* File info */}
                     <div className="relative z-10 flex flex-wrap items-center gap-3 mt-1">
                       {cvFileName && (
                         <span className="rounded-full bg-surface-container-lowest/80 px-3 py-1 text-sm text-on-surface-variant">
@@ -343,6 +353,9 @@ export default function ProfilePage() {
                   />
                 </div>
               )}
+
+              {/* Hidden input */}
+              <input type="hidden" {...register("cvUploaded")} />
 
               <div className="flex justify-end pt-4">
                 <Button

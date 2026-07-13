@@ -58,6 +58,7 @@ export default function ExamPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
 
   const idRef = useRef<string | null>(null);
   const answersRef = useRef(answers);
@@ -136,6 +137,24 @@ export default function ExamPage() {
     [router],
   );
 
+  // Leaving the exam page submits it as-is, then continues to the target page.
+  async function leaveAndSubmit(href: string) {
+    const id = idRef.current;
+    if (id && !submittedRef.current) {
+      submittedRef.current = true;
+      setSubmitting(true);
+      try {
+        await submitAssessment(id, {
+          finalAnswers: toPayload(answersRef.current),
+          reason: "manual_submit",
+        });
+      } catch {
+        // answers are autosaved; leave regardless
+      }
+    }
+    router.push(href);
+  }
+
   // ---- timer (computed from server expiresAt), auto-submit at zero ----
   useEffect(() => {
     if (!assessment?.expiresAt) return;
@@ -198,6 +217,26 @@ export default function ExamPage() {
       window.removeEventListener("online", onOnline);
     };
   }, [persist]);
+
+  // ---- switching pages during the exam warns, then submits it as-is (no resume) ----
+  useEffect(() => {
+    if (!assessment) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (submittedRef.current) return;
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const anchor = (e.target as HTMLElement | null)?.closest?.("a[href]") as
+        | HTMLAnchorElement
+        | null;
+      if (!anchor) return;
+      const href = anchor.getAttribute("href") ?? "";
+      if (!href.startsWith("/") || href.startsWith("/freelancer/assessment/exam")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setPendingHref(href);
+    };
+    document.addEventListener("click", onDocClick, true);
+    return () => document.removeEventListener("click", onDocClick, true);
+  }, [assessment]);
 
   function setAnswer(questionId: string, value: AssessmentAnswerValue, immediate = false) {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
@@ -411,6 +450,20 @@ export default function ExamPage() {
         loading={submitting}
         onConfirm={() => void doSubmit("manual_submit")}
         onCancel={() => setConfirmOpen(false)}
+      />
+
+      <ConfirmDialog
+        open={pendingHref !== null}
+        title="Leave the assessment?"
+        description="If you leave this page, your assessment is submitted as-is — you can't come back to finish it."
+        confirmLabel="Leave & submit"
+        cancelLabel="Stay on the assessment"
+        danger
+        loading={submitting}
+        onConfirm={() => {
+          if (pendingHref) void leaveAndSubmit(pendingHref);
+        }}
+        onCancel={() => setPendingHref(null)}
       />
     </DashboardShell>
   );

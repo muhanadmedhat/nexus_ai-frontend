@@ -1,11 +1,8 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
-import {
-  clearAuthTokens,
-  getAccessToken,
-  setAuthTokens,
-} from "./auth-tokens";
+import { clearAuthTokens, getAccessToken, setAuthTokens } from "./auth-tokens";
 
-export const API_BASE_URL = "http://localhost:3001/api";
+export const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
 
 export const API_ENDPOINTS = {
   health: "/health",
@@ -32,7 +29,8 @@ export const API_ENDPOINTS = {
     base: "/projects",
     detail: (id: string) => `/projects/${id}`,
     brief: (projectId: string) => `/projects/${projectId}/brief`,
-    briefMessages: (projectId: string) => `/projects/${projectId}/brief/messages`,
+    briefMessages: (projectId: string) =>
+      `/projects/${projectId}/brief/messages`,
     briefReopen: (projectId: string) => `/projects/${projectId}/brief/reopen`,
     briefConfirm: (projectId: string) => `/projects/${projectId}/brief/confirm`,
   },
@@ -56,7 +54,8 @@ export const API_ENDPOINTS = {
     stats: "/admin/stats",
     freelancers: "/admin/freelancers",
     freelancerDetail: (id: string) => `/admin/freelancers/${id}`,
-    freelancerVerification: (id: string) => `/admin/freelancers/${id}/verification`,
+    freelancerVerification: (id: string) =>
+      `/admin/freelancers/${id}/verification`,
     agentsOverview: "/admin/agents/overview",
     agentJobs: "/admin/agent-jobs",
     agentJobDetail: (id: string) => `/admin/agent-jobs/${id}`,
@@ -85,6 +84,10 @@ interface ApiErrorResponse {
   error?: string;
 }
 
+interface RetryableRequestConfig extends InternalAxiosRequestConfig {
+  _retry?: boolean;
+}
+
 export const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
@@ -102,23 +105,61 @@ export function getApiErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
+// ===== INTERCEPTOR WITH DEBUG LOGS =====
 api.interceptors.request.use((config) => {
   const token = getAccessToken();
+  console.log("🔑 [Interceptor] Token from getAccessToken():", token);
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+    console.log(
+      "✅ [Interceptor] Authorization header set:",
+      config.headers.Authorization,
+    );
+  } else {
+    console.warn(
+      "⚠️ [Interceptor] No token found – request will be unauthenticated.",
+    );
   }
+
+  console.log(
+    "📤 [Interceptor] Request URL:",
+    (config.baseURL || "") + (config.url || ""),
+  );
 
   return config;
 });
 
-// Disable refresh interceptor – for now, just throw the error on 401
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    // If 401, clear tokens and reject the error; the user will need to log in again
-    if (error.response?.status === 401) {
-      clearAuthTokens();
+    const originalRequest = error.config as RetryableRequestConfig | undefined;
+
+    if (
+      error.response?.status !== 401 ||
+      !originalRequest ||
+      originalRequest._retry
+    ) {
+      throw error;
     }
-    throw error;
+
+    originalRequest._retry = true;
+
+    try {
+      const { data } = await axios.post<TokenResponse>(
+        API_ENDPOINTS.auth.refresh,
+        null,
+        { baseURL: API_BASE_URL, withCredentials: true },
+      );
+
+      setAuthTokens({
+        accessToken: data.accessToken,
+      });
+
+      return api(originalRequest);
+    } catch (refreshError) {
+      clearAuthTokens();
+      throw refreshError;
+    }
   },
 );
