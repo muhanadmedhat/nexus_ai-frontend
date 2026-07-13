@@ -102,22 +102,31 @@ export function getApiErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
+// ===== INTERCEPTOR WITH DEBUG LOGS =====
 api.interceptors.request.use((config) => {
   const token = getAccessToken();
+  console.log('🔑 [Interceptor] Token from getAccessToken():', token);
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+    console.log('✅ [Interceptor] Authorization header set:', config.headers.Authorization);
+  } else {
+    console.warn('⚠️ [Interceptor] No token found – request will be unauthenticated.');
   }
+
+  console.log('📤 [Interceptor] Request URL:', (config.baseURL || '') + (config.url || ''));
 
   return config;
 });
 
-// Disable refresh interceptor – for now, just throw the error on 401
+// ===== RESPONSE INTERCEPTOR (temporarily disable clear on 401 for debugging) =====
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    // If 401, clear tokens and reject the error; the user will need to log in again
+    // If 401, we might want to clear tokens, but for debugging we'll just log
     if (error.response?.status === 401) {
-      clearAuthTokens();
+      console.warn('⚠️ [Interceptor] Received 401 – token may be invalid or expired.');
+      //TEMPORARILY DISABLED: clearAuthTokens(); // Uncomment later
     }
     throw error;
   },

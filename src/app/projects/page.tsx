@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { FolderOpen, Plus, Trash2 } from "lucide-react";
+import axios from "axios";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -27,7 +28,17 @@ export default function ProjectsPage() {
   useEffect(() => {
     listProjects()
       .then(setProjects)
-      .catch((err) => setLoadError(err instanceof Error ? err.message : "Could not load projects"))
+      .catch((err) => {
+        const message = err instanceof Error ? err.message : String(err);
+        console.log('🔍 Error message:', message);
+        
+        // Check if the message indicates forbidden access
+        if (message.includes("not allowed") || message.includes("forbidden") || message.includes("403")) {
+          setLoadError("forbidden");
+        } else {
+          setLoadError(message);
+        }
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -52,6 +63,37 @@ export default function ProjectsPage() {
     }
   };
 
+  // Freelancer-specific empty state (when 403 or role is freelancer and projects empty)
+  const showFreelancerEmptyState =
+    loadError === "forbidden" ||
+    (role === "freelancer" && !loading && !loadError && projects.length === 0);
+
+  if (showFreelancerEmptyState) {
+    return (
+      <DashboardShell
+        role="freelancer"
+        title="Projects"
+        subtitle="View and manage your assigned projects."
+      >
+        <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-12 text-center card-shadow">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-surface-container-high">
+            <FolderOpen size={32} className="text-outline" />
+          </div>
+          <h3 className="text-lg font-semibold text-on-surface">No assigned projects</h3>
+          <p className="mt-1 text-sm text-on-surface-variant">
+            As a freelancer, you'll see projects you're assigned to here.
+            Complete your profile and get matched to start receiving tasks.
+          </p>
+          <Link href="/freelancer/verification">
+            <Button className="mt-4 inline-flex w-auto px-6">
+              Check verification status
+            </Button>
+          </Link>
+        </div>
+      </DashboardShell>
+    );
+  }
+
   return (
     <DashboardShell role={role} title="Projects" subtitle="View and manage all your projects.">
       <div className="mb-6 flex items-center justify-between">
@@ -68,9 +110,19 @@ export default function ProjectsPage() {
         )}
       </div>
 
-      {loading ? null : loadError ? (
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-container border-t-transparent" />
+        </div>
+      ) : loadError && loadError !== "forbidden" ? (
         <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-8 text-center card-shadow">
           <p className="text-sm text-error">{loadError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 rounded-lg bg-primary-container px-4 py-2 text-on-primary"
+          >
+            Retry
+          </button>
         </div>
       ) : projects.length === 0 ? (
         <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-12 text-center card-shadow">
