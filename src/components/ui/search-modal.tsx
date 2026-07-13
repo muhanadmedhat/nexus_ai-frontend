@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { Search, X, Loader2, FolderOpen, User, FileText } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -15,34 +15,79 @@ interface SearchModalProps {
 export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const latestSearchRef = useRef(0);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
 
-  useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 100);
-      setQuery("");
+  const resetSearchState = useCallback(() => {
+    latestSearchRef.current += 1;
+    setQuery("");
+    setResults([]);
+    setSelectedIndex(-1);
+    setLoading(false);
+  }, []);
+
+  const handleQueryChange = useCallback((value: string) => {
+    setQuery(value);
+    setSelectedIndex(-1);
+
+    if (value.trim().length < 2) {
+      latestSearchRef.current += 1;
       setResults([]);
-      setSelectedIndex(-1);
+      setLoading(false);
     }
-  }, [isOpen]);
+  }, []);
 
   useEffect(() => {
-    const delay = setTimeout(async () => {
-      if (query.trim()) {
+    if (!isOpen) return;
+
+    const focusTimer = window.setTimeout(() => {
+      resetSearchState();
+      inputRef.current?.focus();
+    }, 100);
+
+    return () => window.clearTimeout(focusTimer);
+  }, [isOpen, resetSearchState]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      return;
+    }
+
+    let cancelled = false;
+    const requestId = latestSearchRef.current + 1;
+    latestSearchRef.current = requestId;
+
+    const delay = window.setTimeout(() => {
+      void (async () => {
         setLoading(true);
-        const data = await search(query);
-        setResults(data);
-        setLoading(false);
-      } else {
-        setResults([]);
-      }
+        try {
+          const data = await search(trimmed);
+          if (!cancelled && latestSearchRef.current === requestId) {
+            setResults(data);
+          }
+        } catch {
+          if (!cancelled && latestSearchRef.current === requestId) {
+            setResults([]);
+          }
+        } finally {
+          if (!cancelled && latestSearchRef.current === requestId) {
+            setLoading(false);
+          }
+        }
+      })();
     }, 300);
 
-    return () => clearTimeout(delay);
-  }, [query]);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(delay);
+    };
+  }, [isOpen, query]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -98,11 +143,14 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
             type="text"
             placeholder="Search projects, freelancers, tasks..."
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => handleQueryChange(e.target.value)}
             className="flex-1 bg-transparent text-on-surface outline-none placeholder:text-outline/50"
           />
           {query && (
-            <button onClick={() => setQuery("")} className="text-outline hover:text-on-surface">
+            <button
+              onClick={resetSearchState}
+              className="text-outline hover:text-on-surface"
+            >
               <X size={18} />
             </button>
           )}

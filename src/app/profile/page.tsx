@@ -1,28 +1,49 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import Image from "next/image";
 import { Controller, useForm } from "react-hook-form";
 import { isValidPhoneNumber } from "react-phone-number-input";
-import { Clock, DollarSign, Mail, Save } from "lucide-react";
+import {
+  Award,
+  Camera,
+  CheckCircle2,
+  Clock,
+  ExternalLink,
+  FileText,
+  Mail,
+  Save,
+  Upload,
+} from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Input } from "@/components/ui/input";
 import { PhoneNumberInput } from "@/components/ui/phone-number-input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { updateMe } from "@/services/users";
+import {
+  getMyFreelancerProfile,
+  updateMyFreelancerProfile,
+  type FreelancerProfile,
+} from "@/services/freelancers";
 import { uploadProfileImage, uploadCv } from "@/services/uploads";
-import { ProfileCard } from "@/components/profile/profile-card";
 import { useToast } from "@/components/ui/toast";
 
 interface ProfileFormValues {
   firstName: string;
   lastName: string;
   phoneNumber: string;
-  cvUploaded?: boolean; // Hidden field to track CV upload
+  availabilityHoursPerWeek: string;
 }
 
 function isEgyptianPhoneNumber(value: string) {
   return value.startsWith("+20") && isValidPhoneNumber(value);
+}
+
+function parseNonNegativeInteger(value: string) {
+  if (!value.trim()) return undefined;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : Number.NaN;
 }
 
 export default function ProfilePage() {
@@ -41,51 +62,109 @@ export default function ProfilePage() {
   const [cvStatusMessage, setCvStatusMessage] = useState<string | null>(null);
   const [cvFileName, setCvFileName] = useState<string | null>(null);
   const [cvUrl, setCvUrl] = useState<string | null>(null);
+  const [freelancerProfile, setFreelancerProfile] = useState<FreelancerProfile | null>(null);
   const displayedCvUrl = cvUrl ?? user?.cvUrl ?? null;
   const cvInputRef = useRef<HTMLInputElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const {
     register,
     control,
     handleSubmit,
     reset,
-    setValue,
     formState: { errors, isDirty, isSubmitting },
   } = useForm<ProfileFormValues>({
     defaultValues: {
       firstName: "",
       lastName: "",
       phoneNumber: "",
-      cvUploaded: false,
+      availabilityHoursPerWeek: "",
     },
   });
 
-  // Sync user.cvUrl to local state when it changes
   useEffect(() => {
     if (!user) return;
-    reset({
+    let active = true;
+    const baseValues: ProfileFormValues = {
       firstName: user.firstName,
       lastName: user.lastName,
       phoneNumber: user.phoneNumber ?? "",
-      cvUploaded: false,
-    });
+      availabilityHoursPerWeek: "",
+    };
 
-    if (user.cvUrl) {
-      console.log('📄 [Profile] Syncing user.cvUrl to local state:', user.cvUrl);
-      setCvUrl(user.cvUrl);
+    reset(baseValues);
+
+    if (role !== "freelancer") {
+      return;
     }
-  }, [reset, user]);
+
+    getMyFreelancerProfile()
+      .then((profile) => {
+        if (!active) return;
+        setFreelancerProfile(profile);
+        setCvUrl(profile.cvUrl);
+        reset({
+          ...baseValues,
+          availabilityHoursPerWeek:
+            profile.availabilityHoursPerWeek == null
+              ? ""
+              : String(profile.availabilityHoursPerWeek),
+        });
+      })
+      .catch((error) => {
+        if (!active) return;
+        toast.error(
+          "Could not load freelancer details",
+          error instanceof Error ? error.message : "Please try again.",
+        );
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [reset, role, toast, user]);
 
   const onSubmit = async (values: ProfileFormValues) => {
     const nextValues = {
       firstName: values.firstName.trim(),
       lastName: values.lastName.trim(),
       phoneNumber: values.phoneNumber,
+      availabilityHoursPerWeek: values.availabilityHoursPerWeek,
     };
+
+    const availabilityHoursPerWeek = parseNonNegativeInteger(values.availabilityHoursPerWeek);
+
+    if (role === "freelancer") {
+      if (Number.isNaN(availabilityHoursPerWeek)) {
+        toast.error("Invalid availability", "Availability must be whole hours per week.");
+        return;
+      }
+    }
+
     try {
-      await updateMe(nextValues);
+      await updateMe({
+        firstName: nextValues.firstName,
+        lastName: nextValues.lastName,
+        phoneNumber: nextValues.phoneNumber,
+      });
+
+      let updatedFreelancer = freelancerProfile;
+      if (role === "freelancer") {
+        updatedFreelancer = await updateMyFreelancerProfile({
+          availabilityHoursPerWeek,
+        });
+        setFreelancerProfile(updatedFreelancer);
+        setCvUrl(updatedFreelancer.cvUrl);
+      }
+
       await refresh();
-      reset({ ...nextValues, cvUploaded: false });
+      reset({
+        ...nextValues,
+        availabilityHoursPerWeek:
+          updatedFreelancer?.availabilityHoursPerWeek == null
+            ? nextValues.availabilityHoursPerWeek
+            : String(updatedFreelancer.availabilityHoursPerWeek),
+      });
       toast.success("Profile updated");
     } catch (error) {
       toast.error(
@@ -124,6 +203,7 @@ export default function ProfilePage() {
       );
       setPreviewUrl(null);
     } finally {
+      URL.revokeObjectURL(objectUrl);
       setIsUploading(false);
     }
   };
@@ -149,13 +229,7 @@ export default function ProfilePage() {
     try {
       const { url } = await uploadCv(file);
       setCvUrl(url);
-      console.log('📤 [Profile] CV uploaded, URL:', url);
       await refresh();
-      console.log('🔄 [Profile] After refresh, user.cvUrl:', user?.cvUrl);
-      
-      // ✅ Mark the hidden field to enable the Save button (with shouldDirty)
-      setValue("cvUploaded", true, { shouldDirty: true });
-      
       setCvStatusMessage("CV uploaded successfully");
       toast.success("CV uploaded successfully");
     } catch (err) {
@@ -171,32 +245,133 @@ export default function ProfilePage() {
     }
   };
 
+  const skillScores = freelancerProfile?.skillScores ?? [];
+  const averageSkillScore =
+    skillScores.length > 0
+      ? skillScores.reduce((sum, skill) => sum + (Number(skill.score) || 0), 0) /
+        skillScores.length
+      : null;
+  const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+  const photoUrl = previewUrl ?? user?.photoUrl ?? null;
+  const availabilityLabel =
+    freelancerProfile?.availabilityHoursPerWeek == null
+      ? "Availability not set"
+      : `${freelancerProfile.availabilityHoursPerWeek} hrs/week`;
+
   return (
     <DashboardShell
       role={role as "customer" | "freelancer" | "admin"}
       title="Profile"
       subtitle="Manage your personal information and preferences."
     >
-      <div className="flex flex-col items-center">
-        <ProfileCard
-          firstName={user?.firstName || ""}
-          lastName={user?.lastName || ""}
-          role={role}
-          email={user?.email || ""}
-          photoUrl={previewUrl ?? user?.photoUrl ?? null}
-          initials={initials}
-          isUploading={isUploading}
-          onFileSelect={handleFileSelect}
-          uploadError={uploadError}
-        />
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 card-shadow sm:p-6">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center">
+              <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-primary-container text-4xl font-semibold text-on-primary shadow-sm">
+                {photoUrl ? (
+                  <Image
+                    src={photoUrl}
+                    alt={`${user?.firstName ?? "User"} profile`}
+                    fill
+                    unoptimized
+                    sizes="96px"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="flex h-full w-full items-center justify-center">{initials}</span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => photoInputRef.current?.click()}
+                  disabled={isUploading}
+                  className="absolute bottom-2 right-2 flex h-9 w-9 items-center justify-center rounded-full border border-outline-variant/30 bg-surface-container-lowest text-primary-container shadow-sm transition hover:bg-surface-container-low disabled:cursor-not-allowed disabled:opacity-60"
+                  aria-label="Upload profile image"
+                >
+                  <Camera size={17} />
+                </button>
+              </div>
 
-        <div className="mt-12 w-full max-w-2xl">
-          <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
-            <h3 className="mb-4 font-headline text-lg font-semibold text-on-surface">
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                disabled={isUploading}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void handleFileSelect(file);
+                  event.currentTarget.value = "";
+                }}
+              />
+
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-primary-container">{roleLabel}</p>
+                <h2 className="truncate font-headline text-2xl font-bold text-on-surface sm:text-3xl">
+                  {user?.firstName || "User"} {user?.lastName || ""}
+                </h2>
+                <p className="mt-1 truncate text-sm text-on-surface-variant">
+                  {user?.email || "No email saved"}
+                </p>
+                {uploadError ? <p className="mt-2 text-sm text-error">{uploadError}</p> : null}
+              </div>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[420px]">
+              {role === "freelancer" ? (
+                <>
+                  <ProfileStat
+                    label="CV"
+                    value={displayedCvUrl ? "Uploaded" : "Missing"}
+                    active={Boolean(displayedCvUrl)}
+                  />
+                  <ProfileStat
+                    label="Availability"
+                    value={availabilityLabel}
+                    active={freelancerProfile?.availabilityHoursPerWeek != null}
+                  />
+                  <ProfileStat
+                    label="Rated skills"
+                    value={skillScores.length === 0 ? "Not ready" : String(skillScores.length)}
+                    active={skillScores.length > 0}
+                  />
+                  <ProfileStat
+                    label="Avg score"
+                    value={averageSkillScore == null ? "Not ready" : `${averageSkillScore.toFixed(1)} / 5.0`}
+                    active={averageSkillScore != null}
+                  />
+                </>
+              ) : (
+                <>
+                  <ProfileStat
+                    label="Email"
+                    value={user?.email ? "Saved" : "Missing"}
+                    active={Boolean(user?.email)}
+                  />
+                  <ProfileStat
+                    label="Phone"
+                    value={user?.phoneNumber ? "Saved" : "Missing"}
+                    active={Boolean(user?.phoneNumber)}
+                  />
+                </>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <div
+          className={
+            role === "freelancer"
+              ? "grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]"
+              : "max-w-5xl"
+          }
+        >
+          <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 card-shadow sm:p-6">
+            <h3 className="mb-5 font-headline text-lg font-semibold text-on-surface">
               Personal Information
             </h3>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Input
                   label="First Name"
                   disabled={isSubmitting}
@@ -239,141 +414,223 @@ export default function ProfilePage() {
                   />
                 )}
               />
+            </div>
+          </section>
 
-              {role === "freelancer" && (
-                <div className="mt-6 border-t border-outline-variant/20 pt-6">
-                  <h4 className="mb-4 font-headline text-base font-semibold text-on-surface">
-                    Freelancer Details
-                  </h4>
+          {role === "freelancer" && (
+            <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 card-shadow sm:p-6">
+              <h3 className="mb-5 font-headline text-lg font-semibold text-on-surface">
+                Freelancer Setup
+              </h3>
 
-                  {/* CV Upload Card */}
-                  <div className="relative overflow-hidden rounded-xl border border-primary-container/30 bg-primary-container/5 p-5 flex flex-col items-start gap-3 group min-h-[160px]">
-                    {/* SVG icons (unchanged) */}
-                    <svg
-                      className="absolute -bottom-1 -right-1 w-32 h-32 fill-surface-container-lowest stroke-primary-container/20 transition-transform duration-500 group-hover:scale-110 pointer-events-none"
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 64 64"
-                    >
-                      <path
-                        data-name="layer1"
-                        d="M 50.4 51 C 40.5 49.1 40 46 40 44 v -1.2 a 18.9 18.9 0 0 0 5.7 -8.8 h 0.1 c 3 0 3.8 -6.3 3.8 -7.3 s 0.1 -4.7 -3 -4.7 C 53 4 30 0 22.3 6 c -5.4 0 -5.9 8 -3.9 16 c -3.1 0 -3 3.8 -3 4.7 s 0.7 7.3 3.8 7.3 c 1 3.6 2.3 6.9 4.7 9 v 1.2 c 0 2 0.5 5 -9.5 6.8 S 2 62 2 62 h 60 a 14.6 14.6 0 0 0 -11.6 -11 z"
-                        strokeMiterlimit={10}
-                        strokeWidth={5}
-                      />
-                    </svg>
-                    <svg
-                      className="absolute -bottom-2 -right-1 w-32 h-32 fill-surface-container-lowest stroke-primary-container/10 transition-transform duration-300 group-hover:scale-110 pointer-events-none"
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 64 64"
-                    >
-                      <path
-                        data-name="layer1"
-                        d="M 50.4 51 C 40.5 49.1 40 46 40 44 v -1.2 a 18.9 18.9 0 0 0 5.7 -8.8 h 0.1 c 3 0 3.8 -6.3 3.8 -7.3 s 0.1 -4.7 -3 -4.7 C 53 4 30 0 22.3 6 c -5.4 0 -5.9 8 -3.9 16 c -3.1 0 -3 3.8 -3 4.7 s 0.7 7.3 3.8 7.3 c 1 3.6 2.3 6.9 4.7 9 v 1.2 c 0 2 0.5 5 -9.5 6.8 S 2 62 2 62 h 60 a 14.6 14.6 0 0 0 -11.6 -11 z"
-                        strokeMiterlimit={10}
-                        strokeWidth={2}
-                      />
-                    </svg>
-
-                    <div className="relative z-10">
-                      <span className="font-bold text-3xl text-primary-container">CV</span>
-                      <p className="text-sm text-on-surface-variant">Upload your resume</p>
+              <div className="space-y-4">
+                <div className="rounded-xl border border-outline-variant/30 bg-surface-container-low p-4">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex min-w-0 gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary-container/15 text-primary-container">
+                        <FileText size={21} />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="font-semibold text-on-surface">CV</h4>
+                        <p className="text-sm leading-5 text-on-surface-variant">
+                          {displayedCvUrl
+                            ? "Your resume is attached to your verification profile."
+                            : "Upload your resume as a PDF to continue verification."}
+                        </p>
+                        {cvFileName ? (
+                          <p className="mt-2 truncate text-sm text-on-surface-variant">
+                            {cvFileName}
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
 
-                    <input
-                      ref={cvInputRef}
-                      type="file"
-                      accept=".pdf,application/pdf"
-                      className="hidden"
-                      onChange={handleCvSelect}
-                      disabled={isUploadingCV}
-                    />
-
-                    <button
-                      onClick={() => cvInputRef.current?.click()}
-                      disabled={isUploadingCV}
-                      className="relative z-10 inline-flex items-center gap-3 rounded-lg border border-primary-container/30 bg-surface-container-lowest px-4 py-2 font-semibold text-primary-container transition-colors hover:bg-primary-container hover:text-on-primary disabled:opacity-60"
-                    >
-                      {isUploadingCV ? "Uploading..." : "Upload CV"}
-                      <svg
-                        className="h-5 w-5 fill-current"
-                        viewBox="0 0 100 100"
-                        xmlns="http://www.w3.org/2000/svg"
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      <input
+                        ref={cvInputRef}
+                        type="file"
+                        accept=".pdf,application/pdf"
+                        className="hidden"
+                        onChange={handleCvSelect}
+                        disabled={isUploadingCV}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => cvInputRef.current?.click()}
+                        disabled={isUploadingCV}
+                        className="inline-flex items-center gap-2 rounded-lg border border-primary-container/30 bg-surface-container-lowest px-3.5 py-2 text-sm font-semibold text-primary-container transition-colors hover:bg-primary-container hover:text-on-primary disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        <path
-                          d="M22.1,77.9a4,4,0,0,1,4-4H73.9a4,4,0,0,1,0,8H26.1A4,4,0,0,1,22.1,77.9ZM35.2,47.2a4,4,0,0,1,5.7,0L46,52.3V22.1a4,4,0,1,1,8,0V52.3l5.1-5.1a4,4,0,0,1,5.7,0,4,4,0,0,1,0,5.6l-12,12a3.9,3.9,0,0,1-5.6,0l-12-12A4,4,0,0,1,35.2,47.2Z"
-                          fillRule="evenodd"
-                        />
-                      </svg>
-                    </button>
-
-                    <div className="relative z-10 flex flex-wrap items-center gap-3 mt-1">
-                      {cvFileName && (
-                        <span className="rounded-full bg-surface-container-lowest/80 px-3 py-1 text-sm text-on-surface-variant">
-                          {cvFileName}
-                        </span>
-                      )}
-                      {displayedCvUrl && (
+                        <Upload size={16} />
+                        {isUploadingCV ? "Uploading" : "Upload PDF"}
+                      </button>
+                      {displayedCvUrl ? (
                         <a
                           href={displayedCvUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-sm font-medium text-primary-container hover:underline"
+                          className="inline-flex items-center gap-2 rounded-lg border border-outline-variant/40 bg-surface-container-lowest px-3.5 py-2 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-container-high"
                         >
-                          View CV
+                          <ExternalLink size={16} />
+                          View
                         </a>
-                      )}
+                      ) : null}
                     </div>
-
-                    {cvUploadError && (
-                      <p className="relative z-10 text-sm text-error">{cvUploadError}</p>
-                    )}
-                    {cvStatusMessage && (
-                      <p className="relative z-10 text-sm text-primary-container">{cvStatusMessage}</p>
-                    )}
                   </div>
 
-                  <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <Input
-                      label="Hourly Rate"
-                      defaultValue="$0.00"
-                      disabled
-                      icon={<DollarSign size={18} className="text-outline" />}
-                    />
-                    <Input
-                      label="Availability"
-                      defaultValue="Not set"
-                      disabled
-                      icon={<Clock size={18} className="text-outline" />}
-                    />
-                  </div>
-                  <Input
-                    label="Profile Summary"
-                    defaultValue="Complete your profile to get matched with projects."
-                    disabled
-                  />
+                  {cvUploadError ? <p className="mt-3 text-sm text-error">{cvUploadError}</p> : null}
+                  {cvStatusMessage ? (
+                    <p className="mt-3 text-sm font-medium text-primary-container">
+                      {cvStatusMessage}
+                    </p>
+                  ) : null}
                 </div>
-              )}
 
-              {/* Hidden input */}
-              <input type="hidden" {...register("cvUploaded")} />
-
-              <div className="flex justify-end pt-4">
-                <Button
-                  type="submit"
-                  className="inline-flex w-auto items-center justify-center px-4 py-2.5 text-sm"
-                  loading={isSubmitting}
-                  disabled={!isDirty || isSubmitting}
-                >
-                  <span className="inline-flex items-center justify-center gap-2">
-                    <Save size={18} />
-                    Save Changes
-                  </span>
-                </Button>
+                <Input
+                  label="Availability"
+                  type="number"
+                  min={1}
+                  max={168}
+                  step={1}
+                  placeholder="20"
+                  disabled={isSubmitting}
+                  icon={<Clock size={18} className="text-outline" />}
+                  trailing={
+                    <span className="shrink-0 text-sm text-on-surface-variant">
+                      hrs/week
+                    </span>
+                  }
+                  {...register("availabilityHoursPerWeek", {
+                    validate: (value) => {
+                      const parsed = parseNonNegativeInteger(value);
+                      return (
+                        (parsed !== undefined &&
+                          !Number.isNaN(parsed) &&
+                          parsed > 0 &&
+                          parsed <= 168) ||
+                        "Enter 1-168 hours per week"
+                      );
+                    },
+                  })}
+                  error={errors.availabilityHoursPerWeek?.message}
+                />
               </div>
-            </form>
+            </section>
+          )}
+        </div>
+
+        {role === "freelancer" ? (
+          <SkillScoresTable skillScores={skillScores} averageScore={averageSkillScore} />
+        ) : null}
+
+        <div className="flex justify-end">
+          <Button
+            type="submit"
+            className="inline-flex w-full items-center justify-center px-4 py-2.5 text-sm sm:w-auto"
+            loading={isSubmitting}
+            disabled={!isDirty || isSubmitting}
+          >
+            <span className="inline-flex items-center justify-center gap-2">
+              <Save size={18} />
+              Save Changes
+            </span>
+          </Button>
+        </div>
+      </form>
+    </DashboardShell>
+  );
+}
+
+function ProfileStat({
+  label,
+  value,
+  active,
+}: {
+  label: string;
+  value: string;
+  active: boolean;
+}) {
+  return (
+    <div className="rounded-lg border border-outline-variant/30 bg-surface-container-low px-3 py-2.5">
+      <div className="flex items-center gap-2">
+        <CheckCircle2
+          size={15}
+          className={active ? "text-primary-container" : "text-outline"}
+        />
+        <p className="text-xs font-medium uppercase text-on-surface-variant">{label}</p>
+      </div>
+      <p className="mt-1 truncate font-semibold text-on-surface">{value}</p>
+    </div>
+  );
+}
+
+function SkillScoresTable({
+  skillScores,
+  averageScore,
+}: {
+  skillScores: NonNullable<FreelancerProfile["skillScores"]>;
+  averageScore: number | null;
+}) {
+  return (
+    <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest card-shadow">
+      <div className="flex flex-col gap-4 border-b border-outline-variant/30 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-container/15 text-primary-container">
+            <Award size={19} />
+          </div>
+          <div>
+            <h3 className="font-headline text-lg font-semibold text-on-surface">
+              Assessment skill ratings
+            </h3>
+            <p className="text-sm text-on-surface-variant">
+              Generated from your assessment performance.
+            </p>
           </div>
         </div>
+        <div className="rounded-lg bg-surface-container-low px-3 py-2 text-sm text-on-surface-variant">
+          Average{" "}
+          <span className="font-semibold tabular-nums text-on-surface">
+            {averageScore == null ? "not ready" : `${averageScore.toFixed(1)} / 5.0`}
+          </span>
+        </div>
       </div>
-    </DashboardShell>
+
+      {skillScores.length === 0 ? (
+        <div className="px-5 py-8 text-sm text-on-surface-variant sm:px-6">
+          Complete your assessment to generate skill ratings.
+        </div>
+      ) : (
+        <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 sm:p-6">
+          {skillScores.map((skill) => {
+            const score = Math.max(0, Math.min(5, Number(skill.score) || 0));
+            const percent = (score / 5) * 100;
+
+            return (
+              <div
+                key={skill.id}
+                className="rounded-lg border border-outline-variant/30 bg-surface-container-low p-4"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <p className="min-w-0 text-sm font-semibold leading-5 text-on-surface">
+                    {skill.skill}
+                  </p>
+                  <div className="shrink-0 text-right">
+                    <p className="font-semibold tabular-nums text-primary-container">
+                      {score.toFixed(1)}
+                    </p>
+                    <p className="text-[11px] text-on-surface-variant">out of 5.0</p>
+                  </div>
+                </div>
+                <div className="mt-3 h-2 rounded-full bg-surface-container-high">
+                  <div
+                    className="h-2 rounded-full bg-primary-container"
+                    style={{ width: `${percent}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }

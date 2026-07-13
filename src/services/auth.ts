@@ -58,20 +58,12 @@ export async function signIn(email: string, password: string) {
       password,
     });
 
-    // 🟢 DEBUG: Log the raw response
-    console.log('📥 Login response:', data);
-
     if (!data.accessToken) {
-      console.error('❌ No accessToken in response:', data);
       throw new Error('Invalid login response: missing accessToken');
     }
 
     setAuthTokens({ accessToken: data.accessToken });
-
-    // 🟢 DEBUG: Verify it was stored
-    console.log('🔐 Token stored, checking localStorage:', localStorage.getItem('accessToken'));
   } catch (error) {
-    console.error('❌ Login error:', error);
     throw new Error(getApiErrorMessage(error, "Invalid email or password"));
   }
 }
@@ -85,7 +77,6 @@ export async function signOut() {
     }
   } finally {
     clearAuthTokens();
-    console.log('🧹 Tokens cleared');
   }
 }
 
@@ -93,9 +84,7 @@ export async function signUp(input: RegisterInput): Promise<void> {
   try {
     const { data } = await api.post<TokenResponse>(API_ENDPOINTS.auth.signup, input);
 
-    console.log('📥 Signup response:', data);
     if (!data.accessToken) {
-      console.error('❌ No accessToken in signup response');
       throw new Error('Invalid signup response');
     }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
@@ -21,24 +21,22 @@ import {
 
 const statusColorMap: Record<string, string> = {
   healthy:
-    "text-green-600 bg-green-100 dark:bg-green-900/30 dark:text-green-400",
+    "border border-primary-container/20 bg-primary-container/10 text-primary-container",
   degraded:
-    "text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400",
-  failing:
-    "text-red-600 bg-red-100 dark:bg-red-900/30 dark:text-red-400",
+    "border border-secondary/20 bg-secondary-container/70 text-on-secondary-container",
+  failing: "border border-error/20 bg-error-container/40 text-error",
 };
 
 const jobStatusColor: Record<string, string> = {
   queued:
-    "bg-gray-100 text-gray-800 dark:bg-gray-800/30 dark:text-gray-400",
+    "border border-secondary/20 bg-secondary-container/70 text-on-secondary-container",
   running:
-    "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
+    "border border-tertiary-container/20 bg-tertiary-container/10 text-tertiary-container",
   completed:
-    "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  failed:
-    "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+    "border border-primary-container/20 bg-primary-container/10 text-primary-container",
+  failed: "border border-error/20 bg-error-container/40 text-error",
   cancelled:
-    "bg-gray-200 text-gray-600 dark:bg-gray-700/30 dark:text-gray-400",
+    "border border-outline-variant/50 bg-surface-container-high text-on-surface-variant",
 };
 
 export default function AdminAgentsPage() {
@@ -57,17 +55,22 @@ export default function AdminAgentsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("");
   const limit = 20;
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
     try {
-      const overviewData = await getAgentOverview();
+      const [overviewData, jobsData] = await Promise.all([
+        getAgentOverview(),
+        getAgentJobs({
+          status: statusFilter || undefined,
+          page,
+          limit,
+        }),
+      ]);
+
       setOverview(overviewData.agents);
       setTotals(overviewData.totals);
-
-      const jobsData = await getAgentJobs({
-        status: statusFilter || undefined,
-        page,
-        limit,
-      });
       setJobs(jobsData.data);
       setTotalJobs(jobsData.total);
     } catch (err) {
@@ -75,20 +78,24 @@ export default function AdminAgentsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [limit, page, statusFilter]);
 
   useEffect(() => {
-    loadData();
-  }, [page, statusFilter]);
+    const loadTimer = window.setTimeout(() => {
+      void loadData();
+    }, 0);
+
+    return () => window.clearTimeout(loadTimer);
+  }, [loadData]);
 
   const totalPages = Math.ceil(totalJobs / limit);
 
   const getStatusIcon = (status: string) => {
     if (status === "healthy")
-      return <CheckCircle className="h-4 w-4 text-green-600" />;
+      return <CheckCircle className="h-4 w-4 text-primary-container" />;
     if (status === "degraded")
-      return <AlertCircle className="h-4 w-4 text-yellow-600" />;
-    return <XCircle className="h-4 w-4 text-red-600" />;
+      return <AlertCircle className="h-4 w-4 text-on-secondary-container" />;
+    return <XCircle className="h-4 w-4 text-error" />;
   };
 
   return (
@@ -109,11 +116,11 @@ export default function AdminAgentsPage() {
         </div>
         <div className="rounded-lg border border-outline-variant/30 bg-surface-container-lowest p-4 text-center card-shadow">
           <p className="text-sm text-on-surface-variant">Completed Today</p>
-          <p className="text-2xl font-bold text-green-600">{totals.completedToday}</p>
+          <p className="text-2xl font-bold text-primary-container">{totals.completedToday}</p>
         </div>
         <div className="rounded-lg border border-outline-variant/30 bg-surface-container-lowest p-4 text-center card-shadow">
           <p className="text-sm text-on-surface-variant">Failed Today</p>
-          <p className="text-2xl font-bold text-red-600">{totals.failedToday}</p>
+          <p className="text-2xl font-bold text-error">{totals.failedToday}</p>
         </div>
       </div>
 
@@ -152,7 +159,7 @@ export default function AdminAgentsPage() {
               </div>
               <div>
                 Failed today:{" "}
-                <span className="font-medium text-red-600">
+                <span className="font-medium text-error">
                   {agent.failedToday}
                 </span>
               </div>
@@ -209,7 +216,7 @@ export default function AdminAgentsPage() {
         <Button
           variant="outline"
           onClick={loadData}
-          className="inline-flex items-center gap-1 px-3 py-1.5 text-sm"
+          className="!w-auto px-3 py-1.5 text-sm"
         >
           <RefreshCw size={14} />
           Refresh
@@ -281,7 +288,7 @@ export default function AdminAgentsPage() {
                       <Link href={`/dashboard/admin/agent-jobs/${job.id}`}>
                         <Button
                           variant="outline"
-                          className="inline-flex items-center gap-1 px-3 py-1.5 text-sm"
+                          className="!w-auto px-3 py-1.5 text-sm"
                         >
                           <Eye size={14} />
                           View
@@ -302,7 +309,7 @@ export default function AdminAgentsPage() {
               <div className="flex gap-2">
                 <Button
                   variant="outline"
-                  className="px-3 py-1.5 text-sm disabled:opacity-50"
+                  className="!w-auto px-3 py-1.5 text-sm disabled:opacity-50"
                   disabled={page <= 1}
                   onClick={() => setPage((p) => p - 1)}
                 >
@@ -313,7 +320,7 @@ export default function AdminAgentsPage() {
                 </span>
                 <Button
                   variant="outline"
-                  className="px-3 py-1.5 text-sm disabled:opacity-50"
+                  className="!w-auto px-3 py-1.5 text-sm disabled:opacity-50"
                   disabled={page >= totalPages}
                   onClick={() => setPage((p) => p + 1)}
                 >

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
@@ -9,13 +9,10 @@ import { Eye, Loader2, CheckCircle, XCircle, AlertCircle, Search, X, Calendar } 
 
 const statusBadgeColors: Record<string, string> = {
   submitted:
-    "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-  passed:
-    "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  failed:
-    "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-  needs_review:
-    "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
+    "border border-outline-variant/50 bg-surface-container-high text-on-surface-variant",
+  passed: "border border-primary-container/20 bg-primary-container/10 text-primary-container",
+  failed: "border border-error/20 bg-error-container/40 text-error",
+  needs_review: "border border-tertiary-container/20 bg-tertiary-container/10 text-tertiary-container",
 };
 
 const statusLabels: Record<string, string> = {
@@ -40,29 +37,36 @@ export default function AdminAssessmentsPage() {
   const [maxScore, setMaxScore] = useState<number | undefined>(undefined);
   const limit = 20;
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const result = await getAssessments({
-          status: statusFilter,
-          page,
-          limit,
-          search: search || undefined,
-          dateFrom: dateFrom || undefined,
-          dateTo: dateTo || undefined,
-          minScore,
-          maxScore,
-        });
-        setAssessments(result.data);
-        setTotal(result.total);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load assessments");
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
+  const loadAssessments = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await getAssessments({
+        status: statusFilter,
+        page,
+        limit,
+        search: search || undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        minScore,
+        maxScore,
+      });
+      setAssessments(result.data);
+      setTotal(result.total);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load assessments");
+    } finally {
+      setLoading(false);
+    }
   }, [page, statusFilter, search, dateFrom, dateTo, minScore, maxScore]);
+
+  useEffect(() => {
+    const loadTimer = window.setTimeout(() => {
+      void loadAssessments();
+    }, 0);
+
+    return () => window.clearTimeout(loadTimer);
+  }, [loadAssessments]);
 
   const totalPages = Math.ceil(total / limit);
 
@@ -86,9 +90,9 @@ export default function AdminAssessmentsPage() {
   const hasActiveFilters = search || dateFrom || dateTo || minScore !== undefined || maxScore !== undefined;
 
   const getRecommendationIcon = (rec: string | null) => {
-    if (rec === "pass") return <CheckCircle className="h-4 w-4 text-green-600" />;
-    if (rec === "fail") return <XCircle className="h-4 w-4 text-red-600" />;
-    if (rec === "needs_review") return <AlertCircle className="h-4 w-4 text-blue-600" />;
+    if (rec === "pass") return <CheckCircle className="h-4 w-4 text-primary-container" />;
+    if (rec === "fail") return <XCircle className="h-4 w-4 text-error" />;
+    if (rec === "needs_review") return <AlertCircle className="h-4 w-4 text-tertiary-container" />;
     return null;
   };
 
@@ -244,15 +248,17 @@ export default function AdminAssessmentsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-xs text-on-surface-variant">
-                      {new Date(a.submittedAt).toLocaleDateString()}
+                      {a.submittedAt ? new Date(a.submittedAt).toLocaleDateString() : "—"}
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      <Link href={`/dashboard/admin/assessments/${a.id}`}>
-                        <Button variant="outline" className="inline-flex items-center gap-1 px-3 py-1.5 text-sm">
-                          <Eye size={14} />
-                          Review
-                        </Button>
-                      </Link>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <Link href={`/dashboard/admin/assessments/${a.id}`}>
+                          <Button variant="outline" className="!w-auto px-3 py-2 text-xs">
+                            <Eye size={14} />
+                            Review
+                          </Button>
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -268,7 +274,7 @@ export default function AdminAssessmentsPage() {
               <div className="flex gap-2">
                 <Button
                   variant="outline"
-                  className="px-3 py-1.5 text-sm disabled:opacity-50"
+                  className="!w-auto px-3 py-1.5 text-sm disabled:opacity-50"
                   disabled={page <= 1}
                   onClick={() => setPage((p) => p - 1)}
                 >
@@ -279,7 +285,7 @@ export default function AdminAssessmentsPage() {
                 </span>
                 <Button
                   variant="outline"
-                  className="px-3 py-1.5 text-sm disabled:opacity-50"
+                  className="!w-auto px-3 py-1.5 text-sm disabled:opacity-50"
                   disabled={page >= totalPages}
                   onClick={() => setPage((p) => p + 1)}
                 >

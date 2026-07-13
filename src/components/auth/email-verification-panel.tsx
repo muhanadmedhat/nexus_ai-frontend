@@ -18,11 +18,12 @@ export function EmailVerificationPanel({
   description,
 }: EmailVerificationPanelProps) {
   const router = useRouter();
-  const { user, refresh } = useAuth();
+  const { user, refresh, logout } = useAuth();
   const toast = useToast();
   const [code, setCode] = useState("");
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const sendCode = async () => {
     setSending(true);
@@ -59,6 +60,20 @@ export function EmailVerificationPanel({
     }
   };
 
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await logout();
+      router.replace("/login");
+    } catch (err) {
+      toast.error(
+        "Could not log out",
+        err instanceof Error ? err.message : "Please try again.",
+      );
+      setLoggingOut(false);
+    }
+  };
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-surface px-6">
       <section className="w-full max-w-md rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
@@ -88,6 +103,12 @@ export function EmailVerificationPanel({
           <Button type="button" loading={verifying} disabled={code.trim().length !== 6} onClick={submitCode}>
             Verify email
           </Button>
+
+          <div className="border-t border-outline-variant/30 pt-3">
+            <Button type="button" variant="outline" loading={loggingOut} onClick={handleLogout}>
+              Log out
+            </Button>
+          </div>
         </div>
       </section>
     </main>

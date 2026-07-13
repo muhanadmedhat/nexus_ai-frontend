@@ -10,7 +10,6 @@ import {
   UserCheck,
   FolderOpen,
   FileCheck,
-  Clock,
   Award,
   Activity,
 } from "lucide-react";

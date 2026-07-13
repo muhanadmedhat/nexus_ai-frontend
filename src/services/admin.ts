@@ -2,6 +2,49 @@ import { api, getApiErrorMessage } from "@/lib/api";
 
 // ===== Types =====
 
+type JsonObject = Record<string, unknown>;
+
+export interface AssessmentAnswerValue {
+  value?: string;
+  [key: string]: unknown;
+}
+
+export interface FreelancerAssessmentAnswer {
+  id?: string;
+  questionId: string;
+  answer: AssessmentAnswerValue | string | null;
+}
+
+export interface FreelancerAssessmentQuestion {
+  id: string;
+  type: string;
+  skill: string;
+  prompt: string;
+  orderIndex: number;
+  answer?: AssessmentAnswerValue | string | null;
+  score?: string | null;
+  feedback?: string | null;
+}
+
+export interface FreelancerSkillScore {
+  id: string;
+  skill: string;
+  score: string;
+  confidence: string | null;
+  evidence: string | null;
+  source: string;
+  assessmentId: string | null;
+  updatedAt: string;
+}
+
+export interface AssessmentBehaviorEvent {
+  id: string;
+  eventType: string;
+  metadata: JsonObject | null;
+  isWarning: boolean;
+  createdAt: string;
+}
+
 export interface AdminStats {
   users: {
     total: number;
@@ -47,6 +90,21 @@ export interface AdminStats {
   };
 }
 
+export interface AdminUser {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string | null;
+  isEmailVerified: boolean;
+  isIdVerified: boolean;
+  photoUrl: string | null;
+  role: "customer" | "freelancer" | "admin";
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+}
+
 export interface FreelancerListItem {
   id: string;
   userId: string;
@@ -59,6 +117,10 @@ export interface FreelancerListItem {
   verificationStatus: string;
   assessmentScore: string | null;
   assessmentSubmittedAt: string | null;
+  approvedAt?: string | null;
+  rejectedAt?: string | null;
+  aiProfileSummary?: string | null;
+  topSkillScores?: FreelancerSkillScore[];
   createdAt: string;
 }
 
@@ -73,10 +135,18 @@ export interface FreelancerDetail {
     skills: string[];
     yearsExperience: number | null;
     hourlyRate: number | null;
+    availabilityHoursPerWeek: number | null;
+    isAvailable: boolean;
     cvUrl: string | null;
     verificationStatus: string;
     assessmentScore: string | null;
     assessmentSubmittedAt: string | null;
+    approvedAt: string | null;
+    rejectedAt: string | null;
+    rejectionReason: string | null;
+    summary: JsonObject | null;
+    aiProfileSummary: string | null;
+    skillScores: FreelancerSkillScore[];
     createdAt: string;
     updatedAt: string;
   };
@@ -84,11 +154,14 @@ export interface FreelancerDetail {
     id: string;
     status: string;
     score: string | null;
+    recommendation: string | null;
+    aiFeedback: JsonObject | null;
+    warningCount: number;
     submittedAt: string | null;
     startedAt: string | null;
     expiresAt: string | null;
-    questions: any[];
-    answers: any[];
+    questions: FreelancerAssessmentQuestion[];
+    answers: FreelancerAssessmentAnswer[];
   } | null;
 }
 
@@ -123,8 +196,8 @@ export interface AgentJob {
   projectId: string | null;
   targetType: string | null;
   targetId: string | null;
-  payload: any;
-  result: any;
+  payload: JsonObject | null;
+  result: JsonObject | null;
   error: string | null;
   attempts: number;
   createdAt: string;
@@ -137,14 +210,16 @@ export interface AgentJob {
 
 export interface AssessmentListItem {
   id: string;
+  freelancerProfileId: string;
   freelancerName: string;
   freelancerEmail: string;
   score: string | null;
   status: string;
   recommendation: string | null;
+  profileSummary?: string | null;
   warningCount: number;
-  submittedAt: string;
-  startedAt: string;
+  submittedAt: string | null;
+  startedAt: string | null;
 }
 
 export interface AssessmentDetail {
@@ -154,27 +229,32 @@ export interface AssessmentDetail {
     name: string;
     email: string;
     headline: string | null;
+    cvUrl: string | null;
+    verificationStatus: string;
   };
   status: string;
   score: string | null;
   recommendation: string | null;
-  submittedAt: string;
-  startedAt: string;
-  expiresAt: string;
+  aiFeedback: JsonObject | null;
+  profileSummary: string | null;
+  skillScores: FreelancerSkillScore[];
+  submittedAt: string | null;
+  startedAt: string | null;
+  expiresAt: string | null;
   questions: {
     id: string;
     type: string;
     skill: string;
     prompt: string;
     orderIndex: number;
-    answer?: {
-      value: string;
-    };
-    score?: number;
-    feedback?: string;
+    answer?: AssessmentAnswerValue | string | null;
+    score?: string | null;
+    feedback?: string | null;
   }[];
+  events: AssessmentBehaviorEvent[];
   eventsSummary: {
     total: number;
+    warningCount: number;
     focusLost: number;
     fullscreenExit: number;
   };
@@ -191,6 +271,53 @@ export async function getAdminStats(): Promise<AdminStats> {
   } catch (error) {
     throw new Error(getApiErrorMessage(error, "Could not load admin stats"));
   }
+}
+
+// ===== Users =====
+
+export async function getAdminUsers(params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  role?: string;
+  status?: string;
+}) {
+  const query = new URLSearchParams();
+  if (params?.page) query.append("page", String(params.page));
+  if (params?.limit) query.append("limit", String(params.limit));
+  if (params?.search) query.append("search", params.search);
+  if (params?.role) query.append("role", params.role);
+  if (params?.status) query.append("status", params.status);
+
+  const { data } = await api.get<{
+    status: string;
+    data: AdminUser[];
+    total: number;
+    page: number;
+    limit: number;
+  }>(`/admin/users?${query.toString()}`);
+
+  return data;
+}
+
+export async function updateAdminUser(
+  id: string,
+  payload: Partial<Pick<
+    AdminUser,
+    | "firstName"
+    | "lastName"
+    | "email"
+    | "phoneNumber"
+    | "role"
+    | "isEmailVerified"
+    | "isIdVerified"
+  >> & { disabled?: boolean },
+) {
+  const { data } = await api.patch<{ status: string; data: AdminUser }>(
+    `/admin/users/${id}`,
+    payload,
+  );
+  return data.data;
 }
 
 // ===== Freelancer Queue (with full filters) =====
@@ -237,7 +364,7 @@ export async function updateFreelancerVerification(
   id: string,
   payload: { status: "approved" | "rejected" | "interview_pending"; reason?: string }
 ) {
-  const { data } = await api.patch<{ status: string; data: any }>(
+  const { data } = await api.patch<{ status: string; data: unknown }>(
     `/admin/freelancers/${id}/verification`,
     payload
   );
@@ -327,8 +454,43 @@ export async function reviewAssessment(
   id: string,
   payload: { decision: "pass" | "fail" | "needs_review"; notes?: string; scoreOverride?: number }
 ) {
-  const { data } = await api.patch<{ status: string; data: any }>(
+  const { data } = await api.patch<{ status: string; data: unknown }>(
     `/admin/assessments/${id}/review`,
+    payload
+  );
+  return data.data;
+}
+
+export async function updateAssessmentScore(
+  id: string,
+  payload: { score: number; notes?: string }
+): Promise<AssessmentDetail> {
+  const { data } = await api.patch<{ status: string; data: AssessmentDetail }>(
+    `/admin/assessments/${id}/score`,
+    payload
+  );
+  return data.data;
+}
+
+export async function updateAssessmentQuestionScore(
+  id: string,
+  questionId: string,
+  payload: { score: number; feedback?: string }
+): Promise<AssessmentDetail> {
+  const { data } = await api.patch<{ status: string; data: AssessmentDetail }>(
+    `/admin/assessments/${id}/questions/${questionId}/score`,
+    payload
+  );
+  return data.data;
+}
+
+export async function updateFreelancerSkillScore(
+  profileId: string,
+  skillScoreId: string,
+  payload: { score: number; confidence?: number; evidence?: string }
+): Promise<FreelancerDetail> {
+  const { data } = await api.patch<{ status: string; data: FreelancerDetail }>(
+    `/admin/freelancers/${profileId}/skill-scores/${skillScoreId}`,
     payload
   );
   return data.data;

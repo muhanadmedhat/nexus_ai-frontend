@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Bell, Check, CheckCheck, X, Clock } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Bell, Check, X } from "lucide-react";
 import { clsx } from "clsx";
 import {
   getNotifications,
@@ -10,47 +10,77 @@ import {
   type Notification,
 } from "@/services/notifications";
 
+const NOTIFICATION_CACHE_MS = 30_000;
+
 export function NotificationDropdown() {
+  const lastLoadedAtRef = useRef(0);
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadNotifications = async () => {
+  const loadNotifications = useCallback(async (force = false) => {
+    if (!force && Date.now() - lastLoadedAtRef.current < NOTIFICATION_CACHE_MS) {
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
       const { data, unreadCount } = await getNotifications();
       setNotifications(data);
       setUnreadCount(unreadCount);
+      lastLoadedAtRef.current = Date.now();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load notifications");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    if (isOpen) {
-      loadNotifications();
-    }
-  }, [isOpen]);
+    if (!isOpen) return;
+
+    const loadTimer = window.setTimeout(() => {
+      void loadNotifications();
+    }, 0);
+
+    return () => window.clearTimeout(loadTimer);
+  }, [isOpen, loadNotifications]);
 
   const handleMarkRead = async (id: string) => {
+    const previousNotifications = notifications;
+    const previousUnreadCount = unreadCount;
+    setNotifications((items) =>
+      items.map((item) =>
+        item.id === id ? { ...item, isRead: true, readAt: new Date().toISOString() } : item,
+      ),
+    );
+    setUnreadCount((count) => Math.max(0, count - 1));
+
     try {
       await markNotificationAsRead(id);
-      await loadNotifications();
     } catch (err) {
+      setNotifications(previousNotifications);
+      setUnreadCount(previousUnreadCount);
       console.error("Failed to mark as read", err);
     }
   };
 
   const handleMarkAllRead = async () => {
+    const previousNotifications = notifications;
+    const previousUnreadCount = unreadCount;
+    setNotifications((items) =>
+      items.map((item) => ({ ...item, isRead: true, readAt: new Date().toISOString() })),
+    );
+    setUnreadCount(0);
+
     try {
       await markAllNotificationsAsRead();
-      await loadNotifications();
     } catch (err) {
+      setNotifications(previousNotifications);
+      setUnreadCount(previousUnreadCount);
       console.error("Failed to mark all as read", err);
     }
   };
@@ -120,7 +150,7 @@ export function NotificationDropdown() {
                 <Bell className="h-8 w-8 text-error opacity-50" />
                 <p className="mt-2 text-sm text-error">{error}</p>
                 <button
-                  onClick={loadNotifications}
+                  onClick={() => void loadNotifications(true)}
                   className="mt-2 text-xs text-primary-container hover:underline"
                 >
                   Retry

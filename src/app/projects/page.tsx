@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { FolderOpen, Plus, Trash2 } from "lucide-react";
-import axios from "axios";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -30,9 +29,6 @@ export default function ProjectsPage() {
       .then(setProjects)
       .catch((err) => {
         const message = err instanceof Error ? err.message : String(err);
-        console.log('🔍 Error message:', message);
-        
-        // Check if the message indicates forbidden access
         if (message.includes("not allowed") || message.includes("forbidden") || message.includes("403")) {
           setLoadError("forbidden");
         } else {
@@ -81,7 +77,7 @@ export default function ProjectsPage() {
           </div>
           <h3 className="text-lg font-semibold text-on-surface">No assigned projects</h3>
           <p className="mt-1 text-sm text-on-surface-variant">
-            As a freelancer, you'll see projects you're assigned to here.
+            As a freelancer, you&apos;ll see projects you&apos;re assigned to here.
             Complete your profile and get matched to start receiving tasks.
           </p>
           <Link href="/freelancer/verification">

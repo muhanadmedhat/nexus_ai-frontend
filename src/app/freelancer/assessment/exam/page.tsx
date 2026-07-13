@@ -95,11 +95,25 @@ export default function ExamPage() {
       .finally(() => setLoading(false));
   }, [router]);
 
-  const logEvent = useCallback((eventType: AssessmentEventType) => {
-    const id = idRef.current;
-    if (!id) return;
-    trackEvent(id, eventType, { occurredAt: new Date().toISOString() }).catch(() => {});
-  }, []);
+  const logEvent = useCallback(
+    async (eventType: AssessmentEventType) => {
+      const id = idRef.current;
+      if (!id || submittedRef.current) return;
+      try {
+        const result = await trackEvent(id, eventType, {
+          occurredAt: new Date().toISOString(),
+        });
+        setWarnings(result.warningsCount);
+        if (result.cancelled) {
+          submittedRef.current = true;
+          router.replace("/freelancer/assessment/result");
+        }
+      } catch {
+        // Do not block the exam UI if telemetry fails momentarily.
+      }
+    },
+    [router],
+  );
 
   const persist = useCallback(async () => {
     const id = idRef.current;
@@ -163,7 +177,7 @@ export default function ExamPage() {
       const left = Math.max(0, Math.floor((expiry - Date.now()) / 1000));
       setRemaining(left);
       if (left <= 0 && !submittedRef.current) {
-        logEvent("timer_expired");
+        void logEvent("timer_expired");
         void doSubmit("timer_expired");
       }
     }, 1000);
@@ -173,35 +187,43 @@ export default function ExamPage() {
   // ---- anti-cheat: record focus / tab / fullscreen / copy-paste ----
   useEffect(() => {
     const warn = (type: AssessmentEventType) => {
-      logEvent(type);
-      setWarnings((w) => w + 1);
+      void logEvent(type);
       setShowWarning(true);
     };
     const onVisibility = () =>
-      document.hidden ? warn("visibility_hidden") : logEvent("visibility_visible");
-    const onBlur = () => warn("focus_lost");
-    const onFocus = () => logEvent("focus_returned");
-    const onCopy = () => logEvent("copy_attempt");
-    const onPaste = () => logEvent("paste_attempt");
+      document.hidden ? warn("visibility_hidden") : void logEvent("visibility_visible");
+    const onCopy = (event: ClipboardEvent) => {
+      event.preventDefault();
+      warn("copy_attempt");
+    };
+    const onPaste = (event: ClipboardEvent) => {
+      event.preventDefault();
+      warn("paste_attempt");
+    };
+    const onSelectStart = (event: Event) => {
+      const target = event.target;
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return;
+      event.preventDefault();
+    };
     const onFsChange = () => {
       const fs = Boolean(document.fullscreenElement);
       setIsFullscreen(fs);
-      if (fs) logEvent("fullscreen_enter");
+      if (fs) void logEvent("fullscreen_enter");
       else warn("fullscreen_exit");
     };
 
     document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("blur", onBlur);
-    window.addEventListener("focus", onFocus);
     document.addEventListener("copy", onCopy);
     document.addEventListener("paste", onPaste);
+    document.addEventListener("cut", onCopy);
+    document.addEventListener("selectstart", onSelectStart);
     document.addEventListener("fullscreenchange", onFsChange);
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("blur", onBlur);
-      window.removeEventListener("focus", onFocus);
       document.removeEventListener("copy", onCopy);
       document.removeEventListener("paste", onPaste);
+      document.removeEventListener("cut", onCopy);
+      document.removeEventListener("selectstart", onSelectStart);
       document.removeEventListener("fullscreenchange", onFsChange);
     };
   }, [logEvent]);
@@ -252,7 +274,7 @@ export default function ExamPage() {
   }
 
   function openSubmit() {
-    logEvent("manual_submit_click");
+    void logEvent("manual_submit_click");
     setConfirmOpen(true);
   }
 
@@ -337,7 +359,9 @@ export default function ExamPage() {
 
       {showWarning ? (
         <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-error/30 bg-error/10 px-4 py-2.5 text-sm text-error">
-          <span>Leaving the tab or fullscreen is recorded for reviewers. ({warnings})</span>
+          <span>
+            Integrity warning recorded. Your assessment is cancelled after 3 warnings. ({warnings}/3)
+          </span>
           <button
             onClick={() => setShowWarning(false)}
             className="shrink-0 text-xs font-semibold hover:underline"
@@ -371,7 +395,7 @@ export default function ExamPage() {
       </div>
 
       {q ? (
-        <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
+        <div className="select-none rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
           <div className="mb-2 flex items-center gap-2 text-xs text-on-surface-variant">
             {q.skill ? (
               <span className="rounded-full bg-surface-container-high px-2 py-0.5 font-medium">{q.skill}</span>
@@ -415,7 +439,7 @@ export default function ExamPage() {
               onBlur={() => void persist()}
               rows={q.questionType === "scenario" ? 8 : 4}
               placeholder="Type your answer…"
-              className="input-halo w-full resize-y rounded-lg border border-outline-variant bg-surface-container-lowest p-3 text-sm text-on-surface outline-none"
+              className="input-halo w-full resize-y rounded-lg border border-outline-variant bg-surface-container-lowest p-3 text-sm text-on-surface outline-none select-text"
             />
           )}
 

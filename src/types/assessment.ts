@@ -11,11 +11,27 @@ export type VerificationStatus =
   | "approved"
   | "rejected";
 
+export type CvExtractionStatus =
+  | "pending"
+  | "queued"
+  | "processing"
+  | "completed"
+  | "failed";
+
+export type AssessmentGenerationStatus =
+  | "pending"
+  | "queued"
+  | "processing"
+  | "ready"
+  | "failed";
+
 export type NextAction =
   | "complete_profile"
   | "verify_email"
   | "upload_cv"
   | "wait_for_cv_extraction"
+  | "wait_for_assessment_generation"
+  | "retry_assessment_generation"
   | "start_assessment"
   | "continue_assessment"
   | "wait_for_review"
@@ -24,6 +40,8 @@ export type NextAction =
 
 export type AssessmentStatus =
   | "pending"
+  | "generating"
+  | "ready"
   | "in_progress"
   | "submitted"
   | "graded"
@@ -31,7 +49,8 @@ export type AssessmentStatus =
   | "passed"
   | "failed"
   | "expired"
-  | "cancelled";
+  | "cancelled"
+  | "generation_failed";
 
 export type QuestionType = "multiple_choice" | "short_answer" | "scenario";
 
@@ -76,6 +95,8 @@ export interface AssessmentSummary {
   status: AssessmentStatus;
   score: string | null;
   durationSeconds: number;
+  generatedAt?: string | null;
+  generationError?: string | null;
   startedAt: string | null;
   expiresAt: string | null;
   submittedAt: string | null;
@@ -110,6 +131,14 @@ export interface VerificationChecklist {
   emailVerified: boolean;
   cvUploaded: boolean;
   cvExtracted: boolean;
+  cvExtractionStatus: CvExtractionStatus | null;
+  cvExtractedAt: string | null;
+  cvExtractionError: string | null;
+  assessmentGenerationStatus: AssessmentGenerationStatus | null;
+  assessmentGenerationQueuedAt: string | null;
+  assessmentGenerationStartedAt: string | null;
+  assessmentGeneratedAt: string | null;
+  assessmentGenerationError: string | null;
   nextAction: NextAction | null;
   assessment: AssessmentSummary | null;
   missing: string[];
@@ -162,5 +191,7 @@ export interface SubmitAssessmentResult {
 export interface TrackEventResult {
   id: string;
   eventType: AssessmentEventType;
+  warningsCount: number;
+  cancelled: boolean;
   createdAt: string;
 }

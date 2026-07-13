@@ -105,27 +105,12 @@ export function getApiErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
-// ===== INTERCEPTOR WITH DEBUG LOGS =====
 api.interceptors.request.use((config) => {
   const token = getAccessToken();
-  console.log("🔑 [Interceptor] Token from getAccessToken():", token);
 
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
-    console.log(
-      "✅ [Interceptor] Authorization header set:",
-      config.headers.Authorization,
-    );
-  } else {
-    console.warn(
-      "⚠️ [Interceptor] No token found – request will be unauthenticated.",
-    );
   }
-
-  console.log(
-    "📤 [Interceptor] Request URL:",
-    (config.baseURL || "") + (config.url || ""),
-  );
 
   return config;
 });

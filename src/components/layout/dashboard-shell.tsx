@@ -30,7 +30,7 @@ export function DashboardShell({ role, title, subtitle, children }: DashboardShe
             onMenuClick={() => setIsMobileMenuOpen(true)}
           />
           <main className="min-w-0 flex-1 overflow-x-hidden p-3 sm:p-4 md:p-6">
-            <div className="mx-auto min-w-0 max-w-[1280px]">
+            <div className="mx-auto w-full min-w-0 max-w-[1480px]">
               {children}
             </div>
           </main>

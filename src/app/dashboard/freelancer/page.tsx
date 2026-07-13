@@ -36,6 +36,49 @@ export default function FreelancerDashboardPage() {
     !bannerDismissed &&
     verification !== null &&
     verification.verificationStatus !== "approved";
+  const isWaitingForAdminReview =
+    verification?.verificationStatus === "assessment_submitted" ||
+    verification?.verificationStatus === "interview_pending" ||
+    verification?.nextAction === "wait_for_review" ||
+    verification?.assessment?.status === "submitted" ||
+    verification?.assessment?.status === "graded" ||
+    verification?.assessment?.status === "needs_review";
+  const profileReady = verification?.profileComplete === true;
+
+  const bannerCopy = isWaitingForAdminReview
+    ? {
+        title: "Waiting for admin review",
+        body: "Your assessment is submitted. Our team is reviewing it and we’ll update your status here.",
+        label: "View result",
+        href: "/freelancer/assessment/result",
+      }
+    : {
+        title: "Finish your verification",
+        body: "Complete the remaining steps to get verified and start getting matched to work.",
+        label: "Go to verification",
+        href: "/freelancer/verification",
+      };
+
+  const readinessCopy = isWaitingForAdminReview
+    ? {
+        title: "Waiting for admin review",
+        body: "Your skill profile is ready. Matching will unlock once admin review is complete.",
+        progress: 85,
+        progressLabel: "Review pending",
+      }
+    : profileReady
+      ? {
+          title: "Profile ready",
+          body: "Your assessment profile and skill ratings are ready for matching.",
+          progress: 100,
+          progressLabel: "Ready",
+        }
+      : {
+          title: "Complete verification",
+          body: "Upload your CV and complete the assessment to build your skill profile.",
+          progress: 33,
+          progressLabel: "In progress",
+        };
 
   const stats = {
     activeTasks: 0,
@@ -54,15 +97,13 @@ export default function FreelancerDashboardPage() {
         <div className="mb-6 flex items-start gap-3 rounded-xl border border-secondary-container/40 bg-secondary-container/20 p-4 card-shadow">
           <ShieldCheck size={20} className="mt-0.5 shrink-0 text-secondary" />
           <div className="min-w-0 flex-1">
-            <p className="font-medium text-on-surface">Finish your verification</p>
-            <p className="text-sm text-on-surface-variant">
-              Complete the remaining steps to get verified and start getting matched to work.
-            </p>
+            <p className="font-medium text-on-surface">{bannerCopy.title}</p>
+            <p className="text-sm text-on-surface-variant">{bannerCopy.body}</p>
             <Link
-              href="/freelancer/verification"
+              href={bannerCopy.href}
               className="mt-1 inline-flex items-center gap-1 text-sm font-semibold text-primary-container hover:underline"
             >
-              Go to verification
+              {bannerCopy.label}
               <Check size={16} />
             </Link>
           </div>
@@ -110,14 +151,15 @@ export default function FreelancerDashboardPage() {
             <AlertCircle size={20} className="text-secondary" />
           </div>
           <div className="flex-1">
-            <h4 className="font-medium text-on-surface">Complete your profile</h4>
-            <p className="text-sm text-on-surface-variant">
-              Add your skills, portfolio, and availability to start getting matched.
-            </p>
+            <h4 className="font-medium text-on-surface">{readinessCopy.title}</h4>
+            <p className="text-sm text-on-surface-variant">{readinessCopy.body}</p>
             <div className="mt-3 h-1.5 w-full max-w-xs rounded-full bg-surface-container-high">
-              <div className="h-1.5 w-1/3 rounded-full bg-primary-container" />
+              <div
+                className="h-1.5 rounded-full bg-primary-container"
+                style={{ width: `${readinessCopy.progress}%` }}
+              />
             </div>
-            <p className="mt-1 text-xs text-on-surface-variant">33% complete</p>
+            <p className="mt-1 text-xs text-on-surface-variant">{readinessCopy.progressLabel}</p>
           </div>
         </div>
       </div>
@@ -129,7 +171,9 @@ export default function FreelancerDashboardPage() {
         </div>
         <h3 className="text-lg font-semibold text-on-surface">No assigned project work yet</h3>
         <p className="mt-1 text-sm text-on-surface-variant">
-          Complete your profile to get matched with relevant projects.
+          {isWaitingForAdminReview
+            ? "Matching starts after admin review is complete."
+            : "Complete verification to get matched with relevant projects."}
         </p>
       </div>
     </DashboardShell>

@@ -11,7 +11,6 @@ import {
   CreditCard,
   ShieldCheck,
   Users,
-  Briefcase,
   ClipboardCheck,
   Cpu,
 } from "lucide-react";
@@ -43,12 +42,11 @@ const NAV_ITEMS: Record<UserRole, NavItem[]> = {
   ],
   admin: [
     { label: "Dashboard", href: "/dashboard/admin", icon: <LayoutDashboard size={20} /> },
-    { label: "Admin", href: "/admin", icon: <ShieldCheck size={20} /> },
+    { label: "Freelancers", href: "/dashboard/admin/freelancers", icon: <ShieldCheck size={20} /> },
     { label: "Agents", href: "/dashboard/admin/agents", icon: <Cpu size={20} /> },
     { label: "Assessments", href: "/dashboard/admin/assessments", icon: <ClipboardCheck size={20} /> },
-    { label: "Agent Jobs", href: "/admin/agent-jobs", icon: <Briefcase size={20} /> },
-    { label: "Reviews", href: "/admin/reviews", icon: <ClipboardCheck size={20} /> },
-    { label: "Users", href: "/admin/users", icon: <Users size={20} /> },
+    { label: "Reviews", href: "/dashboard/admin/reviews", icon: <ClipboardCheck size={20} /> },
+    { label: "Users", href: "/dashboard/admin/users", icon: <Users size={20} /> },
   ],
 
 };
@@ -89,7 +87,13 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
         {/* Navigation */}
         <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {navItems.map((item) => {
-            const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
+            const isDashboardHome =
+              item.href === "/dashboard/customer" ||
+              item.href === "/dashboard/freelancer" ||
+              item.href === "/dashboard/admin";
+            const isActive = isDashboardHome
+              ? pathname === item.href
+              : pathname === item.href || pathname?.startsWith(item.href + "/");
             return (
               <Link
                 key={item.href}

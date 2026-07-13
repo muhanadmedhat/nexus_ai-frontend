@@ -8,7 +8,7 @@ export interface Notification {
   isRead: boolean;
   createdAt: string;
   readAt: string | null;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface NotificationResponse {

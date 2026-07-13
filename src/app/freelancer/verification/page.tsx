@@ -8,7 +8,6 @@ import {
   Mail,
   UserRound,
   FileText,
-  FileSearch,
   ClipboardCheck,
   Send,
   ShieldCheck,
@@ -20,13 +19,16 @@ import { Button } from "@/components/ui/button";
 import { getVerification } from "@/services/assessments";
 import type { NextAction, VerificationChecklist } from "@/types/assessment";
 
-type RowState = "done" | "pending" | "action" | "blocked";
+type RowState = "done" | "pending" | "action" | "blocked" | "working" | "ready" | "review";
 
 const BADGE: Record<RowState, { cls: string; label: string }> = {
   done: { cls: "bg-primary-container/15 text-primary-container", label: "Done" },
   pending: { cls: "bg-surface-container-high text-on-surface-variant", label: "Pending" },
   action: { cls: "bg-secondary-container/20 text-secondary", label: "Needs action" },
   blocked: { cls: "bg-error/10 text-error", label: "Blocked" },
+  working: { cls: "bg-primary-container/10 text-primary-container", label: "Working" },
+  ready: { cls: "bg-primary-container/15 text-primary-container", label: "Ready" },
+  review: { cls: "bg-secondary-container/20 text-secondary", label: "In review" },
 };
 
 const NEXT_ACTION_CTA: Record<NextAction, { label: string; href: string } | null> = {
@@ -34,12 +36,16 @@ const NEXT_ACTION_CTA: Record<NextAction, { label: string; href: string } | null
   verify_email: { label: "Verify email", href: "/email-not-verified" },
   upload_cv: { label: "Upload CV", href: "/profile" },
   wait_for_cv_extraction: null,
+  wait_for_assessment_generation: null,
+  retry_assessment_generation: { label: "Upload CV again", href: "/profile" },
   start_assessment: { label: "Start assessment", href: "/freelancer/assessment" },
   continue_assessment: { label: "Continue assessment", href: "/freelancer/assessment" },
   wait_for_review: { label: "View result", href: "/freelancer/assessment/result" },
   approved: { label: "View result", href: "/freelancer/assessment/result" },
   rejected: { label: "View result", href: "/freelancer/assessment/result" },
 };
+
+const SUBMITTED_ASSESSMENT_STATUSES = ["submitted", "graded", "needs_review", "passed", "failed"];
 
 interface Row {
   label: string;
@@ -51,9 +57,31 @@ interface Row {
 
 function buildRows(v: VerificationChecklist): Row[] {
   const a = v.assessment;
+  const assessmentStatus = a?.status ?? null;
+  const cvExtractionFailed = v.cvExtractionStatus === "failed";
+  const cvExtractionWorking =
+    v.cvExtractionStatus === "queued" ||
+    v.cvExtractionStatus === "processing" ||
+    (v.cvUploaded && !v.cvExtracted && v.cvExtractionStatus === "pending");
+  const cvReady = v.cvUploaded && v.cvExtracted && !cvExtractionFailed;
+  const assessmentGenerationFailed =
+    v.assessmentGenerationStatus === "failed" || assessmentStatus === "generation_failed";
+  const assessmentWorking =
+    v.nextAction === "wait_for_assessment_generation" ||
+    v.assessmentGenerationStatus === "queued" ||
+    v.assessmentGenerationStatus === "processing" ||
+    assessmentStatus === "pending" ||
+    assessmentStatus === "generating";
+  const assessmentReady = v.nextAction === "start_assessment" || assessmentStatus === "ready";
+  const assessmentActive = assessmentStatus === "in_progress";
   const submitted =
     Boolean(a?.submittedAt) ||
-    ["submitted", "graded", "needs_review", "passed", "failed"].includes(a?.status ?? "");
+    SUBMITTED_ASSESSMENT_STATUSES.includes(assessmentStatus ?? "");
+  const reviewWaiting =
+    v.verificationStatus === "assessment_submitted" ||
+    v.verificationStatus === "interview_pending" ||
+    v.nextAction === "wait_for_review" ||
+    submitted;
 
   return [
     {
@@ -66,68 +94,95 @@ function buildRows(v: VerificationChecklist): Row[] {
     {
       label: "CV uploaded",
       icon: FileText,
-      state: v.cvUploaded ? "done" : "action",
-      detail: v.cvUploaded ? "We received your CV." : "Upload your CV to continue.",
-      action: v.cvUploaded ? undefined : { label: "Upload CV", href: "/profile" },
-    },
-    {
-      label: "CV extracted",
-      icon: FileSearch,
-      state: v.cvExtracted ? "done" : "pending",
-      detail: v.cvExtracted
-        ? "We read your skills and experience from your CV."
-        : v.cvUploaded
-          ? "We're reading your CV — this only takes a moment."
-          : "We'll read your CV once it's uploaded.",
+      state: cvReady ? "done" : cvExtractionFailed || !v.cvUploaded ? "action" : cvExtractionWorking ? "working" : "pending",
+      detail: cvReady
+        ? "Your CV has been uploaded and read successfully."
+        : cvExtractionFailed
+          ? v.cvExtractionError ?? "We couldn't read your CV. Upload it again to retry."
+          : cvExtractionWorking
+            ? "Your CV is uploaded. We're reading it now."
+            : "Upload your CV to continue.",
+      action:
+        cvExtractionFailed || !v.cvUploaded ? { label: "Upload CV", href: "/profile" } : undefined,
     },
     {
       label: "Assessment ready",
       icon: ClipboardCheck,
-      state: !a ? "pending" : a.status === "pending" || a.status === "in_progress" ? "action" : "done",
-      detail: !a
-        ? "Finish the earlier steps to unlock your assessment."
-        : a.status === "pending"
-          ? "Your assessment is ready to start."
-          : a.status === "in_progress"
-            ? "Your assessment is in progress."
-            : "Your assessment has been prepared.",
+      state: assessmentGenerationFailed
+        ? "blocked"
+        : submitted || assessmentActive
+          ? "done"
+          : assessmentReady
+            ? "ready"
+            : assessmentWorking
+              ? "working"
+              : "pending",
+      detail: assessmentGenerationFailed
+        ? v.assessmentGenerationError ?? a?.generationError ?? "We couldn't create the assessment from this CV."
+        : submitted
+          ? "Your assessment was prepared and submitted."
+          : assessmentActive
+            ? "Your assessment is open and in progress."
+            : assessmentReady
+              ? "Your assessment is ready to start."
+              : assessmentWorking
+                ? "We're creating a focused assessment from your CV skills."
+                : !cvReady
+                  ? "This unlocks after your CV is uploaded and read."
+                  : "Your assessment is waiting to be prepared.",
       action:
-        a?.status === "pending"
+        assessmentReady
           ? { label: "Start assessment", href: "/freelancer/assessment" }
-          : a?.status === "in_progress"
+          : assessmentActive
             ? { label: "Continue assessment", href: "/freelancer/assessment" }
+            : assessmentGenerationFailed
+              ? { label: "Upload CV again", href: "/profile" }
             : undefined,
     },
     {
       label: "Assessment submitted",
       icon: Send,
-      state: submitted ? "done" : a?.status === "in_progress" ? "action" : "pending",
+      state: submitted ? "done" : assessmentActive ? "action" : "pending",
       detail: submitted
         ? "Your answers were submitted for review."
-        : a?.status === "in_progress"
+        : assessmentActive
           ? "Finish and submit your assessment."
           : "Submit your assessment once you've started it.",
-      action: submitted ? { label: "View result", href: "/freelancer/assessment/result" } : undefined,
+      action: submitted
+        ? { label: "View result", href: "/freelancer/assessment/result" }
+        : assessmentActive
+          ? { label: "Continue assessment", href: "/freelancer/assessment" }
+          : undefined,
     },
     {
       label: "Profile completed",
       icon: UserRound,
-      state: v.profileComplete ? "done" : "pending",
+      state: v.profileComplete ? "done" : submitted ? "working" : "pending",
       detail: v.profileComplete
-        ? "Built automatically from your CV and assessment."
-        : "We build this automatically from your CV and assessment.",
+        ? "Your performance summary and skill ratings are ready."
+        : submitted
+          ? "We're preparing your skill ratings from your assessment."
+          : "This is generated after your assessment.",
     },
     {
       label: "Admin review",
       icon: ShieldCheck,
       state:
-        v.verificationStatus === "approved" ? "done" : v.verificationStatus === "rejected" ? "blocked" : "pending",
+        v.verificationStatus === "approved"
+          ? "done"
+          : v.verificationStatus === "rejected"
+            ? "blocked"
+            : reviewWaiting
+              ? "review"
+              : "pending",
       detail:
         v.verificationStatus === "approved"
           ? "You're verified and ready to take on work."
           : v.verificationStatus === "rejected"
             ? "Your application wasn't approved this time."
-            : "Our team will review your submission after you submit.",
+            : reviewWaiting
+              ? "Your submission is with our team for review."
+              : "Our team will review your submission after you submit.",
     },
   ];
 }
@@ -143,7 +198,10 @@ export default function FreelancerVerificationPage() {
 
   const load = useCallback(() => {
     getVerification()
-      .then(setData)
+      .then((nextData) => {
+        setData(nextData);
+        setError(null);
+      })
       .catch((err) => setError(err instanceof Error ? err.message : "Could not load verification status"))
       .finally(() => setLoading(false));
   }, []);
@@ -152,6 +210,25 @@ export default function FreelancerVerificationPage() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    const assessmentStatus = data?.assessment?.status ?? null;
+    const shouldPoll =
+      data?.cvExtractionStatus === "queued" ||
+      data?.cvExtractionStatus === "processing" ||
+      data?.assessmentGenerationStatus === "queued" ||
+      data?.assessmentGenerationStatus === "processing" ||
+      assessmentStatus === "pending" ||
+      assessmentStatus === "generating";
+    if (!shouldPoll) return;
+    const interval = window.setInterval(load, 5000);
+    return () => window.clearInterval(interval);
+  }, [
+    data?.assessment?.status,
+    data?.assessmentGenerationStatus,
+    data?.cvExtractionStatus,
+    load,
+  ]);
+
   const retry = () => {
     setLoading(true);
     setError(null);
@@ -159,23 +236,70 @@ export default function FreelancerVerificationPage() {
   };
 
   const cta = data && data.nextAction ? NEXT_ACTION_CTA[data.nextAction] : null;
+  const assessmentStatus = data?.assessment?.status ?? null;
+  const cvExtractionWorking =
+    data?.cvExtractionStatus === "queued" || data?.cvExtractionStatus === "processing";
+  const assessmentWorking =
+    data?.nextAction === "wait_for_assessment_generation" ||
+    data?.assessmentGenerationStatus === "queued" ||
+    data?.assessmentGenerationStatus === "processing" ||
+    assessmentStatus === "pending" ||
+    assessmentStatus === "generating";
+  const waitingForReview =
+    data?.nextAction === "wait_for_review" ||
+    data?.verificationStatus === "assessment_submitted" ||
+    data?.verificationStatus === "interview_pending";
   const overallTone: RowState =
     data?.verificationStatus === "approved"
       ? "done"
       : data?.verificationStatus === "rejected"
         ? "blocked"
-        : cta
-          ? "action"
-          : "pending";
+        : cvExtractionWorking || assessmentWorking
+          ? "working"
+          : waitingForReview
+            ? "review"
+            : data?.nextAction === "start_assessment"
+              ? "ready"
+              : data?.nextAction === "retry_assessment_generation"
+                ? "blocked"
+                : cta
+                  ? "action"
+                  : "pending";
+
+  const statusLabel =
+    cvExtractionWorking
+      ? "Reading CV"
+      : assessmentWorking
+        ? "Creating assessment"
+        : waitingForReview
+          ? "In review"
+          : data
+            ? humanize(data.verificationStatus)
+            : "Verification";
+
+  const backgroundStatusText =
+    cvExtractionWorking
+      ? "Reading your CV"
+      : assessmentWorking
+        ? "Creating your assessment"
+        : null;
 
   const panelText =
-    overallTone === "done"
-      ? "You're verified — you're all set."
-      : overallTone === "blocked"
-        ? "Your application wasn't approved. Open your result for details."
-        : cta
-          ? "Complete the highlighted step to keep moving forward."
-          : "Sit tight — we'll update this as your review progresses.";
+    cvExtractionWorking
+      ? "We're reading your CV now. Your assessment will be created automatically after that."
+      : assessmentWorking
+        ? "We're creating your assessment from your CV. You can leave this page; we'll keep checking."
+        : overallTone === "done"
+          ? "You're verified and ready to take on work."
+          : overallTone === "blocked"
+            ? "Open the highlighted step to see what needs attention."
+            : overallTone === "review"
+              ? "Your submission is with our team for review."
+              : overallTone === "ready"
+                ? "Your assessment is ready to start."
+                : cta
+                  ? "Complete the highlighted step to keep moving forward."
+                  : "Sit tight. We'll update this as your review progresses.";
 
   return (
     <DashboardShell
@@ -211,10 +335,16 @@ export default function FreelancerVerificationPage() {
                       BADGE[overallTone].cls,
                     )}
                   >
-                    {humanize(data.verificationStatus)}
+                    {statusLabel}
                   </span>
                 </div>
                 <p className="mt-1 max-w-xl text-sm text-on-surface-variant">{panelText}</p>
+                {backgroundStatusText ? (
+                  <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-primary-container/10 px-3 py-1 text-xs font-medium text-primary-container">
+                    <Loader2 size={13} className="animate-spin" />
+                    {backgroundStatusText}
+                  </div>
+                ) : null}
               </div>
               {cta ? (
                 <Link href={cta.href} className="shrink-0">
@@ -245,6 +375,9 @@ export default function FreelancerVerificationPage() {
                           badge.cls,
                         )}
                       >
+                        {row.state === "working" ? (
+                          <Loader2 size={12} className="mr-1 animate-spin" />
+                        ) : null}
                         {badge.label}
                       </span>
                       {row.action ? (

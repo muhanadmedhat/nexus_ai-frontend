@@ -35,10 +35,25 @@ interface BackendBrief {
   summary: string | null;
   projectType?: string | null;
   domain?: string | null;
+  mainGoal?: string | null;
+  targetUsers?: string | null;
+  coreFeatures?: string | null;
+  platforms?: string | null;
+  budget?: string | null;
+  deadlineText?: string | null;
+  deliverablesText?: string | null;
+  constraintsPreferences?: string | null;
   clientBackground?: string | null;
   suggestedTeamSize?: number | null;
   experienceLevel?: string | null;
   experienceMinYears?: number | null;
+  missingFields?: string[] | null;
+  completionPercentage?: number | null;
+  aiRevisionOpen?: boolean | null;
+  revisionCount?: number | null;
+  revisionLimit?: number | null;
+  confirmedAt?: string | null;
+  extractedFields?: Record<string, unknown> | null;
   technical?: Record<string, unknown> | null;
   nonFunctional?: Record<string, unknown> | null;
   deliverables?: Record<string, unknown> | null;
@@ -105,7 +120,11 @@ function hasValue(value: unknown): boolean {
 }
 
 function getExtractedFields(brief: BackendBrief): Record<string, unknown> {
-  return asPlainObject(brief.aiDecided?.extractedFields) ?? {};
+  return (
+    asPlainObject(brief.extractedFields) ??
+    asPlainObject(brief.aiDecided?.extractedFields) ??
+    {}
+  );
 }
 
 function getRequirementValues(brief: BackendBrief) {
@@ -115,13 +134,15 @@ function getRequirementValues(brief: BackendBrief) {
   const deliverables = asPlainObject(brief.deliverables) ?? {};
   const valuesByKey: Record<string, unknown> = {
     businessDomain: brief.domain ?? extracted.businessDomain,
-    mainGoal: technical.mainGoal ?? extracted.mainGoal,
-    targetUsers: technical.targetUsers ?? extracted.targetUsers,
-    coreFeatures: technical.coreFeatures ?? extracted.coreFeatures,
-    platforms: technical.platforms ?? extracted.platforms,
-    deliverables: deliverables.items ?? extracted.deliverables,
+    mainGoal: brief.mainGoal ?? technical.mainGoal ?? extracted.mainGoal,
+    targetUsers: brief.targetUsers ?? technical.targetUsers ?? extracted.targetUsers,
+    coreFeatures: brief.coreFeatures ?? technical.coreFeatures ?? extracted.coreFeatures,
+    platforms: brief.platforms ?? technical.platforms ?? extracted.platforms,
+    deliverables: brief.deliverablesText ?? deliverables.items ?? extracted.deliverables,
     constraintsPreferences:
-      nonFunctional.constraintsPreferences ?? extracted.constraintsPreferences,
+      brief.constraintsPreferences ??
+      nonFunctional.constraintsPreferences ??
+      extracted.constraintsPreferences,
     clientBackground: brief.clientBackground ?? extracted.clientBackground,
     suggestedTeamSize: brief.suggestedTeamSize ?? extracted.suggestedTeamSize,
     experienceLevel: brief.experienceLevel ?? extracted.experienceLevel,
@@ -156,16 +177,22 @@ function previewValue(value: unknown): string {
 }
 
 function getAiString(brief: BackendBrief, key: string): string | null {
+  const direct = brief[key as keyof BackendBrief];
+  if (typeof direct === "string" && direct.trim()) return direct;
   const value = brief.aiDecided?.[key];
   return typeof value === "string" && value.trim() ? value : null;
 }
 
 function getAiNumber(brief: BackendBrief, key: string, fallback: number): number {
+  const direct = brief[key as keyof BackendBrief];
+  if (typeof direct === "number" && Number.isFinite(direct)) return direct;
   const value = brief.aiDecided?.[key];
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
 function getAiBoolean(brief: BackendBrief, key: string): boolean {
+  const direct = brief[key as keyof BackendBrief];
+  if (typeof direct === "boolean") return direct;
   return brief.aiDecided?.[key] === true;
 }
 
@@ -212,7 +239,10 @@ function deriveSummary(brief: BackendBrief): string | null {
 
 function toCompletionPercent(brief: BackendBrief, ai?: BackendAiResult): number {
   const raw =
-    ai?.completionPercentage ?? brief.aiDecided?.completionPercentage ?? 0;
+    ai?.completionPercentage ??
+    brief.completionPercentage ??
+    brief.aiDecided?.completionPercentage ??
+    0;
   const derived = deriveCompletionPercent(brief);
   const value =
     typeof raw === "number" && Number.isFinite(raw)
@@ -224,7 +254,8 @@ function toCompletionPercent(brief: BackendBrief, ai?: BackendAiResult): number 
 }
 
 function toBrief(brief: BackendBrief, ai?: BackendAiResult): Brief {
-  const rawMissingFields = ai?.missingFields ?? brief.aiDecided?.missingFields;
+  const rawMissingFields =
+    ai?.missingFields ?? brief.missingFields ?? brief.aiDecided?.missingFields;
   const revisionCount = getAiNumber(brief, "revisionCount", 0);
   const revisionLimit = getAiNumber(brief, "revisionLimit", AI_REVISION_LIMIT);
   const capturedLabels = new Set(
