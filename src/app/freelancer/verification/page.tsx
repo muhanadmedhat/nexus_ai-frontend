@@ -64,13 +64,6 @@ function buildRows(v: VerificationChecklist): Row[] {
       action: v.emailVerified ? undefined : { label: "Verify email", href: "/email-not-verified" },
     },
     {
-      label: "Profile completed",
-      icon: UserRound,
-      state: v.profileComplete ? "done" : "action",
-      detail: v.profileComplete ? "Your profile details are complete." : "Add your remaining profile details.",
-      action: v.profileComplete ? undefined : { label: "Complete profile", href: "/profile" },
-    },
-    {
       label: "CV uploaded",
       icon: FileText,
       state: v.cvUploaded ? "done" : "action",
@@ -115,6 +108,14 @@ function buildRows(v: VerificationChecklist): Row[] {
           ? "Finish and submit your assessment."
           : "Submit your assessment once you've started it.",
       action: submitted ? { label: "View result", href: "/freelancer/assessment/result" } : undefined,
+    },
+    {
+      label: "Profile completed",
+      icon: UserRound,
+      state: v.profileComplete ? "done" : "pending",
+      detail: v.profileComplete
+        ? "Built automatically from your CV and assessment."
+        : "We build this automatically from your CV and assessment.",
     },
     {
       label: "Admin review",
