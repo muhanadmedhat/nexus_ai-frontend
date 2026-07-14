@@ -25,6 +25,10 @@ import {
 } from "lucide-react";
 
 const statusLabels: Record<string, string> = {
+  cv_processing: "Reading CV",
+  cv_extraction_failed: "CV Failed",
+  assessment_pending: "Assessment Pending",
+  assessment_generation_failed: "Assessment Failed",
   assessment_submitted: "Submitted",
   approved: "Approved",
   rejected: "Rejected",
@@ -32,6 +36,11 @@ const statusLabels: Record<string, string> = {
 };
 
 const statusStyles: Record<string, string> = {
+  cv_processing: "border-primary-container/20 bg-primary-container/10 text-primary-container",
+  cv_extraction_failed: "border-error/20 bg-error-container/40 text-error",
+  assessment_pending:
+    "border-outline-variant/50 bg-surface-container-high text-on-surface-variant",
+  assessment_generation_failed: "border-error/20 bg-error-container/40 text-error",
   assessment_submitted:
     "border-outline-variant/50 bg-surface-container-high text-on-surface-variant",
   approved: "border-primary-container/20 bg-primary-container/10 text-primary-container",

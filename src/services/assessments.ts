@@ -33,6 +33,28 @@ export async function getVerification(): Promise<VerificationChecklist> {
   }
 }
 
+export async function retryCvExtraction(): Promise<void> {
+  try {
+    await unwrap<unknown>(
+      api.post(API_ENDPOINTS.freelancerVerification.retryCvExtraction),
+    );
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, "Could not retry CV extraction"));
+  }
+}
+
+export async function retryAssessmentGeneration(): Promise<void> {
+  try {
+    await unwrap<unknown>(
+      api.post(API_ENDPOINTS.freelancerVerification.retryAssessmentGeneration),
+    );
+  } catch (error) {
+    throw new Error(
+      getApiErrorMessage(error, "Could not retry assessment generation"),
+    );
+  }
+}
+
 export async function startAssessment(
   input: StartAssessmentInput = {},
 ): Promise<StartAssessmentResult> {

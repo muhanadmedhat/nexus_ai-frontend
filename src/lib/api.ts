@@ -39,6 +39,9 @@ export const API_ENDPOINTS = {
   },
   freelancerVerification: {
     me: "/freelancer-verification/me",
+    retryCvExtraction: "/freelancer-verification/me/cv-extraction/retry",
+    retryAssessmentGeneration:
+      "/freelancer-verification/me/assessment-generation/retry",
   },
   freelancerAssessments: {
     start: "/freelancer-assessments/start",

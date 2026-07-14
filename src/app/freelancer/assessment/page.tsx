@@ -243,9 +243,9 @@ export default function AssessmentLobbyPage() {
       ) : phase === "failed" ? (
         <LobbyState
           title="We couldn't prepare your assessment"
-          detail="Upload your CV again so we can retry the assessment generation."
-          actionLabel="Upload CV again"
-          href="/profile"
+          detail="Your CV is already saved. Go to verification to retry the assessment generation job."
+          actionLabel="Go to verification"
+          href="/freelancer/verification"
         />
       ) : (
         <LobbyState

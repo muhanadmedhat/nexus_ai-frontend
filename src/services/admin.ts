@@ -66,9 +66,13 @@ export interface AdminStats {
     total: number;
     profileIncomplete: number;
     cvPending: number;
+    cvProcessing: number;
+    cvExtractionFailed: number;
     assessmentPending: number;
+    assessmentGenerationFailed: number;
     assessmentInProgress: number;
     assessmentSubmitted: number;
+    interviewPending: number;
     approved: number;
     rejected: number;
   };

@@ -16,10 +16,16 @@ import {
 import { clsx } from "clsx";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
-import { getVerification } from "@/services/assessments";
+import {
+  getVerification,
+  retryAssessmentGeneration,
+  retryCvExtraction,
+} from "@/services/assessments";
 import type { NextAction, VerificationChecklist } from "@/types/assessment";
 
 type RowState = "done" | "pending" | "action" | "blocked" | "working" | "ready" | "review";
+type RetryCommand = "retry_cv_extraction" | "retry_assessment_generation";
+type ActionTarget = { label: string; href?: string; command?: RetryCommand };
 
 const BADGE: Record<RowState, { cls: string; label: string }> = {
   done: { cls: "bg-primary-container/15 text-primary-container", label: "Done" },
@@ -31,13 +37,17 @@ const BADGE: Record<RowState, { cls: string; label: string }> = {
   review: { cls: "bg-secondary-container/20 text-secondary", label: "In review" },
 };
 
-const NEXT_ACTION_CTA: Record<NextAction, { label: string; href: string } | null> = {
+const NEXT_ACTION_CTA: Record<NextAction, ActionTarget | null> = {
   complete_profile: { label: "Complete profile", href: "/profile" },
   verify_email: { label: "Verify email", href: "/email-not-verified" },
   upload_cv: { label: "Upload CV", href: "/profile" },
+  retry_cv_extraction: { label: "Retry CV reading", command: "retry_cv_extraction" },
   wait_for_cv_extraction: null,
   wait_for_assessment_generation: null,
-  retry_assessment_generation: { label: "Upload CV again", href: "/profile" },
+  retry_assessment_generation: {
+    label: "Retry assessment creation",
+    command: "retry_assessment_generation",
+  },
   start_assessment: { label: "Start assessment", href: "/freelancer/assessment" },
   continue_assessment: { label: "Continue assessment", href: "/freelancer/assessment" },
   wait_for_review: { label: "View result", href: "/freelancer/assessment/result" },
@@ -52,7 +62,7 @@ interface Row {
   state: RowState;
   detail: string;
   icon: LucideIcon;
-  action?: { label: string; href: string };
+  action?: ActionTarget;
 }
 
 function buildRows(v: VerificationChecklist): Row[] {
@@ -77,6 +87,7 @@ function buildRows(v: VerificationChecklist): Row[] {
   const submitted =
     Boolean(a?.submittedAt) ||
     SUBMITTED_ASSESSMENT_STATUSES.includes(assessmentStatus ?? "");
+  const manualReviewNeeded = assessmentStatus === "needs_review";
   const reviewWaiting =
     v.verificationStatus === "assessment_submitted" ||
     v.verificationStatus === "interview_pending" ||
@@ -98,12 +109,16 @@ function buildRows(v: VerificationChecklist): Row[] {
       detail: cvReady
         ? "Your CV has been uploaded and read successfully."
         : cvExtractionFailed
-          ? v.cvExtractionError ?? "We couldn't read your CV. Upload it again to retry."
+          ? v.cvExtractionError ?? "We couldn't read your CV. Retry processing from the uploaded file."
           : cvExtractionWorking
             ? "Your CV is uploaded. We're reading it now."
             : "Upload your CV to continue.",
       action:
-        cvExtractionFailed || !v.cvUploaded ? { label: "Upload CV", href: "/profile" } : undefined,
+        cvExtractionFailed
+          ? { label: "Retry CV reading", command: "retry_cv_extraction" }
+          : !v.cvUploaded
+            ? { label: "Upload CV", href: "/profile" }
+            : undefined,
     },
     {
       label: "Assessment ready",
@@ -118,7 +133,7 @@ function buildRows(v: VerificationChecklist): Row[] {
               ? "working"
               : "pending",
       detail: assessmentGenerationFailed
-        ? v.assessmentGenerationError ?? a?.generationError ?? "We couldn't create the assessment from this CV."
+        ? v.assessmentGenerationError ?? a?.generationError ?? "We couldn't create the assessment from this CV. Retry the generation job."
         : submitted
           ? "Your assessment was prepared and submitted."
           : assessmentActive
@@ -136,7 +151,10 @@ function buildRows(v: VerificationChecklist): Row[] {
           : assessmentActive
             ? { label: "Continue assessment", href: "/freelancer/assessment" }
             : assessmentGenerationFailed
-              ? { label: "Upload CV again", href: "/profile" }
+              ? {
+                  label: "Retry assessment creation",
+                  command: "retry_assessment_generation",
+                }
             : undefined,
     },
     {
@@ -157,9 +175,17 @@ function buildRows(v: VerificationChecklist): Row[] {
     {
       label: "Profile completed",
       icon: UserRound,
-      state: v.profileComplete ? "done" : submitted ? "working" : "pending",
+      state: v.profileComplete
+        ? "done"
+        : manualReviewNeeded
+          ? "review"
+          : submitted
+            ? "working"
+            : "pending",
       detail: v.profileComplete
         ? "Your performance summary and skill ratings are ready."
+        : manualReviewNeeded
+          ? "Your answers are saved. Admin review will finalize the skill ratings."
         : submitted
           ? "We're preparing your skill ratings from your assessment."
           : "This is generated after your assessment.",
@@ -195,6 +221,7 @@ export default function FreelancerVerificationPage() {
   const [data, setData] = useState<VerificationChecklist | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryingAction, setRetryingAction] = useState<RetryCommand | null>(null);
 
   const load = useCallback(() => {
     getVerification()
@@ -229,10 +256,27 @@ export default function FreelancerVerificationPage() {
     load,
   ]);
 
-  const retry = () => {
+  const retryLoad = () => {
     setLoading(true);
     setError(null);
     load();
+  };
+
+  const runRetryAction = async (command: RetryCommand) => {
+    setRetryingAction(command);
+    setError(null);
+    try {
+      if (command === "retry_cv_extraction") {
+        await retryCvExtraction();
+      } else {
+        await retryAssessmentGeneration();
+      }
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not retry processing");
+    } finally {
+      setRetryingAction(null);
+    }
   };
 
   const cta = data && data.nextAction ? NEXT_ACTION_CTA[data.nextAction] : null;
@@ -260,7 +304,8 @@ export default function FreelancerVerificationPage() {
             ? "review"
             : data?.nextAction === "start_assessment"
               ? "ready"
-              : data?.nextAction === "retry_assessment_generation"
+              : data?.nextAction === "retry_assessment_generation" ||
+                  data?.nextAction === "retry_cv_extraction"
                 ? "blocked"
                 : cta
                   ? "action"
@@ -318,7 +363,7 @@ export default function FreelancerVerificationPage() {
           </div>
           <h3 className="text-lg font-semibold text-on-surface">Couldn&apos;t load your status</h3>
           <p className="mx-auto mt-1 max-w-md text-sm text-on-surface-variant">{error}</p>
-          <Button onClick={retry} variant="outline" className="mx-auto mt-4 w-auto px-5 py-2.5">
+          <Button onClick={retryLoad} variant="outline" className="mx-auto mt-4 w-auto px-5 py-2.5">
             Try again
           </Button>
         </div>
@@ -347,9 +392,19 @@ export default function FreelancerVerificationPage() {
                 ) : null}
               </div>
               {cta ? (
-                <Link href={cta.href} className="shrink-0">
-                  <Button className="w-full px-5 py-2.5 sm:w-auto">{cta.label}</Button>
-                </Link>
+                cta.href ? (
+                  <Link href={cta.href} className="shrink-0">
+                    <Button className="w-full px-5 py-2.5 sm:w-auto">{cta.label}</Button>
+                  </Link>
+                ) : cta.command ? (
+                  <Button
+                    onClick={() => runRetryAction(cta.command!)}
+                    loading={retryingAction === cta.command}
+                    className="w-full px-5 py-2.5 sm:w-auto"
+                  >
+                    {cta.label}
+                  </Button>
+                ) : null
               ) : null}
             </div>
           </section>
@@ -381,12 +436,23 @@ export default function FreelancerVerificationPage() {
                         {badge.label}
                       </span>
                       {row.action ? (
-                        <Link
-                          href={row.action.href}
-                          className="text-xs font-semibold text-primary-container hover:underline"
-                        >
-                          {row.action.label}
-                        </Link>
+                        row.action.href ? (
+                          <Link
+                            href={row.action.href}
+                            className="text-xs font-semibold text-primary-container hover:underline"
+                          >
+                            {row.action.label}
+                          </Link>
+                        ) : row.action.command ? (
+                          <button
+                            type="button"
+                            onClick={() => runRetryAction(row.action!.command!)}
+                            disabled={retryingAction === row.action.command}
+                            className="text-xs font-semibold text-primary-container hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {retryingAction === row.action.command ? "Retrying..." : row.action.label}
+                          </button>
+                        ) : null
                       ) : null}
                     </div>
                   </li>

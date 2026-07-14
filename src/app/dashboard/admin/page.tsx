@@ -125,9 +125,13 @@ export default function AdminDashboardPage() {
           items={{
             profile_incomplete: freelancers.profileIncomplete,
             cv_pending: freelancers.cvPending,
+            cv_processing: freelancers.cvProcessing,
+            cv_extraction_failed: freelancers.cvExtractionFailed,
             assessment_pending: freelancers.assessmentPending,
+            assessment_generation_failed: freelancers.assessmentGenerationFailed,
             assessment_in_progress: freelancers.assessmentInProgress,
             assessment_submitted: freelancers.assessmentSubmitted,
+            interview_pending: freelancers.interviewPending,
             approved: freelancers.approved,
             rejected: freelancers.rejected,
           }}
