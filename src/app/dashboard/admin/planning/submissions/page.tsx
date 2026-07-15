@@ -1,0 +1,58 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { getAdminPlanningSubmissions } from "@/services/admin";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { Button } from "@/components/ui/button";
+
+export default function AdminPlanningSubmissionsQueue() {
+  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getAdminPlanningSubmissions()
+      .then((res) => setSubmissions(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setSubmissions([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <DashboardShell role="admin" title="Planning Submissions" subtitle="Review architecture and UI/UX deliverables.">
+      {loading ? <p>Loading...</p> : (
+        <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm whitespace-nowrap">
+              <thead className="bg-surface-container-low text-on-surface-variant font-medium">
+                <tr>
+                  <th className="p-4">Project</th>
+                  <th className="p-4">Type</th>
+                  <th className="p-4">Freelancer</th>
+                  <th className="p-4">Status</th>
+                  <th className="p-4 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-outline-variant/30">
+                {submissions.map((s) => (
+                  <tr key={s.id} className="hover:bg-surface-container-low/50">
+                    <td className="p-4 font-semibold">{s.projectTitle || s.projectId}</td>
+                    <td className="p-4 uppercase text-xs tracking-wider">{s.submissionType?.replace("_", " ")} v{s.version}</td>
+                    <td className="p-4">{s.freelancerName || "N/A"}</td>
+                    <td className="p-4"><StatusBadge status={s.status} /></td>
+                    <td className="p-4 text-right">
+                      <Link href={`/dashboard/admin/planning/submissions/${s.id}`}>
+                        <Button variant="outline" size="sm">Review</Button>
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {submissions.length === 0 && <p className="p-6 text-center text-on-surface-variant">No submissions found.</p>}
+        </div>
+      )}
+    </DashboardShell>
+  );
+}

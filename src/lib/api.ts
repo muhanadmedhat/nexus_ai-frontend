@@ -78,6 +78,51 @@ export const API_ENDPOINTS = {
   },
 } as const;
 
+export const sprint4Endpoints = {
+  matching: {
+    startPlanningRoles: (projectId: string) => `/projects/${projectId}/matching/planning-roles`,
+    projectRuns: (projectId: string) => `/projects/${projectId}/matching/runs`,
+    runDetail: (runId: string) => `/matching/runs/${runId}`,
+    candidateStatus: (candidateId: string) => `/matching/candidates/${candidateId}/status`,
+    reviewRun: (runId: string) => `/matching/runs/${runId}/review`,
+  },
+  roleAssignments: {
+    create: (projectId: string) => `/projects/${projectId}/role-assignments`,
+    projectList: (projectId: string) => `/projects/${projectId}/role-assignments`,
+    updateStatus: (assignmentId: string) => `/project-role-assignments/${assignmentId}/status`,
+    projectTeam: (projectId: string) => `/projects/${projectId}/team`,
+    freelancerAssigned: "/freelancer/projects/assigned",
+  },
+  planning: {
+    createSubmission: (projectId: string) => `/projects/${projectId}/planning-submissions`,
+    projectSubmissions: (projectId: string) => `/projects/${projectId}/planning-submissions`,
+    submissionDetail: (submissionId: string) => `/planning-submissions/${submissionId}`,
+    reviewSubmission: (submissionId: string) => `/planning-submissions/${submissionId}/review`,
+    generatePlan: (projectId: string) => `/projects/${projectId}/plans/generate`,
+    projectPlans: (projectId: string) => `/projects/${projectId}/plans`,
+    planDetail: (planId: string) => `/project-plans/${planId}`,
+    reviewPlan: (planId: string) => `/project-plans/${planId}/review`,
+    materializePlan: (planId: string) => `/project-plans/${planId}/materialize`,
+    milestones: (projectId: string) => `/projects/${projectId}/milestones`,
+    tasks: (projectId: string) => `/projects/${projectId}/tasks`,
+    updateTask: (taskId: string) => `/project-tasks/${taskId}`,
+  },
+  adminSprint4: {
+    matchingRuns: "/admin/matching/runs",
+    planningSubmissions: "/admin/planning/submissions",
+    projectPlans: "/admin/project-plans",
+    payments: "/admin/payments",
+  },
+  payments: {
+    customerSetupIntent: "/payments/customer/setup-intent",
+    freelancerOnboardingLink: "/payments/freelancer/onboarding-link",
+    freelancerAccount: "/payments/freelancer/account",
+    escrowIntent: (projectId: string) => `/projects/${projectId}/payments/escrow-intent`,
+    projectPayments: (projectId: string) => `/projects/${projectId}/payments`,
+    release: (projectId: string, paymentId: string) => `/projects/${projectId}/payments/${paymentId}/release`,
+  },
+};
+
 interface TokenResponse {
   accessToken: string;
 }
