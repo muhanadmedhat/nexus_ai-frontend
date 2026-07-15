@@ -4,9 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
 import {
   getAgentOverview,
   getAgentJobs,
+  retryAgentJob,
   type AgentHealth,
   type AgentJob,
 } from "@/services/admin";
@@ -40,6 +42,7 @@ const jobStatusColor: Record<string, string> = {
 };
 
 export default function AdminAgentsPage() {
+  const toast = useToast();
   const [overview, setOverview] = useState<AgentHealth[]>([]);
   const [totals, setTotals] = useState({
     queued: 0,
@@ -53,6 +56,7 @@ export default function AdminAgentsPage() {
   const [page, setPage] = useState(1);
   const [totalJobs, setTotalJobs] = useState(0);
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [retryingJobId, setRetryingJobId] = useState<string | null>(null);
   const limit = 20;
 
   const loadData = useCallback(async () => {
@@ -89,6 +93,25 @@ export default function AdminAgentsPage() {
   }, [loadData]);
 
   const totalPages = Math.ceil(totalJobs / limit);
+
+  const handleRetryJob = async (jobId: string) => {
+    setRetryingJobId(jobId);
+    try {
+      const retried = await retryAgentJob(jobId);
+      setJobs((current) =>
+        current.map((job) => (job.id === retried.id ? retried : job)),
+      );
+      toast.success("Agent job queued", "The worker will retry it now.");
+      void loadData();
+    } catch (err) {
+      toast.error(
+        "Retry failed",
+        err instanceof Error ? err.message : "Could not retry agent job",
+      );
+    } finally {
+      setRetryingJobId(null);
+    }
+  };
 
   const getStatusIcon = (status: string) => {
     if (status === "healthy")
@@ -284,16 +307,29 @@ export default function AdminAgentsPage() {
                     <td className="px-4 py-3 text-xs text-on-surface-variant">
                       {new Date(job.createdAt).toLocaleString()}
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      <Link href={`/dashboard/admin/agent-jobs/${job.id}`}>
-                        <Button
-                          variant="outline"
-                          className="!w-auto px-3 py-1.5 text-sm"
-                        >
-                          <Eye size={14} />
-                          View
-                        </Button>
-                      </Link>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-2">
+                        {job.status === "failed" ? (
+                          <Button
+                            type="button"
+                            loading={retryingJobId === job.id}
+                            onClick={() => void handleRetryJob(job.id)}
+                            className="!w-auto px-3 py-1.5 text-sm"
+                          >
+                            <RefreshCw size={14} />
+                            Retry
+                          </Button>
+                        ) : null}
+                        <Link href={`/dashboard/admin/agent-jobs/${job.id}`}>
+                          <Button
+                            variant="outline"
+                            className="!w-auto px-3 py-1.5 text-sm"
+                          >
+                            <Eye size={14} />
+                            View
+                          </Button>
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}

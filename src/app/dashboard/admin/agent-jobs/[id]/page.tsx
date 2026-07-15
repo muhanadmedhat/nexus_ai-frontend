@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
-import { getAgentJobDetail, type AgentJob } from "@/services/admin";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { useToast } from "@/components/ui/toast";
+import { getAgentJobDetail, retryAgentJob, type AgentJob } from "@/services/admin";
+import { ArrowLeft, Loader2, RefreshCw } from "lucide-react";
 
 function JsonBlock({ title, value }: { title: string; value: unknown }) {
   return (
@@ -20,9 +21,11 @@ function JsonBlock({ title, value }: { title: string; value: unknown }) {
 
 export default function AdminAgentJobDetailPage() {
   const router = useRouter();
+  const toast = useToast();
   const params = useParams<{ id: string }>();
   const [job, setJob] = useState<AgentJob | null>(null);
   const [loading, setLoading] = useState(true);
+  const [retrying, setRetrying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadJob = useCallback(async () => {
@@ -36,6 +39,23 @@ export default function AdminAgentJobDetailPage() {
       setLoading(false);
     }
   }, [params.id]);
+
+  const handleRetry = async () => {
+    if (!job) return;
+    setRetrying(true);
+    setError(null);
+    try {
+      const retried = await retryAgentJob(job.id);
+      setJob(retried);
+      toast.success("Agent job queued", "The worker will retry it now.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not retry agent job";
+      setError(message);
+      toast.error("Retry failed", message);
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   useEffect(() => {
     const loadTimer = window.setTimeout(() => {
@@ -71,7 +91,7 @@ export default function AdminAgentJobDetailPage() {
       title="Agent Job"
       subtitle={`${job.jobType} · ${job.status}`}
     >
-      <div className="mb-4">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <Button
           type="button"
           variant="outline"
@@ -81,6 +101,17 @@ export default function AdminAgentJobDetailPage() {
           <ArrowLeft size={16} />
           Back to agents
         </Button>
+        {job.status === "failed" ? (
+          <Button
+            type="button"
+            loading={retrying}
+            onClick={() => void handleRetry()}
+            className="!w-auto px-4 py-2 text-sm"
+          >
+            <RefreshCw size={16} />
+            Retry job
+          </Button>
+        ) : null}
       </div>
 
       {error ? (

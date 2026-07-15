@@ -414,6 +414,17 @@ export async function getAgentJobDetail(id: string): Promise<AgentJob> {
   return data.data;
 }
 
+export async function retryAgentJob(id: string): Promise<AgentJob> {
+  try {
+    const { data } = await api.post<{ status: string; data: AgentJob }>(
+      `/admin/agent-jobs/${id}/retry`
+    );
+    return data.data;
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, "Could not retry agent job"));
+  }
+}
+
 // ===== Assessment Review (with full filters) =====
 
 export async function getAssessments(params?: {
