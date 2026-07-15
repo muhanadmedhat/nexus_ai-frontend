@@ -149,6 +149,26 @@ export default function ProjectDetailsPage() {
                 </p>
               )}
             </div>
+
+            {/* Sprint 4 Feature Sections */}
+            <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow mt-6">
+              <h3 className="font-headline text-lg font-semibold text-on-surface">Project Dashboard</h3>
+              <p className="mt-1 mb-4 text-sm text-on-surface-variant">Manage your team assignments, deliverable goals, and project funding.</p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <Link href={`/projects/${project.id}/planning`} className="flex flex-col items-center justify-center rounded-lg border border-outline-variant/30 p-4 hover:border-primary transition-colors hover:bg-surface-container">
+                  <CalendarClock className="mb-2 text-primary" size={24} />
+                  <span className="text-sm font-medium">Planning</span>
+                </Link>
+                <Link href={`/projects/${project.id}/team`} className="flex flex-col items-center justify-center rounded-lg border border-outline-variant/30 p-4 hover:border-primary transition-colors hover:bg-surface-container">
+                  <Sparkles className="mb-2 text-primary" size={24} />
+                  <span className="text-sm font-medium">Team</span>
+                </Link>
+                <Link href={`/projects/${project.id}/payments`} className="flex flex-col items-center justify-center rounded-lg border border-outline-variant/30 p-4 hover:border-primary transition-colors hover:bg-surface-container">
+                  <Wallet className="mb-2 text-primary" size={24} />
+                  <span className="text-sm font-medium">Payments</span>
+                </Link>
+              </div>
+            </div>
           </div>
 
           {/* Sidebar: next action */}

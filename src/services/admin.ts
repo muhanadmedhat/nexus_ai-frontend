@@ -1,4 +1,4 @@
-import { api, getApiErrorMessage } from "@/lib/api";
+import { api, sprint4Endpoints, getApiErrorMessage } from "@/lib/api";
 
 // ===== Types =====
 
@@ -509,4 +509,56 @@ export async function updateFreelancerSkillScore(
     payload
   );
   return data.data;
+}
+
+// ===== Sprint 4 Admin Queues =====
+
+export async function getAdminMatchingRuns(params?: { status?: string; targetRoleKey?: string; projectSearch?: string; page?: number; limit?: number }) {
+  const query = new URLSearchParams();
+  if (params?.status) query.append("status", params.status);
+  if (params?.targetRoleKey) query.append("targetRoleKey", params.targetRoleKey);
+  if (params?.projectSearch) query.append("projectSearch", params.projectSearch);
+  if (params?.page) query.append("page", String(params.page));
+  if (params?.limit) query.append("limit", String(params.limit));
+
+  const { data } = await api.get<any>(
+    `${sprint4Endpoints.adminSprint4.matchingRuns}?${query.toString()}`
+  );
+  return data;
+}
+
+export async function getAdminPlanningSubmissions(params?: { status?: string; submissionType?: string; page?: number; limit?: number }) {
+  const query = new URLSearchParams();
+  if (params?.status) query.append("status", params.status);
+  if (params?.submissionType) query.append("submissionType", params.submissionType);
+  if (params?.page) query.append("page", String(params.page));
+  if (params?.limit) query.append("limit", String(params.limit));
+
+  const { data } = await api.get<any>(
+    `${sprint4Endpoints.adminSprint4.planningSubmissions}?${query.toString()}`
+  );
+  return data;
+}
+
+export async function getAdminProjectPlans(params?: { status?: string; page?: number; limit?: number }) {
+  const query = new URLSearchParams();
+  if (params?.status) query.append("status", params.status);
+  if (params?.page) query.append("page", String(params.page));
+  if (params?.limit) query.append("limit", String(params.limit));
+
+  const { data } = await api.get<any>(
+    `${sprint4Endpoints.adminSprint4.projectPlans}?${query.toString()}`
+  );
+  return data;
+}
+
+export async function getAdminPayments(params?: { page?: number; limit?: number }) {
+  const query = new URLSearchParams();
+  if (params?.page) query.append("page", String(params.page));
+  if (params?.limit) query.append("limit", String(params.limit));
+
+  const { data } = await api.get<any>(
+    `${sprint4Endpoints.adminSprint4.payments}?${query.toString()}`
+  );
+  return data;
 }
