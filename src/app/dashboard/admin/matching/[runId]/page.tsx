@@ -7,6 +7,15 @@ import { ArrowLeft } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { getRunDetail } from "@/services/matching";
 
+const RISK_LABELS: Record<string, string> = {
+  no_availability: "No availability",
+  below_min_availability: "Below minimum availability",
+  over_max_rate: "Over budget",
+  missing_required_skills: "Missing required skills",
+  low_assessment_score: "Low skill score",
+};
+const riskLabel = (flag: string) => RISK_LABELS[flag] ?? flag.replace(/_/g, " ");
+
 export default function AdminMatchingDetail() {
   const { runId } = useParams<{ runId: string }>();
   const [detail, setDetail] = useState<any>(null);
@@ -44,9 +53,38 @@ export default function AdminMatchingDetail() {
                   </div>
                   <p className="text-sm font-semibold">{c.freelancer?.name} - {c.freelancer?.headline}</p>
                   <p className="text-xs text-on-surface-variant mt-1 italic">&quot;{c.rationale}&quot;</p>
-                  <div className="mt-3 text-xs bg-surface-container p-2 rounded">
-                    <strong>Evidence: </strong> {JSON.stringify(c.evidence)}
+
+                  <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-on-surface-variant">
+                    <span>Rate: <strong className="text-on-surface">{c.evidence?.hourlyRate != null ? c.evidence.hourlyRate : "—"}</strong></span>
+                    <span>Availability: <strong className="text-on-surface">{c.evidence?.availabilityHours ?? 0}h/wk</strong></span>
+                    <span>Experience: <strong className="text-on-surface">{c.evidence?.yearsExperience ?? 0} yrs</strong></span>
                   </div>
+
+                  {c.evidence?.matchedSkills?.length > 0 && (
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs text-on-surface-variant">Matched:</span>
+                      {c.evidence.matchedSkills.map((s: string) => (
+                        <span key={s} className="rounded-full bg-surface-container-low text-primary text-xs font-medium px-2 py-0.5">{s}</span>
+                      ))}
+                    </div>
+                  )}
+
+                  {c.evidence?.missingSkills?.length > 0 && (
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs text-on-surface-variant">Missing:</span>
+                      {c.evidence.missingSkills.map((s: string) => (
+                        <span key={s} className="rounded-full bg-surface-container-low text-on-surface-variant text-xs px-2 py-0.5">{s}</span>
+                      ))}
+                    </div>
+                  )}
+
+                  {c.evidence?.riskFlags?.length > 0 && (
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      {c.evidence.riskFlags.map((f: string) => (
+                        <span key={f} className="rounded-full bg-surface-container-low text-error text-xs font-medium px-2 py-0.5">{riskLabel(f)}</span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

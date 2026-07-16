@@ -42,7 +42,7 @@ export default function AdminMatchingQueue() {
                     <td className="p-4">{r.candidateCount}</td>
                     <td className="p-4 text-right">
                       <Link href={`/dashboard/admin/matching/${r.id}`}>
-                        <Button variant="outline" size="sm">Review</Button>
+                        <Button variant="outline">Review</Button>
                       </Link>
                     </td>
                   </tr>
