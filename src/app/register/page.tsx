@@ -9,10 +9,10 @@ import { z } from "zod";
 import { isValidPhoneNumber } from "react-phone-number-input";
 import { clsx } from "clsx";
 import { Briefcase, UserRoundSearch } from "lucide-react";
+import Spline from "@splinetool/react-spline";
 import { Input } from "@/components/ui/input";
 import { PhoneNumberInput } from "@/components/ui/phone-number-input";
 import { Button } from "@/components/ui/button";
-import { AuthVisualPanel } from "@/components/layout/auth-visual-panel";
 import { GoogleAuthButton } from "@/components/auth/google-auth-button";
 import { useAuth } from "@/hooks/use-auth";
 import { signUp } from "@/services/auth";
@@ -102,159 +102,178 @@ export default function RegisterPage() {
   };
 
   return (
-    <main className="flex min-h-screen w-full flex-col bg-[#f5f5f0] lg:h-screen lg:overflow-hidden lg:flex-row">
-      <AuthVisualPanel
-        imageSrc="/auth-panel-signup.png"
-        alt="AI onboarding workflow"
-        title={
-          <>
-            Join the workflow
-            <br />
-            that proves delivery.
-          </>
-        }
-        description={
-          <>
-            Turn unclear projects into structured briefs, matched tasks, evaluated submissions,
-            and escrow-ready milestones.
-          </>
-        }
-      />
+    <>
+      <style>
+        {`
+          .spline-watermark,
+          [data-spline-watermark],
+          [class*="spline-watermark"],
+          .spline-viewer .watermark,
+          canvas + div[style*="position: absolute"] {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+          }
+        `}
+      </style>
 
-      <section className="flex flex-1 flex-col items-center justify-center bg-surface px-6 py-10 md:px-10 lg:h-screen lg:overflow-hidden lg:px-10 lg:py-5">
-        <div className="w-full max-w-[520px]">
-          <div className="mb-5">
-            <h1 className="mb-2 font-headline text-3xl font-bold leading-tight tracking-tight text-on-surface md:text-4xl">
-              Create account
+      <main className="flex min-h-screen w-full flex-col bg-surface lg:h-screen lg:overflow-hidden lg:flex-row">
+        {/* Left Panel – Title + Giant Robot */}
+        <section className="relative hidden w-1/2 flex-col items-center justify-center overflow-hidden bg-[#f0f0eb] p-8 lg:flex">
+          <div className="relative z-10 flex h-full w-full flex-col items-center justify-center">
+            {/* Nexus‑AI Title above robot */}
+            <h1 className="mb-8 font-headline text-5xl font-black tracking-tight md:text-6xl lg:text-7xl">
+              <span style={{ color: "#324933" }}>Nexus</span>
+              <span style={{ color: "#c6a364" }}>AI</span>
             </h1>
-            <p className="max-w-md text-sm leading-6 text-on-surface-variant">
-              Choose your role and enter the details Nexus AI needs to start routing work clearly.
-            </p>
-          </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 lg:space-y-3">
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-on-surface">I want to use Nexus AI as</p>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                {ROLE_CARDS.map(({ value, label, icon: Icon, description }) => {
-                  const active = role === value;
-                  return (
-                    <button
-                      type="button"
-                      key={value}
-                      aria-pressed={active}
-                      onClick={() => {
-                        setRole(value);
-                        setValue("role", value, { shouldDirty: true, shouldValidate: true });
-                      }}
-                      className={clsx(
-                        "group flex min-h-[116px] flex-col items-start rounded-lg border p-4 text-left transition-all lg:min-h-[104px] lg:p-3",
-                        active
-                          ? "border-primary-container bg-primary-container/[0.06] shadow-sm"
-                          : "border-outline-variant bg-surface-container-lowest hover:border-primary-container/50 hover:bg-surface-container-low",
-                      )}
-                    >
-                      <span
+            {/* Giant Robot – fills the rest */}
+            <div className="w-full max-w-4xl flex-1 flex items-center justify-center">
+              <Spline
+                scene="https://prod.spline.design/jENSkvxRxQfrmnBl/scene.splinecode"
+                className="h-[85vh] w-full"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Right Panel – Form */}
+        <section className="flex flex-1 flex-col items-center justify-center bg-surface px-6 py-10 md:px-10 lg:h-screen lg:overflow-hidden lg:px-10 lg:py-5">
+          <div className="w-full max-w-[520px]">
+            <div className="mb-5">
+              <h1 className="mb-2 font-headline text-3xl font-bold leading-tight tracking-tight text-on-surface md:text-4xl">
+                Create account
+              </h1>
+              <p className="max-w-md text-sm leading-6 text-on-surface-variant">
+                Choose your role and enter the details Nexus AI needs to start routing work clearly.
+              </p>
+            </div>
+
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 lg:space-y-3">
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-on-surface">I want to use Nexus AI as</p>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {ROLE_CARDS.map(({ value, label, icon: Icon, description }) => {
+                    const active = role === value;
+                    return (
+                      <button
+                        type="button"
+                        key={value}
+                        aria-pressed={active}
+                        onClick={() => {
+                          setRole(value);
+                          setValue("role", value, { shouldDirty: true, shouldValidate: true });
+                        }}
                         className={clsx(
-                          "mb-3 flex h-10 w-10 items-center justify-center rounded-lg transition-colors",
+                          "group flex min-h-[116px] flex-col items-start rounded-lg border p-4 text-left transition-all lg:min-h-[104px] lg:p-3",
                           active
-                            ? "bg-primary-container text-on-primary"
-                            : "bg-surface-container-high text-outline group-hover:text-primary",
+                            ? "border-primary-container bg-primary-container/[0.06] shadow-sm"
+                            : "border-outline-variant bg-surface-container-lowest hover:border-primary-container/50 hover:bg-surface-container-low",
                         )}
                       >
-                        <Icon size={20} />
-                      </span>
-                      <span className="mb-1 font-headline text-base font-semibold text-on-surface">
-                        {label}
-                      </span>
-                      <span className="text-[11px] leading-4 text-on-surface-variant">
-                        {description}
-                      </span>
-                    </button>
-                  );
-                })}
+                        <span
+                          className={clsx(
+                            "mb-3 flex h-10 w-10 items-center justify-center rounded-lg transition-colors",
+                            active
+                              ? "bg-primary-container text-on-primary"
+                              : "bg-surface-container-high text-outline group-hover:text-primary",
+                          )}
+                        >
+                          <Icon size={20} />
+                        </span>
+                        <span className="mb-1 font-headline text-base font-semibold text-on-surface">
+                          {label}
+                        </span>
+                        <span className="text-[11px] leading-4 text-on-surface-variant">
+                          {description}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Input
+                  label="First name"
+                  placeholder="Enter first name"
+                  {...register("firstName")}
+                  error={errors.firstName?.message}
+                />
+                <Input
+                  label="Last name"
+                  placeholder="Enter last name"
+                  {...register("lastName")}
+                  error={errors.lastName?.message}
+                />
+              </div>
+              <Input
+                label="Email address"
+                type="email"
+                placeholder="name@company.com"
+                {...register("email")}
+                error={errors.email?.message}
+              />
+              <Controller
+                name="phoneNumber"
+                control={control}
+                render={({ field }) => (
+                  <PhoneNumberInput
+                    label="Phone number"
+                    name={field.name}
+                    value={field.value}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    error={errors.phoneNumber?.message}
+                  />
+                )}
+              />
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Input
+                  label="Password"
+                  type="password"
+                  placeholder="••••••••"
+                  {...register("password")}
+                  error={errors.password?.message}
+                />
+                <Input
+                  label="Confirm password"
+                  type="password"
+                  placeholder="••••••••"
+                  {...register("confirmPassword")}
+                  error={errors.confirmPassword?.message}
+                />
+              </div>
+              <Button type="submit" loading={isSubmitting}>
+                Create account
+              </Button>
+            </form>
+
+            <div className="relative my-5">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-outline-variant/30" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-surface px-4 text-on-surface-variant">Or sign up with</span>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Input
-                label="First name"
-                placeholder="Enter first name"
-                {...register("firstName")}
-                error={errors.firstName?.message}
-              />
-              <Input
-                label="Last name"
-                placeholder="Enter last name"
-                {...register("lastName")}
-                error={errors.lastName?.message}
-              />
-            </div>
-            <Input
-              label="Email address"
-              type="email"
-              placeholder="name@company.com"
-              {...register("email")}
-              error={errors.email?.message}
+            <GoogleAuthButton
+              onBeforeRedirect={() => {
+                window.localStorage.setItem("nexus_google_signup_role", role);
+              }}
             />
-            <Controller
-              name="phoneNumber"
-              control={control}
-              render={({ field }) => (
-                <PhoneNumberInput
-                  label="Phone number"
-                  name={field.name}
-                  value={field.value}
-                  onChange={field.onChange}
-                  onBlur={field.onBlur}
-                  error={errors.phoneNumber?.message}
-                />
-              )}
-            />
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Input
-                label="Password"
-                type="password"
-                placeholder="••••••••"
-                {...register("password")}
-                error={errors.password?.message}
-              />
-              <Input
-                label="Confirm password"
-                type="password"
-                placeholder="••••••••"
-                {...register("confirmPassword")}
-                error={errors.confirmPassword?.message}
-              />
-            </div>
-            <Button type="submit" loading={isSubmitting}>
-              Create account
-            </Button>
-          </form>
 
-          <div className="relative my-5">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-outline-variant/30" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-surface px-4 text-on-surface-variant">Or sign up with</span>
-            </div>
+            <p className="mt-5 text-center text-sm text-on-surface-variant">
+              Already have an account?{" "}
+              <Link href="/login" className="font-bold text-primary-container hover:underline">
+                Sign in
+              </Link>
+            </p>
           </div>
-
-          <GoogleAuthButton
-            onBeforeRedirect={() => {
-              window.localStorage.setItem("nexus_google_signup_role", role);
-            }}
-          />
-
-          <p className="mt-5 text-center text-sm text-on-surface-variant">
-            Already have an account?{" "}
-            <Link href="/login" className="font-bold text-primary-container hover:underline">
-              Sign in
-            </Link>
-          </p>
-        </div>
-      </section>
-    </main>
+        </section>
+      </main>
+    </>
   );
 }
