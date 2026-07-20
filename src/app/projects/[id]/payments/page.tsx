@@ -1,87 +1,329 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { ArrowLeft, Wallet, ShieldCheck, Clock } from "lucide-react";
+import { useParams, useSearchParams } from "next/navigation";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle2,
+  CreditCard,
+  ReceiptText,
+  RefreshCw,
+  Wallet,
+} from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
-import { useAuth } from "@/hooks/use-auth";
-import { getProject } from "@/services/projects";
-import { getProjectPayments } from "@/services/payments";
-import type { Project } from "@/types/project";
+import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { formatDate } from "@/utils/format";
+import { useToast } from "@/components/ui/toast";
+import { useAuth } from "@/hooks/use-auth";
+import {
+  createEscrowCheckoutSession,
+  getProjectPaymentSummary,
+  type ProjectPaymentSummary,
+} from "@/services/payments";
+import { formatBudget, formatDate, formatMoney } from "@/utils/format";
 
-export default function PaymentsPage() {
+export default function ProjectPaymentsPage() {
   const { id } = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
-  const role = (user?.role || "customer") as "customer" | "freelancer" | "admin";
-  const [project, setProject] = useState<Project | null>(null);
-  const [payments, setPayments] = useState<any[]>([]);
+  const toast = useToast();
+  const [summary, setSummary] = useState<ProjectPaymentSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [paying, setPaying] = useState(false);
 
-  useEffect(() => {
-    if (!id) return;
-    Promise.all([
-      getProject(id),
-      getProjectPayments(id).catch(() => [])
-    ])
-      .then(([p, pmts]) => {
-        setProject(p);
-        setPayments(pmts);
+  const loadSummary = () => {
+    if (!id || user?.role !== "customer") return;
+    setLoading(true);
+    getProjectPaymentSummary(id)
+      .then(setSummary)
+      .catch((error) => {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Could not load project payments";
+        toast.error("Payments unavailable", message);
+        setSummary(null);
       })
       .finally(() => setLoading(false));
-  }, [id]);
+  };
+
+  useEffect(() => {
+    loadSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, user?.role]);
+
+  useEffect(() => {
+    const paymentState = searchParams.get("payment");
+    if (paymentState === "success") {
+      toast.success(
+        "Payment started",
+        "Stripe will confirm escrow once the webhook arrives.",
+      );
+    }
+    if (paymentState === "cancelled") {
+      toast.error("Payment cancelled", "No escrow was funded.");
+    }
+  }, [searchParams, toast]);
+
+  const handlePay = async () => {
+    if (!summary?.actions.canPay || !summary.actions.suggestedPaymentAmount)
+      return;
+    setPaying(true);
+    try {
+      const checkout = await createEscrowCheckoutSession(summary.project.id, {
+        amount: summary.actions.suggestedPaymentAmount,
+        currency: summary.quote.currency ?? summary.project.currency,
+        purpose:
+          summary.actions.suggestedPaymentPurpose ?? "full_project_deposit",
+      });
+
+      if (!checkout.checkoutUrl) {
+        throw new Error("Stripe did not return a checkout link");
+      }
+
+      window.location.href = checkout.checkoutUrl;
+    } catch (error) {
+      toast.error(
+        "Checkout failed",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+      setPaying(false);
+    }
+  };
 
   return (
-    <DashboardShell role={role} title="Project Payments" subtitle="Manage escrow deposits and release milestones.">
+    <DashboardShell
+      role="customer"
+      title="Project payments"
+      subtitle="Review the final estimate and fund escrow securely."
+    >
       <Link
         href={`/projects/${id}`}
         className="mb-4 inline-flex items-center gap-1.5 text-sm text-on-surface-variant hover:text-primary"
       >
         <ArrowLeft size={16} /> Back to project
       </Link>
-      
-      {loading ? (
-        <p className="text-sm">Loading...</p>
-      ) : (
-        <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
-          <div className="mb-6 flex items-center justify-between border-b border-outline-variant/20 pb-4">
-            <div className="flex items-center gap-2">
-              <Wallet className="text-primary" size={24} />
-              <h3 className="font-headline text-lg font-semibold text-on-surface">Escrow Timeline</h3>
-            </div>
-          </div>
 
-          {payments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center p-8 text-center">
-              <ShieldCheck className="mb-4 text-outline" size={48} />
-              <h4 className="font-semibold text-on-surface">No payments yet</h4>
-              <p className="mt-1 text-sm text-on-surface-variant max-w-sm">Secure milestone funding will be available here when requested by your project manager.</p>
+      {loading ? (
+        <p className="text-sm text-on-surface-variant">Loading payments...</p>
+      ) : !summary ? (
+        <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-12 text-center card-shadow">
+          <h3 className="text-lg font-semibold text-on-surface">
+            Could not load payments
+          </h3>
+          <p className="mt-1 text-sm text-on-surface-variant">
+            Refresh and try again.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="font-headline text-2xl font-semibold text-on-surface">
+                    {summary.project.title}
+                  </h2>
+                  <StatusBadge status={summary.quote.status} />
+                </div>
+                <p className="mt-2 text-sm text-on-surface-variant">
+                  Customer range: {formatBudget(summary.project)}
+                </p>
+                {summary.quote.notes && (
+                  <p className="mt-3 max-w-3xl text-sm leading-relaxed text-on-surface-variant">
+                    {summary.quote.notes}
+                  </p>
+                )}
+              </div>
+
+              <div className="min-w-[260px] rounded-lg bg-surface-container-low p-4">
+                <p className="text-xs uppercase tracking-wide text-on-surface-variant">
+                  Final price
+                </p>
+                <p className="mt-1 font-headline text-3xl font-semibold text-on-surface">
+                  {formatMoney(summary.quote.amount, summary.quote.currency)}
+                </p>
+                {summary.quote.isOutOfBudget && (
+                  <p className="mt-2 flex items-start gap-1.5 text-xs text-error">
+                    <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                    This estimate is above the customer range.
+                  </p>
+                )}
+                <Button
+                  type="button"
+                  className="mt-4"
+                  disabled={!summary.actions.canPay}
+                  loading={paying}
+                  onClick={handlePay}
+                >
+                  <CreditCard size={18} />
+                  {summary.actions.payButtonLabel ?? "Fund project escrow"}
+                </Button>
+                {summary.actions.payBlockedReason && (
+                  <p className="mt-2 text-xs text-on-surface-variant">
+                    {summary.actions.payBlockedReason}
+                  </p>
+                )}
+              </div>
             </div>
-          ) : (
-            <div className="space-y-4">
-              {payments.map((payment: any, i: number) => (
-                <div key={i} className="flex items-center justify-between rounded-lg border border-outline-variant/30 p-4">
-                  <div className="flex items-start gap-4">
-                    <div className="rounded-full bg-surface-container p-2">
-                      <Clock className="text-on-surface-variant" size={20} />
-                    </div>
+          </section>
+
+          <section className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <Metric
+              icon={<ReceiptText size={20} />}
+              label="Final estimate"
+              value={formatMoney(summary.quote.amount, summary.quote.currency)}
+            />
+            <Metric
+              icon={<CheckCircle2 size={20} />}
+              label="Escrow funded"
+              value={formatMoney(
+                summary.totals.paidAmount,
+                summary.totals.currency,
+              )}
+            />
+            <Metric
+              icon={<Wallet size={20} />}
+              label="Remaining"
+              value={formatMoney(
+                summary.totals.remainingAmount,
+                summary.totals.currency,
+              )}
+            />
+            <Metric
+              icon={<RefreshCw size={20} />}
+              label="Pending checkout"
+              value={formatMoney(
+                summary.totals.pendingAmount,
+                summary.totals.currency,
+              )}
+            />
+          </section>
+
+          <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest card-shadow">
+            <div className="border-b border-outline-variant/20 p-5">
+              <h3 className="font-headline text-lg font-semibold text-on-surface">
+                Milestone funding
+              </h3>
+              <p className="text-sm text-on-surface-variant">
+                These amounts come from the approved Scrum Master plan.
+              </p>
+            </div>
+            {summary.milestones.length === 0 ? (
+              <p className="p-6 text-sm text-on-surface-variant">
+                No priced milestones yet. They appear after the approved plan is
+                materialized.
+              </p>
+            ) : (
+              <div className="divide-y divide-outline-variant/20">
+                {summary.milestones.map((milestone) => (
+                  <div
+                    key={milestone.id}
+                    className="grid gap-3 p-5 md:grid-cols-[1fr_auto_auto] md:items-center"
+                  >
                     <div>
-                      <h4 className="font-semibold text-on-surface uppercase tracking-wider text-xs text-primary">{payment.purpose.replace(/_/g, " ")}</h4>
-                      <p className="mt-1 text-lg font-medium text-on-surface">{payment.amount} {payment.currency}</p>
-                      {payment.paidAt && <p className="text-xs text-on-surface-variant mt-0.5">Paid on {formatDate(payment.paidAt)}</p>}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="font-semibold text-on-surface">
+                          {milestone.title}
+                        </h4>
+                        <StatusBadge status={milestone.status} />
+                      </div>
+                      {milestone.dueAt && (
+                        <p className="mt-1 text-xs text-on-surface-variant">
+                          Due {formatDate(milestone.dueAt)}
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-sm">
+                      <p className="text-xs text-on-surface-variant">Budget</p>
+                      <p className="font-semibold text-on-surface">
+                        {formatMoney(
+                          milestone.budgetAmount,
+                          milestone.currency,
+                        )}
+                      </p>
+                    </div>
+                    <div className="text-sm">
+                      <p className="text-xs text-on-surface-variant">
+                        Remaining
+                      </p>
+                      <p className="font-semibold text-on-surface">
+                        {formatMoney(
+                          milestone.remainingAmount,
+                          milestone.currency,
+                        )}
+                      </p>
                     </div>
                   </div>
-                  <div className="flex flex-col items-end">
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest card-shadow">
+            <div className="border-b border-outline-variant/20 p-5">
+              <h3 className="font-headline text-lg font-semibold text-on-surface">
+                Payment history
+              </h3>
+            </div>
+            {summary.payments.length === 0 ? (
+              <p className="p-6 text-sm text-on-surface-variant">
+                No payments have been created yet.
+              </p>
+            ) : (
+              <div className="divide-y divide-outline-variant/20">
+                {summary.payments.map((payment) => (
+                  <div
+                    key={payment.id}
+                    className="grid gap-3 p-5 md:grid-cols-[1fr_auto_auto] md:items-center"
+                  >
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                        {payment.purpose.replace(/_/g, " ")}
+                      </p>
+                      <p className="mt-1 text-sm text-on-surface-variant">
+                        Created{" "}
+                        {payment.createdAt
+                          ? formatDate(payment.createdAt)
+                          : "recently"}
+                      </p>
+                    </div>
+                    <p className="font-semibold text-on-surface">
+                      {formatMoney(payment.amount, payment.currency)}
+                    </p>
                     <StatusBadge status={payment.status} />
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </section>
         </div>
       )}
     </DashboardShell>
+  );
+}
+
+function Metric({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 card-shadow">
+      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-primary-container/10 text-primary-container">
+        {icon}
+      </div>
+      <p className="text-sm text-on-surface-variant">{label}</p>
+      <p className="mt-1 font-headline text-xl font-semibold text-on-surface">
+        {value}
+      </p>
+    </div>
   );
 }

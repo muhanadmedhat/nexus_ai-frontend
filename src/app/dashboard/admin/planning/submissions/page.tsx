@@ -6,14 +6,17 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { getAdminPlanningSubmissions } from "@/services/admin";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
+import type { PlanningSubmission } from "@/services/planning";
+
+type AdminPlanningSubmission = PlanningSubmission & { projectTitle?: string | null; freelancerName?: string | null };
 
 export default function AdminPlanningSubmissionsQueue() {
-  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [submissions, setSubmissions] = useState<AdminPlanningSubmission[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     getAdminPlanningSubmissions()
-      .then((res) => setSubmissions(Array.isArray(res.data) ? res.data : []))
+      .then((res) => setSubmissions(Array.isArray(res.data) ? (res.data as unknown as AdminPlanningSubmission[]) : []))
       .catch(() => setSubmissions([]))
       .finally(() => setLoading(false));
   }, []);

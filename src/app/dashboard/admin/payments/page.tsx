@@ -5,14 +5,17 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { getAdminPayments } from "@/services/admin";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatDate } from "@/utils/format";
+import type { ProjectPayment } from "@/services/payments";
+
+type AdminPayment = ProjectPayment & { projectTitle?: string | null };
 
 export default function AdminPaymentsQueue() {
-  const [payments, setPayments] = useState<any[]>([]);
+  const [payments, setPayments] = useState<AdminPayment[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     getAdminPayments()
-      .then((res) => setPayments(Array.isArray(res.data) ? res.data : []))
+      .then((res) => setPayments(Array.isArray(res.data) ? (res.data as unknown as AdminPayment[]) : []))
       .catch(() => setPayments([]))
       .finally(() => setLoading(false));
   }, []);

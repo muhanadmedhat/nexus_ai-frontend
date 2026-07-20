@@ -4,13 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Briefcase, ArrowRight } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
-import { useAuth } from "@/hooks/use-auth";
-import { getFreelancerAssignedProjects } from "@/services/matching";
+import { getFreelancerAssignedProjects, type FreelancerAssignedProject } from "@/services/matching";
 import { StatusBadge } from "@/components/ui/status-badge";
 
 export default function FreelancerProjectsPage() {
-  const { user } = useAuth();
-  const [projects, setProjects] = useState<any[]>([]);
+  const [projects, setProjects] = useState<FreelancerAssignedProject[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -32,7 +30,7 @@ export default function FreelancerProjectsPage() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {projects.map((assignment: any) => (
+          {projects.map((assignment) => (
             <div key={assignment.assignmentId} className="flex flex-col justify-between rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
               <div>
                 <div className="flex justify-between items-start mb-2">
@@ -42,7 +40,11 @@ export default function FreelancerProjectsPage() {
                 <p className="text-xs font-semibold uppercase tracking-wider text-primary mb-2">
                   {assignment.roleKey?.replace("_", " ")} Phase: {assignment.phase}
                 </p>
-                <p className="text-sm text-on-surface-variant line-clamp-2">{assignment.briefSummary || "No brief details."}</p>
+                <p className="text-sm text-on-surface-variant line-clamp-2">
+                  {assignment.roleBriefSummary ||
+                    assignment.briefSummary ||
+                    "Your role brief is being prepared."}
+                </p>
                 <div className="mt-3 flex gap-4 text-xs text-on-surface-variant">
                   <span>Budget: {assignment.budgetMin} - {assignment.budgetMax} {assignment.currency}</span>
                 </div>

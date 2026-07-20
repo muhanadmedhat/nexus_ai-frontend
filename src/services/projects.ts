@@ -17,6 +17,11 @@ interface BackendProject {
   deadline: string | null;
   isDeadlineFlexible: boolean;
   status: ProjectStatus;
+  quotedAmount?: string | number | null;
+  quotedCurrency?: string | null;
+  quoteStatus?: string | null;
+  quoteGeneratedAt?: string | null;
+  quoteNotes?: string | null;
   createdAt: string;
 }
 
@@ -39,6 +44,11 @@ function toProject(row: BackendProject): Project {
     deadline: row.deadline,
     isDeadlineFlexible: row.isDeadlineFlexible,
     status: row.status,
+    quotedAmount: toNumber(row.quotedAmount ?? null),
+    quotedCurrency: row.quotedCurrency ?? null,
+    quoteStatus: row.quoteStatus ?? null,
+    quoteGeneratedAt: row.quoteGeneratedAt ?? null,
+    quoteNotes: row.quoteNotes ?? null,
     createdAt: row.createdAt,
   };
 }

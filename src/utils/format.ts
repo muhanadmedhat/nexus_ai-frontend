@@ -16,3 +16,11 @@ export function formatBudget(p: Pick<Project, "budgetMin" | "budgetMax" | "curre
   }
   return `${fmt((p.budgetMin ?? p.budgetMax)!)} ${p.currency}`;
 }
+
+export function formatMoney(amount: number | null | undefined, currency?: string | null): string {
+  if (amount == null || !Number.isFinite(amount)) return "—";
+  return `${amount.toLocaleString(undefined, {
+    minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  })} ${currency ?? ""}`.trim();
+}

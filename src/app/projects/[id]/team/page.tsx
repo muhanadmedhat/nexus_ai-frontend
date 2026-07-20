@@ -6,34 +6,47 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, Users } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { useAuth } from "@/hooks/use-auth";
-import { getProject } from "@/services/projects";
-import { getProjectTeam } from "@/services/matching";
-import type { Project } from "@/types/project";
+import { getProjectTeam, type RoleAssignment } from "@/services/matching";
 import { StatusBadge } from "@/components/ui/status-badge";
+
+function skillBadges(value: unknown) {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item) => {
+      if (typeof item === "string") return { skill: item, score: null };
+      if (!item || typeof item !== "object" || !("skill" in item)) return null;
+
+      const skill = String((item as { skill?: unknown }).skill ?? "").trim();
+      const rawScore = (item as { score?: unknown }).score;
+      const score =
+        rawScore == null || rawScore === "" ? null : Number(rawScore);
+
+      return skill
+        ? { skill, score: score != null && Number.isFinite(score) ? score : null }
+        : null;
+    })
+    .filter((item): item is { skill: string; score: number | null } =>
+      Boolean(item),
+    );
+}
 
 export default function TeamPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
-  const role = (user?.role || "customer") as "customer" | "freelancer" | "admin";
-  const [project, setProject] = useState<Project | null>(null);
-  const [team, setTeam] = useState<any[]>([]);
+  const [team, setTeam] = useState<RoleAssignment[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!id) return;
-    Promise.all([
-      getProject(id),
-      getProjectTeam(id).catch(() => ({ planningTeam: [] }))
-    ])
-      .then(([p, t]) => {
-        setProject(p);
-        setTeam(t.planningTeam || []);
-      })
+    if (!id || user?.role !== "customer") return;
+    getProjectTeam(id)
+      .then((result) => setTeam(result.planningTeam || []))
+      .catch(() => setTeam([]))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, user?.role]);
 
   return (
-    <DashboardShell role={role} title="Project Team" subtitle="View freelancers assigned to complete your project.">
+    <DashboardShell role="customer" title="Project Team" subtitle="View freelancers assigned to complete your project.">
       <Link
         href={`/projects/${id}`}
         className="mb-4 inline-flex items-center gap-1.5 text-sm text-on-surface-variant hover:text-primary"
@@ -54,8 +67,8 @@ export default function TeamPage() {
             <p className="text-sm text-on-surface-variant">Your team is currently being matched by our system.</p>
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {team.map((member: any, i: number) => (
-                <div key={i} className="rounded-lg border border-outline-variant/30 p-4">
+              {team.map((member) => (
+                <div key={member.id} className="rounded-lg border border-outline-variant/30 p-4">
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wider text-primary">{member.roleKey.replace("_", " ")}</p>
@@ -64,11 +77,14 @@ export default function TeamPage() {
                     </div>
                     <StatusBadge status={member.status} />
                   </div>
-                  {member.freelancer?.topSkills && member.freelancer.topSkills.length > 0 && (
+                  {skillBadges(member.freelancer?.topSkills).length > 0 && (
                     <div className="mt-4 flex flex-wrap gap-2">
-                      {member.freelancer.topSkills.map((st: string) => (
-                        <span key={st} className="rounded bg-surface-container px-2 py-0.5 text-[10px] uppercase text-on-surface-variant">
-                          {st.replace(/[\[\]"]/g, '')}
+                      {skillBadges(member.freelancer?.topSkills).map((item) => (
+                        <span key={item.skill} className="rounded bg-surface-container px-2 py-0.5 text-[10px] uppercase text-on-surface-variant">
+                          {item.skill}
+                          {item.score != null && Number.isFinite(item.score)
+                            ? ` ${item.score.toFixed(1)}`
+                            : ""}
                         </span>
                       ))}
                     </div>

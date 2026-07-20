@@ -11,6 +11,7 @@ import {
   Check,
   CheckCircle2,
   Circle,
+  CreditCard,
   Edit3,
   Loader2,
   RefreshCcw,
@@ -29,7 +30,13 @@ import {
   updateBrief,
 } from "@/services/brief";
 import { getProject } from "@/services/projects";
-import type { Brief, BriefFieldValues, BriefMessage, Project, ProjectStatus } from "@/types/project";
+import type {
+  Brief,
+  BriefFieldValues,
+  BriefMessage,
+  Project,
+  ProjectStatus,
+} from "@/types/project";
 import { useToast } from "@/components/ui/toast";
 
 const BRIEF_FIELD_CONFIG: Array<{
@@ -43,7 +50,11 @@ const BRIEF_FIELD_CONFIG: Array<{
   { key: "coreFeatures", label: "Core features", multiline: true },
   { key: "platforms", label: "Platforms" },
   { key: "deliverables", label: "Deliverables", multiline: true },
-  { key: "constraintsPreferences", label: "Constraints / preferences", multiline: true },
+  {
+    key: "constraintsPreferences",
+    label: "Constraints / preferences",
+    multiline: true,
+  },
   { key: "clientBackground", label: "Client background" },
   { key: "suggestedTeamSize", label: "Team size" },
   { key: "experienceLevel", label: "Experience level" },
@@ -87,7 +98,6 @@ export default function RequirementsPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const toast = useToast();
-  const role = (user?.role || "customer") as "customer" | "freelancer" | "admin";
 
   const [messages, setMessages] = useState<BriefMessage[]>([]);
   const [brief, setBrief] = useState<Brief | null>(null);
@@ -97,7 +107,8 @@ export default function RequirementsPage() {
   const [sending, setSending] = useState(false);
   const [editingBrief, setEditingBrief] = useState(false);
   const [savingBrief, setSavingBrief] = useState(false);
-  const [formFields, setFormFields] = useState<BriefFieldValues>(EMPTY_BRIEF_FIELDS);
+  const [formFields, setFormFields] =
+    useState<BriefFieldValues>(EMPTY_BRIEF_FIELDS);
   const [loadError, setLoadError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -109,7 +120,7 @@ export default function RequirementsPage() {
   const chatLocked = Boolean(brief?.isComplete && !brief.aiRevisionOpen);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id || user?.role !== "customer") return;
 
     let active = true;
     Promise.resolve().then(() => {
@@ -133,7 +144,11 @@ export default function RequirementsPage() {
       })
       .catch((error) => {
         if (!active) return;
-        setLoadError(error instanceof Error ? error.message : "Could not load requirements");
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : "Could not load requirements",
+        );
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -142,7 +157,7 @@ export default function RequirementsPage() {
     return () => {
       active = false;
     };
-  }, [id]);
+  }, [id, user?.role]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
@@ -169,18 +184,27 @@ export default function RequirementsPage() {
     setSending(true);
 
     try {
-      const { messages: nextMessages, brief: nextBrief } = await sendBriefMessage(id, text);
+      const { messages: nextMessages, brief: nextBrief } =
+        await sendBriefMessage(id, text);
       setMessages((current) => {
-        const withoutOptimistic = current.filter((message) => message.id !== optimisticId);
-        const existingIds = new Set(withoutOptimistic.map((message) => message.id));
-        const newMessages = nextMessages.filter((message) => !existingIds.has(message.id));
+        const withoutOptimistic = current.filter(
+          (message) => message.id !== optimisticId,
+        );
+        const existingIds = new Set(
+          withoutOptimistic.map((message) => message.id),
+        );
+        const newMessages = nextMessages.filter(
+          (message) => !existingIds.has(message.id),
+        );
 
         return [...withoutOptimistic, ...newMessages];
       });
       setBrief(nextBrief);
       if (!editingBrief) setFormFields(nextBrief.fields);
     } catch (err) {
-      setMessages((current) => current.filter((message) => message.id !== optimisticId));
+      setMessages((current) =>
+        current.filter((message) => message.id !== optimisticId),
+      );
       setInput(text);
       toast.error(
         "Could not send message",
@@ -218,7 +242,8 @@ export default function RequirementsPage() {
     setSavingBrief(true);
 
     try {
-      const { brief: nextBrief, messages: nextMessages } = await reopenBriefAiHelp(id);
+      const { brief: nextBrief, messages: nextMessages } =
+        await reopenBriefAiHelp(id);
       setBrief(nextBrief);
       setMessages(nextMessages);
       setFormFields(nextBrief.fields);
@@ -244,7 +269,10 @@ export default function RequirementsPage() {
       setBrief(nextBrief);
       setFormFields(nextBrief.fields);
       setEditingBrief(false);
-      toast.success("Brief confirmed");
+      toast.success(
+        "Brief confirmed",
+        "The final price is ready. Fund escrow to start matching.",
+      );
     } catch (error) {
       toast.error(
         "Could not confirm brief",
@@ -261,7 +289,7 @@ export default function RequirementsPage() {
 
   return (
     <DashboardShell
-      role={role}
+      role="customer"
       title="Requirements agent"
       subtitle="Answer the agent's questions to build your project brief."
     >
@@ -300,7 +328,10 @@ export default function RequirementsPage() {
               </h2>
             </div>
 
-            <div ref={scrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3 sm:p-4 md:p-6">
+            <div
+              ref={scrollRef}
+              className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3 sm:p-4 md:p-6"
+            >
               {loading ? (
                 <div className="flex h-full min-h-[360px] items-center justify-center text-on-surface-variant">
                   <Loader2 size={24} className="animate-spin" />
@@ -313,14 +344,22 @@ export default function RequirementsPage() {
                   return (
                     <div
                       key={message.id}
-                      className={clsx("flex min-w-0 gap-2 sm:gap-3", !isAgent && "flex-row-reverse")}
+                      className={clsx(
+                        "flex min-w-0 gap-2 sm:gap-3",
+                        !isAgent && "flex-row-reverse",
+                      )}
                     >
                       {isAgent && (
                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-container/10 text-primary-container sm:h-9 sm:w-9">
                           <Bot size={18} />
                         </span>
                       )}
-                      <div className={clsx("flex min-w-0 max-w-[86%] flex-col sm:max-w-[min(76ch,82%)]", !isAgent && "items-end")}>
+                      <div
+                        className={clsx(
+                          "flex min-w-0 max-w-[86%] flex-col sm:max-w-[min(76ch,82%)]",
+                          !isAgent && "items-end",
+                        )}
+                      >
                         <div
                           className={clsx(
                             "max-w-full whitespace-pre-wrap break-words rounded-lg px-3 py-2.5 text-sm leading-6 shadow-sm [overflow-wrap:anywhere] sm:px-4 sm:py-3",
@@ -383,13 +422,20 @@ export default function RequirementsPage() {
                   title="Send answer"
                   className="flex h-12 min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-lg bg-primary-container px-2 text-on-primary shadow-sm transition-all hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {sending ? <Loader2 size={18} className="shrink-0 animate-spin" /> : <Send size={18} className="shrink-0" />}
-                  <span className="hidden truncate text-sm font-semibold sm:inline">Send</span>
+                  {sending ? (
+                    <Loader2 size={18} className="shrink-0 animate-spin" />
+                  ) : (
+                    <Send size={18} className="shrink-0" />
+                  )}
+                  <span className="hidden truncate text-sm font-semibold sm:inline">
+                    Send
+                  </span>
                 </button>
               </div>
               {chatLocked && (
                 <p className="mt-2 text-xs leading-5 text-on-surface-variant">
-                  Chat is paused to avoid extra AI usage. You can edit the brief directly or reopen AI help for a focused revision.
+                  Chat is paused to avoid extra AI usage. You can edit the brief
+                  directly or reopen AI help for a focused revision.
                 </p>
               )}
             </div>
@@ -412,7 +458,8 @@ export default function RequirementsPage() {
                 />
               </div>
               <p className="mt-3 break-words text-sm leading-6 text-on-surface-variant [overflow-wrap:anywhere]">
-                {brief?.summary || "Share your answers naturally. The agent will guide the next useful detail."}
+                {brief?.summary ||
+                  "Share your answers naturally. The agent will guide the next useful detail."}
               </p>
             </section>
 
@@ -447,7 +494,8 @@ export default function RequirementsPage() {
                       Brief review
                     </h3>
                     <p className="mt-1 text-xs leading-5 text-on-surface-variant">
-                      AI revisions used: {brief.revisionCount}/{brief.revisionLimit}
+                      AI revisions used: {brief.revisionCount}/
+                      {brief.revisionLimit}
                     </p>
                   </div>
                   {editingBrief ? (
@@ -479,7 +527,8 @@ export default function RequirementsPage() {
 
                 {!canChangeBrief && (
                   <p className="mb-3 rounded-lg border border-outline-variant/30 bg-surface-container-high px-3 py-2 text-xs leading-5 text-on-surface-variant">
-                    This brief is locked because the project has moved past assignment.
+                    This brief is locked because the project has moved past
+                    assignment.
                   </p>
                 )}
 
@@ -493,14 +542,18 @@ export default function RequirementsPage() {
                         {field.multiline ? (
                           <textarea
                             value={formFields[field.key]}
-                            onChange={(event) => updateField(field.key, event.target.value)}
+                            onChange={(event) =>
+                              updateField(field.key, event.target.value)
+                            }
                             rows={3}
                             className="input-halo min-h-20 w-full resize-y rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm leading-6 text-on-surface outline-none"
                           />
                         ) : (
                           <input
                             value={formFields[field.key]}
-                            onChange={(event) => updateField(field.key, event.target.value)}
+                            onChange={(event) =>
+                              updateField(field.key, event.target.value)
+                            }
                             className="input-halo h-10 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface outline-none"
                           />
                         )}
@@ -546,7 +599,11 @@ export default function RequirementsPage() {
                     <button
                       type="button"
                       onClick={onConfirmBrief}
-                      disabled={savingBrief || !canChangeBrief || Boolean(brief.confirmedAt)}
+                      disabled={
+                        savingBrief ||
+                        !canChangeBrief ||
+                        Boolean(brief.confirmedAt)
+                      }
                       className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary-container px-3 text-sm font-semibold text-on-primary hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {savingBrief ? (
@@ -556,6 +613,16 @@ export default function RequirementsPage() {
                       )}
                       {brief.confirmedAt ? "Brief confirmed" : "Confirm brief"}
                     </button>
+
+                    {brief.confirmedAt && (
+                      <Link
+                        href={`/projects/${id}/payments`}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-primary-container/40 bg-primary-container/10 px-3 text-sm font-semibold text-primary-container hover:bg-primary-container/15"
+                      >
+                        <CreditCard size={16} />
+                        View final price and fund escrow
+                      </Link>
+                    )}
 
                     <button
                       type="button"

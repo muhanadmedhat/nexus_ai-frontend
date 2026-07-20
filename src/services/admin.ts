@@ -57,10 +57,26 @@ export interface AdminStats {
   projects: {
     total: number;
     draft: number;
+    inProgress?: number;
     briefComplete: number;
+    planningMatching?: number;
+    planningAssigned?: number;
+    planningInProgress?: number;
+    planningReview?: number;
+    implementationReady?: number;
+    matching?: number;
+    matched?: number;
+    specInProgress?: number;
+    specUnderReview?: number;
+    specComplete?: number;
+    scoped?: number;
     assigned: number;
     active: number;
+    underReview?: number;
     completed: number;
+    cancelled?: number;
+    disputed?: number;
+    byStatus?: Record<string, number>;
   };
   freelancers: {
     total: number;
@@ -511,6 +527,16 @@ export async function updateFreelancerSkillScore(
   return data.data;
 }
 
+
+interface AdminQueueResponse<T> {
+  data: T[];
+  total?: number;
+  page?: number;
+  limit?: number;
+}
+
+type AdminQueueItem = Record<string, unknown>;
+
 // ===== Sprint 4 Admin Queues =====
 
 export async function getAdminMatchingRuns(params?: { status?: string; targetRoleKey?: string; projectSearch?: string; page?: number; limit?: number }) {
@@ -521,7 +547,7 @@ export async function getAdminMatchingRuns(params?: { status?: string; targetRol
   if (params?.page) query.append("page", String(params.page));
   if (params?.limit) query.append("limit", String(params.limit));
 
-  const { data } = await api.get<any>(
+  const { data } = await api.get<AdminQueueResponse<AdminQueueItem>>(
     `${sprint4Endpoints.adminSprint4.matchingRuns}?${query.toString()}`
   );
   return data;
@@ -534,7 +560,7 @@ export async function getAdminPlanningSubmissions(params?: { status?: string; su
   if (params?.page) query.append("page", String(params.page));
   if (params?.limit) query.append("limit", String(params.limit));
 
-  const { data } = await api.get<any>(
+  const { data } = await api.get<AdminQueueResponse<AdminQueueItem>>(
     `${sprint4Endpoints.adminSprint4.planningSubmissions}?${query.toString()}`
   );
   return data;
@@ -546,7 +572,7 @@ export async function getAdminProjectPlans(params?: { status?: string; page?: nu
   if (params?.page) query.append("page", String(params.page));
   if (params?.limit) query.append("limit", String(params.limit));
 
-  const { data } = await api.get<any>(
+  const { data } = await api.get<AdminQueueResponse<AdminQueueItem>>(
     `${sprint4Endpoints.adminSprint4.projectPlans}?${query.toString()}`
   );
   return data;
@@ -557,7 +583,7 @@ export async function getAdminPayments(params?: { page?: number; limit?: number 
   if (params?.page) query.append("page", String(params.page));
   if (params?.limit) query.append("limit", String(params.limit));
 
-  const { data } = await api.get<any>(
+  const { data } = await api.get<AdminQueueResponse<AdminQueueItem>>(
     `${sprint4Endpoints.adminSprint4.payments}?${query.toString()}`
   );
   return data;

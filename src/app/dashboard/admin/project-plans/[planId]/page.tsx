@@ -1,54 +1,208 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ClipboardCheck, MessageSquareWarning, XCircle } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
-import { getProjectPlanDetail } from "@/services/planning";
+import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useToast } from "@/components/ui/toast";
+import { getProjectPlanDetail, materializeProjectPlan, reviewProjectPlan, type ProjectPlan } from "@/services/planning";
+
+type PlanMilestone = {
+  clientKey?: string | null;
+  title?: string | null;
+  description?: string | null;
+  budgetAmount?: number | string | null;
+  currency?: string | null;
+};
+
+type PlanTask = {
+  clientKey?: string | null;
+  key?: string | null;
+  title?: string | null;
+  roleKey?: string | null;
+};
+
+type PlanDetail = Omit<ProjectPlan, "milestones" | "tasks" | "dependencies"> & {
+  milestones?: PlanMilestone[];
+  tasks?: PlanTask[];
+  dependencies?: unknown[];
+};
 
 export default function AdminProjectPlanDetail() {
   const { planId } = useParams<{ planId: string }>();
-  const [plan, setPlan] = useState<any>(null);
+  const toast = useToast();
+  const [plan, setPlan] = useState<PlanDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [notes, setNotes] = useState("");
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    if (!planId) return Promise.resolve();
+    return getProjectPlanDetail(planId)
+      .then((nextPlan) => {
+        setPlan(nextPlan as PlanDetail);
+        setNotes(nextPlan.adminNotes || "");
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : "Could not load project plan";
+        toast.error("Could not load project plan", message);
+      })
+      .finally(() => setLoading(false));
+  }, [planId, toast]);
 
   useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function review(status: "approved" | "changes_requested" | "rejected", materialize = false) {
     if (!planId) return;
-    getProjectPlanDetail(planId)
-      .then(setPlan)
-      .finally(() => setLoading(false));
-  }, [planId]);
+    const key = materialize ? "approved_materialize" : status;
+    setActionLoading(key);
+    try {
+      await reviewProjectPlan(planId, {
+        status,
+        adminNotes: notes.trim() || undefined,
+        materialize,
+      });
+      toast.success(
+        materialize ? "Plan approved and materialized" : "Plan reviewed",
+        materialize ? "Milestones and dependency-aware tasks were created for the project." : `Marked as ${status.replace("_", " ")}.`,
+      );
+      await load();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not review project plan";
+      toast.error("Review failed", message);
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function materializeApproved() {
+    if (!planId) return;
+    setActionLoading("materialize");
+    try {
+      await materializeProjectPlan(planId, { replaceExisting: false });
+      toast.success("Plan materialized", "Milestones and tasks are now available on the project.");
+      await load();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not materialize project plan";
+      toast.error("Materialization failed", message);
+    } finally {
+      setActionLoading(null);
+    }
+  }
 
   return (
-    <DashboardShell role="admin" title="Materialize Project Plan" subtitle="Review AI-generated scrum master plans before storing.">
+    <DashboardShell role="admin" title="Scrum Plan Review" subtitle="Approve AI-generated milestones and tasks before implementation starts.">
       <Link href="/dashboard/admin/project-plans" className="mb-4 inline-flex items-center gap-1.5 text-sm text-on-surface-variant hover:text-primary">
         <ArrowLeft size={16} /> Back to queue
       </Link>
-      
+
       {loading ? <p>Loading...</p> : !plan ? <p>Plan not found.</p> : (
-        <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow space-y-4">
-          <div className="flex items-start justify-between">
-            <h3 className="font-headline text-lg font-semibold text-on-surface">Plan Overview (v{plan.version})</h3>
-            <StatusBadge status={plan.status} />
-          </div>
-          <p className="text-sm">{plan.summary}</p>
-          
-          <div className="mt-6">
-            <h4 className="font-semibold text-sm mb-2">Generated Milestones</h4>
-            <div className="grid gap-2">
-              {plan.milestones?.map((m: any, i: number) => (
-                <div key={i} className="text-xs p-3 rounded border bg-surface-container-low flex justify-between">
-                  <span><strong className="text-primary">{m.clientKey || "M"}</strong>: {m.title}</span>
-                  <span>{m.budgetAmount} {m.currency}</span>
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
+          <div className="space-y-6">
+            <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-primary">Project plan v{plan.version}</p>
+                  <h3 className="mt-2 font-headline text-xl font-semibold text-on-surface">Plan overview</h3>
+                  <p className="mt-2 max-w-4xl text-sm leading-6 text-on-surface-variant">{plan.summary || "No summary provided."}</p>
                 </div>
-              ))}
-            </div>
+                <StatusBadge status={plan.status} />
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-lg bg-surface-container-low p-4">
+                  <p className="text-xs text-on-surface-variant">Milestones</p>
+                  <p className="mt-1 text-2xl font-semibold text-on-surface">{plan.milestones?.length || 0}</p>
+                </div>
+                <div className="rounded-lg bg-surface-container-low p-4">
+                  <p className="text-xs text-on-surface-variant">Tasks</p>
+                  <p className="mt-1 text-2xl font-semibold text-on-surface">{plan.tasks?.length || 0}</p>
+                </div>
+                <div className="rounded-lg bg-surface-container-low p-4">
+                  <p className="text-xs text-on-surface-variant">Dependencies</p>
+                  <p className="mt-1 text-2xl font-semibold text-on-surface">{plan.dependencies?.length || 0}</p>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
+              <h4 className="font-headline text-lg font-semibold text-on-surface">Generated milestones</h4>
+              <div className="mt-4 grid gap-3">
+                {plan.milestones?.map((m, i) => (
+                  <div key={m.clientKey || i} className="rounded-lg border border-outline-variant/30 bg-surface-container-low p-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-primary">{m.clientKey || `M${i + 1}`}</p>
+                        <h5 className="mt-1 font-semibold text-on-surface">{m.title}</h5>
+                      </div>
+                      <span className="text-sm font-semibold text-on-surface">{m.budgetAmount ? `${m.budgetAmount} ${m.currency || ""}` : "Budget TBD"}</span>
+                    </div>
+                    {m.description && <p className="mt-2 text-sm text-on-surface-variant">{m.description}</p>}
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
+              <h4 className="font-headline text-lg font-semibold text-on-surface">Task sample</h4>
+              <div className="mt-4 grid gap-2">
+                {plan.tasks?.slice(0, 12).map((task, i) => (
+                  <div key={task.clientKey || task.key || i} className="rounded-lg bg-surface-container-low px-4 py-3 text-sm">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="font-medium text-on-surface">{task.title}</span>
+                      <span className="text-xs text-on-surface-variant">{task.roleKey?.replace("_", " ") || "Unassigned"}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
           </div>
 
-          <div className="mt-4 p-4 border rounded text-xs bg-surface-container font-mono whitespace-pre-wrap max-h-96 overflow-y-auto">
-            {JSON.stringify(plan, null, 2)}
-          </div>
+          <aside className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 card-shadow xl:sticky xl:top-24 xl:self-start">
+            <h4 className="font-headline text-lg font-semibold text-on-surface">Admin decision</h4>
+            <p className="mt-1 text-sm text-on-surface-variant">Approve and materialize when the plan is ready to become real milestones and tasks.</p>
+
+            <label className="mt-5 block text-sm font-medium text-on-surface" htmlFor="plan-notes">Admin notes</label>
+            <textarea
+              id="plan-notes"
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              rows={7}
+              className="mt-2 w-full rounded-lg border border-outline-variant bg-surface-container-lowest p-3 text-sm outline-none transition focus:border-primary"
+              placeholder="Optional notes about scope, timeline, or changes..."
+            />
+
+            <div className="mt-5 grid gap-2">
+              <Button type="button" loading={actionLoading === "approved_materialize"} onClick={() => review("approved", true)}>
+                <ClipboardCheck size={16} /> Approve and materialize
+              </Button>
+              <Button type="button" variant="outline" loading={actionLoading === "approved"} onClick={() => review("approved")}>
+                <CheckCircle2 size={16} /> Approve only
+              </Button>
+              {plan.status === "approved" && (
+                <Button type="button" variant="outline" loading={actionLoading === "materialize"} onClick={materializeApproved}>
+                  <ClipboardCheck size={16} /> Materialize approved plan
+                </Button>
+              )}
+              <Button type="button" variant="outline" loading={actionLoading === "changes_requested"} onClick={() => review("changes_requested")}>
+                <MessageSquareWarning size={16} /> Request changes
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="border-error/30 text-error hover:bg-error/10"
+                loading={actionLoading === "rejected"}
+                onClick={() => review("rejected")}
+              >
+                <XCircle size={16} /> Reject
+              </Button>
+            </div>
+          </aside>
         </div>
       )}
     </DashboardShell>

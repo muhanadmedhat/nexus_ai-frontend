@@ -92,6 +92,7 @@ export const sprint4Endpoints = {
     updateStatus: (assignmentId: string) => `/project-role-assignments/${assignmentId}/status`,
     projectTeam: (projectId: string) => `/projects/${projectId}/team`,
     freelancerAssigned: "/freelancer/projects/assigned",
+    freelancerProjectAssignment: (projectId: string) => `/freelancer/projects/${projectId}/assignment`,
   },
   planning: {
     createSubmission: (projectId: string) => `/projects/${projectId}/planning-submissions`,
@@ -115,9 +116,13 @@ export const sprint4Endpoints = {
   },
   payments: {
     customerSetupIntent: "/payments/customer/setup-intent",
+    customerProjects: "/payments/customer/projects",
     freelancerOnboardingLink: "/payments/freelancer/onboarding-link",
+    freelancerDashboardLink: "/payments/freelancer/dashboard-link",
     freelancerAccount: "/payments/freelancer/account",
     escrowIntent: (projectId: string) => `/projects/${projectId}/payments/escrow-intent`,
+    checkoutSession: (projectId: string) => `/projects/${projectId}/payments/checkout-session`,
+    projectSummary: (projectId: string) => `/projects/${projectId}/payments/summary`,
     projectPayments: (projectId: string) => `/projects/${projectId}/payments`,
     release: (projectId: string, paymentId: string) => `/projects/${projectId}/payments/${paymentId}/release`,
   },

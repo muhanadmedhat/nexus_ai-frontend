@@ -6,14 +6,17 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { getAdminProjectPlans } from "@/services/admin";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
+import type { ProjectPlan } from "@/services/planning";
+
+type AdminProjectPlan = Pick<ProjectPlan, "id" | "projectId" | "version" | "status"> & { projectTitle?: string | null; milestoneCount?: number; taskCount?: number };
 
 export default function AdminProjectPlansQueue() {
-  const [plans, setPlans] = useState<any[]>([]);
+  const [plans, setPlans] = useState<AdminProjectPlan[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     getAdminProjectPlans()
-      .then((res) => setPlans(Array.isArray(res.data) ? res.data : []))
+      .then((res) => setPlans(Array.isArray(res.data) ? (res.data as unknown as AdminProjectPlan[]) : []))
       .catch(() => setPlans([]))
       .finally(() => setLoading(false));
   }, []);

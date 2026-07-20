@@ -20,7 +20,6 @@ export default function ProjectDetailsPage() {
   const router = useRouter();
   const { user } = useAuth();
   const toast = useToast();
-  const role = (user?.role || "customer") as "customer" | "freelancer" | "admin";
 
   const [project, setProject] = useState<Project | null>(null);
   const [brief, setBrief] = useState<Brief | null>(null);
@@ -30,7 +29,7 @@ export default function ProjectDetailsPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id || user?.role !== "customer") return;
     Promise.all([getProject(id), getBrief(id)])
       .then(([p, b]) => {
         setProject(p);
@@ -38,7 +37,7 @@ export default function ProjectDetailsPage() {
       })
       .catch((err) => setLoadError(err instanceof Error ? err.message : "Could not load project"))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, user?.role]);
 
   const handleDeleteProject = async () => {
     if (!project || PROJECT_DELETION_BLOCKED_STATUSES.includes(project.status)) return;
@@ -58,7 +57,7 @@ export default function ProjectDetailsPage() {
   };
 
   return (
-    <DashboardShell role={role} title="Project details" subtitle="Overview, budget, and next steps.">
+    <DashboardShell role="customer" title="Project details" subtitle="Overview, budget, and next steps.">
       <Link
         href="/projects"
         className="mb-4 inline-flex items-center gap-1.5 text-sm text-on-surface-variant hover:text-primary"
@@ -188,30 +187,28 @@ export default function ProjectDetailsPage() {
               </Link>
             </div>
 
-            {(role === "customer" || role === "admin") && (
-              <div className="rounded-xl border border-error/20 bg-surface-container-lowest p-6 card-shadow">
-                <h3 className="font-headline text-base font-semibold text-on-surface">Delete project</h3>
-                <p className="mt-1 text-sm text-on-surface-variant">
-                  Remove this project while it is still unassigned.
+            <div className="rounded-xl border border-error/20 bg-surface-container-lowest p-6 card-shadow">
+              <h3 className="font-headline text-base font-semibold text-on-surface">Delete project</h3>
+              <p className="mt-1 text-sm text-on-surface-variant">
+                Remove this project while it is still unassigned.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsDeleteDialogOpen(true)}
+                loading={deleting}
+                disabled={PROJECT_DELETION_BLOCKED_STATUSES.includes(project.status)}
+                className="mt-4 inline-flex items-center justify-center border-error/30 px-4 py-2.5 text-error hover:bg-error/5"
+              >
+                <Trash2 size={18} className="mr-2" />
+                Delete project
+              </Button>
+              {PROJECT_DELETION_BLOCKED_STATUSES.includes(project.status) && (
+                <p className="mt-2 text-xs text-on-surface-variant">
+                  Projects cannot be deleted after they are assigned to freelancers.
                 </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsDeleteDialogOpen(true)}
-                  loading={deleting}
-                  disabled={PROJECT_DELETION_BLOCKED_STATUSES.includes(project.status)}
-                  className="mt-4 inline-flex items-center justify-center border-error/30 px-4 py-2.5 text-error hover:bg-error/5"
-                >
-                  <Trash2 size={18} className="mr-2" />
-                  Delete project
-                </Button>
-                {PROJECT_DELETION_BLOCKED_STATUSES.includes(project.status) && (
-                  <p className="mt-2 text-xs text-on-surface-variant">
-                    Projects cannot be deleted after they are assigned to freelancers.
-                  </p>
-                )}
-              </div>
-            )}
+              )}
+            </div>
           </div>
           <ConfirmDialog
             open={isDeleteDialogOpen}

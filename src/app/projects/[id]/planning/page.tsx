@@ -6,34 +6,27 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, CalendarClock } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { useAuth } from "@/hooks/use-auth";
-import { getProject } from "@/services/projects";
-import { getProjectPlans } from "@/services/planning";
-import type { Project } from "@/types/project";
+import { getProjectPlans, type ProjectPlan } from "@/services/planning";
 import { StatusBadge } from "@/components/ui/status-badge";
+
+type ProjectPlanListItem = ProjectPlan & { milestoneCount?: number; taskCount?: number };
 
 export default function PlanningPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
-  const role = (user?.role || "customer") as "customer" | "freelancer" | "admin";
-  const [project, setProject] = useState<Project | null>(null);
-  const [plans, setPlans] = useState<any[]>([]);
+  const [plans, setPlans] = useState<ProjectPlanListItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!id) return;
-    Promise.all([
-      getProject(id),
-      getProjectPlans(id).catch(() => [])
-    ])
-      .then(([p, pl]) => {
-        setProject(p);
-        setPlans(pl);
-      })
+    if (!id || user?.role !== "customer") return;
+    getProjectPlans(id)
+      .then((items) => setPlans(items as ProjectPlanListItem[]))
+      .catch(() => setPlans([]))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, user?.role]);
 
   return (
-    <DashboardShell role={role} title="Project Planning" subtitle="Track deliverables and sprint milestones.">
+    <DashboardShell role="customer" title="Project Planning" subtitle="Track deliverables and sprint milestones.">
       <Link
         href={`/projects/${id}`}
         className="mb-4 inline-flex items-center gap-1.5 text-sm text-on-surface-variant hover:text-primary"
@@ -54,8 +47,8 @@ export default function PlanningPage() {
             <p className="text-sm text-on-surface-variant">Planning phases will appear here once approved by an admin.</p>
           ) : (
             <div className="space-y-4">
-              {plans.map((plan: any, i: number) => (
-                <div key={i} className={`rounded-lg border p-4 ${plan.isCurrent ? 'border-primary/50' : 'border-outline-variant/30 opacity-75'}`}>
+              {plans.map((plan) => (
+                <div key={plan.id} className={`rounded-lg border p-4 ${plan.isCurrent ? 'border-primary/50' : 'border-outline-variant/30 opacity-75'}`}>
                   <div className="flex items-start justify-between">
                     <div>
                       <h4 className="font-semibold text-on-surface">Plan Revision {plan.version} {plan.isCurrent && "(Current)"}</h4>

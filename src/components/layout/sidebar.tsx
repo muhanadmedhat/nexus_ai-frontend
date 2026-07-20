@@ -13,6 +13,8 @@ import {
   Users,
   ClipboardCheck,
   Cpu,
+  ListChecks,
+  Star,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Logo } from "@/components/common/logo";
@@ -42,12 +44,16 @@ const NAV_ITEMS: Record<UserRole, NavItem[]> = {
   ],
   admin: [
     { label: "Dashboard", href: "/dashboard/admin", icon: <LayoutDashboard size={20} /> },
-    { label: "Matching", href: "/dashboard/admin/matching", icon: <Users size={20} /> },
+    { label: "Projects", href: "/dashboard/admin/matching", icon: <FolderOpen size={20} /> },
     { label: "Submissions", href: "/dashboard/admin/planning/submissions", icon: <ClipboardCheck size={20} /> },
     { label: "Scrum Plans", href: "/dashboard/admin/project-plans", icon: <CheckSquare size={20} /> },
     { label: "Escrow", href: "/dashboard/admin/payments", icon: <CreditCard size={20} /> },
     { label: "Freelancers", href: "/dashboard/admin/freelancers", icon: <ShieldCheck size={20} /> },
+    { label: "Assessments", href: "/dashboard/admin/assessments", icon: <ClipboardCheck size={20} /> },
     { label: "Agents", href: "/dashboard/admin/agents", icon: <Cpu size={20} /> },
+    { label: "Agent Jobs", href: "/dashboard/admin/agent-jobs", icon: <ListChecks size={20} /> },
+    { label: "Reviews", href: "/dashboard/admin/reviews", icon: <Star size={20} /> },
+    { label: "Users", href: "/dashboard/admin/users", icon: <Users size={20} /> },
   ],
 
 };

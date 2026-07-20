@@ -36,20 +36,73 @@ export interface ProjectPlan {
   summary: string;
   assumptions?: string[];
   timeline?: JsonObject;
-  milestones: any[];
-  tasks: any[];
-  dependencies: any[];
+  milestones: JsonObject[];
+  tasks: JsonObject[];
+  dependencies: JsonObject[];
+  projectSpec?: JsonObject | null;
   teamPlan: JsonObject;
-  riskRegister: any[];
+  riskRegister: JsonObject[];
   adminNotes: string | null;
   approvedBy: string | null;
   approvedAt: string | null;
   createdAt: string;
 }
 
+export interface ProjectMilestone {
+  id: string;
+  projectId: string;
+  title: string;
+  description?: string | null;
+  status: string;
+  orderIndex?: number;
+  budgetAmount?: number | null;
+  dueDate?: string | null;
+}
+
+export interface ProjectTask {
+  id: string;
+  projectId: string;
+  milestoneId?: string | null;
+  title: string;
+  description?: string | null;
+  status: string;
+  roleKey?: string | null;
+  assignedFreelancerProfileId?: string | null;
+  assignmentId?: string | null;
+}
+
+export interface ReviewSubmissionResult {
+  id: string;
+  status: string;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  planGenerationUnlocked?: boolean;
+  planGenerationJob?: {
+    queued: boolean;
+    reason?: string;
+    error?: string;
+    planId?: string;
+    agentJobId?: string;
+    queueName?: string;
+  } | null;
+}
+
+export interface ReviewProjectPlanResult {
+  id?: string;
+  status?: string;
+  materialized?: boolean;
+  milestoneCount?: number;
+  taskCount?: number;
+  [key: string]: unknown;
+}
+
 interface ApiDataResponse<T> {
   status: string;
   data: T;
+}
+
+function dataOrArray<T>(payload: ApiDataResponse<T[]> | T[]): T[] {
+  return Array.isArray(payload) ? payload : Array.isArray(payload.data) ? payload.data : [];
 }
 
 export async function createPlanningSubmission(
@@ -75,10 +128,10 @@ export async function getProjectSubmissions(projectId: string, params?: { submis
     if (params?.page) query.append("page", String(params.page));
     if (params?.limit) query.append("limit", String(params.limit));
 
-    const { data } = await api.get<any>(
+    const { data } = await api.get<ApiDataResponse<PlanningSubmission[]> | PlanningSubmission[]>(
       `${sprint4Endpoints.planning.projectSubmissions(projectId)}?${query.toString()}`
     );
-    return data.data ? data.data : (Array.isArray(data) ? data : []);
+    return dataOrArray<PlanningSubmission>(data);
   } catch (error) {
     throw new Error(getApiErrorMessage(error, "Could not load planning submissions"));
   }
@@ -100,7 +153,7 @@ export async function reviewSubmission(
   payload: { status: "approved" | "changes_requested" | "rejected"; adminNotes?: string }
 ) {
   try {
-    const { data } = await api.patch<ApiDataResponse<any>>(
+    const { data } = await api.patch<ApiDataResponse<ReviewSubmissionResult>>(
       sprint4Endpoints.planning.reviewSubmission(submissionId),
       payload
     );
@@ -115,7 +168,7 @@ export async function generateProjectPlan(
   payload: { architectureSubmissionId: string; uiuxSubmissionId: string; mode?: "async" | "sync"; notes?: string }
 ) {
   try {
-    const { data } = await api.post<ApiDataResponse<any>>(
+    const { data } = await api.post<ApiDataResponse<ReviewProjectPlanResult>>(
       sprint4Endpoints.planning.generatePlan(projectId),
       payload
     );
@@ -133,10 +186,10 @@ export async function getProjectPlans(projectId: string, params?: { status?: str
     if (params?.page) query.append("page", String(params.page));
     if (params?.limit) query.append("limit", String(params.limit));
 
-    const { data } = await api.get<any>(
+    const { data } = await api.get<ApiDataResponse<ProjectPlan[]> | ProjectPlan[]>(
       `${sprint4Endpoints.planning.projectPlans(projectId)}?${query.toString()}`
     );
-    return data.data ? data.data : Object.values(data);
+    return dataOrArray<ProjectPlan>(data);
   } catch (error) {
     throw new Error(getApiErrorMessage(error, "Could not load project plans"));
   }
@@ -158,7 +211,7 @@ export async function reviewProjectPlan(
   payload: { status: "approved" | "changes_requested" | "rejected"; adminNotes?: string; materialize?: boolean }
 ) {
   try {
-    const { data } = await api.patch<ApiDataResponse<any>>(
+    const { data } = await api.patch<ApiDataResponse<ReviewProjectPlanResult>>(
       sprint4Endpoints.planning.reviewPlan(planId),
       payload
     );
@@ -173,7 +226,7 @@ export async function materializeProjectPlan(
   payload: { replaceExisting?: boolean } = {}
 ) {
   try {
-    const { data } = await api.post<ApiDataResponse<any>>(
+    const { data } = await api.post<ApiDataResponse<ReviewProjectPlanResult>>(
       sprint4Endpoints.planning.materializePlan(planId),
       payload
     );
@@ -185,7 +238,7 @@ export async function materializeProjectPlan(
 
 export async function getMilestones(projectId: string) {
   try {
-    const { data } = await api.get<ApiDataResponse<any[]>>(
+    const { data } = await api.get<ApiDataResponse<ProjectMilestone[]>>(
       sprint4Endpoints.planning.milestones(projectId)
     );
     return Array.isArray(data.data) ? data.data : [];
@@ -203,10 +256,11 @@ export async function getTasks(projectId: string, params?: { milestoneId?: strin
     if (params?.page) query.append("page", String(params.page));
     if (params?.limit) query.append("limit", String(params.limit));
 
-    const { data } = await api.get<any>(
+    const { data } = await api.get<ApiDataResponse<ProjectTask[] | { tasks: ProjectTask[] }>>(
       `${sprint4Endpoints.planning.tasks(projectId)}?${query.toString()}`
     );
-    return Array.isArray(data.data) ? data.data : (data.data as any).tasks || data.data;
+    if (Array.isArray(data.data)) return data.data;
+    return Array.isArray(data.data.tasks) ? data.data.tasks : [];
   } catch (error) {
     throw new Error(getApiErrorMessage(error, "Could not load tasks"));
   }
@@ -214,7 +268,7 @@ export async function getTasks(projectId: string, params?: { milestoneId?: strin
 
 export async function updateTask(taskId: string, payload: { status?: string; assignedFreelancerProfileId?: string; assignmentId?: string; notes?: string }) {
   try {
-    const { data } = await api.patch<ApiDataResponse<any>>(
+    const { data } = await api.patch<ApiDataResponse<ProjectTask>>(
       sprint4Endpoints.planning.updateTask(taskId),
       payload
     );

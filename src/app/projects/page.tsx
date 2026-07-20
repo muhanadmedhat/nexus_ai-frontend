@@ -16,7 +16,6 @@ import { formatBudget, formatDate } from "@/utils/format";
 export default function ProjectsPage() {
   const { user } = useAuth();
   const toast = useToast();
-  const role = (user?.role || "customer") as "customer" | "freelancer" | "admin";
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,6 +24,8 @@ export default function ProjectsPage() {
   const [projectPendingDelete, setProjectPendingDelete] = useState<Project | null>(null);
 
   useEffect(() => {
+    if (user?.role !== "customer") return;
+
     listProjects()
       .then(setProjects)
       .catch((err) => {
@@ -36,7 +37,7 @@ export default function ProjectsPage() {
         }
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [user?.role]);
 
   const handleDeleteProject = async () => {
     const project = projectPendingDelete;
@@ -59,51 +60,18 @@ export default function ProjectsPage() {
     }
   };
 
-  // Freelancer-specific empty state (when 403 or role is freelancer and projects empty)
-  const showFreelancerEmptyState =
-    loadError === "forbidden" ||
-    (role === "freelancer" && !loading && !loadError && projects.length === 0);
-
-  if (showFreelancerEmptyState) {
-    return (
-      <DashboardShell
-        role="freelancer"
-        title="Projects"
-        subtitle="View and manage your assigned projects."
-      >
-        <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-12 text-center card-shadow">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-surface-container-high">
-            <FolderOpen size={32} className="text-outline" />
-          </div>
-          <h3 className="text-lg font-semibold text-on-surface">No assigned projects</h3>
-          <p className="mt-1 text-sm text-on-surface-variant">
-            As a freelancer, you&apos;ll see projects you&apos;re assigned to here.
-            Complete your profile and get matched to start receiving tasks.
-          </p>
-          <Link href="/freelancer/verification">
-            <Button className="mt-4 inline-flex w-auto px-6">
-              Check verification status
-            </Button>
-          </Link>
-        </div>
-      </DashboardShell>
-    );
-  }
-
   return (
-    <DashboardShell role={role} title="Projects" subtitle="View and manage all your projects.">
+    <DashboardShell role="customer" title="Projects" subtitle="View and manage your projects.">
       <div className="mb-6 flex items-center justify-between">
         <p className="text-sm text-on-surface-variant">
           {loading ? "Loading…" : `${projects.length} project${projects.length === 1 ? "" : "s"}`}
         </p>
-        {role === "customer" && (
-          <Link href="/projects/new">
-            <Button className="inline-flex w-auto px-5 py-2.5">
-              <Plus size={18} className="mr-2" />
-              New project
-            </Button>
-          </Link>
-        )}
+        <Link href="/projects/new">
+          <Button className="inline-flex w-auto px-5 py-2.5">
+            <Plus size={18} className="mr-2" />
+            New project
+          </Button>
+        </Link>
       </div>
 
       {loading ? (
@@ -129,14 +97,12 @@ export default function ProjectsPage() {
           <p className="mt-1 text-sm text-on-surface-variant">
             Create your first project and let Nexus AI handle the rest.
           </p>
-          {role === "customer" && (
-            <Link href="/projects/new">
-              <Button className="mt-4 inline-flex w-auto px-6">
-                <Plus size={18} className="mr-2" />
-                Create your first project
-              </Button>
-            </Link>
-          )}
+          <Link href="/projects/new">
+            <Button className="mt-4 inline-flex w-auto px-6">
+              <Plus size={18} className="mr-2" />
+              Create your first project
+            </Button>
+          </Link>
         </div>
       ) : (
         <>
@@ -173,22 +139,20 @@ export default function ProjectsPage() {
                       </div>
                     </dl>
                   </Link>
-                  {(role === "customer" || role === "admin") && (
-                    <button
-                      type="button"
-                      onClick={() => setProjectPendingDelete(p)}
-                      disabled={deleteBlocked || deleting}
-                      title={
-                        deleteBlocked
-                          ? "Projects cannot be deleted after assignment"
-                          : "Delete project"
-                      }
-                      className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-error/20 px-3 py-2 text-sm font-semibold text-error transition-colors hover:bg-error/5 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <Trash2 size={16} />
-                      {deleting ? "Deleting..." : "Delete"}
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setProjectPendingDelete(p)}
+                    disabled={deleteBlocked || deleting}
+                    title={
+                      deleteBlocked
+                        ? "Projects cannot be deleted after assignment"
+                        : "Delete project"
+                    }
+                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-error/20 px-3 py-2 text-sm font-semibold text-error transition-colors hover:bg-error/5 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Trash2 size={16} />
+                    {deleting ? "Deleting..." : "Delete"}
+                  </button>
                 </div>
               );
             })}
