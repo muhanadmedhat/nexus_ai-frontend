@@ -103,6 +103,7 @@ export default function RegisterPage() {
 
   return (
     <>
+      {/* Hide Spline watermark */}
       <style>
         {`
           .spline-watermark,
@@ -115,30 +116,56 @@ export default function RegisterPage() {
             visibility: hidden !important;
             pointer-events: none !important;
           }
+
+          @font-face {
+            font-family: 'Rocher';
+            src: url(https://assets.codepen.io/9632/RocherColorGX.woff2);
+          }
+
+          .title-wrapper {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            gap: 0.1em;
+            z-index: 10;
+            font-size: clamp(3rem, 8vw, 7rem);
+            line-height: 1;
+            padding-top: 8vh;
+            margin-bottom: 1rem;
+          }
+
+          .title-nexus,
+          .title-ai {
+            font-family: 'Rocher', sans-serif;
+            color: #324933;
+          }
+
+          .title-wrapper span {
+            display: inline-block;
+          }
         `}
       </style>
 
-      <main className="flex min-h-screen w-full flex-col bg-surface lg:h-screen lg:overflow-hidden lg:flex-row">
-        {/* Left Panel – Title + Giant Robot */}
-        <section className="relative hidden w-1/2 flex-col items-center justify-center overflow-hidden bg-[#f0f0eb] p-8 lg:flex">
-          <div className="relative z-10 flex h-full w-full flex-col items-center justify-center">
-            {/* Nexus‑AI Title above robot */}
-            <h1 className="mb-8 font-headline text-5xl font-black tracking-tight md:text-6xl lg:text-7xl">
-              <span style={{ color: "#324933" }}>Nexus</span>
-              <span style={{ color: "#c6a364" }}>AI</span>
-            </h1>
+      <main className="flex min-h-screen w-full flex-col bg-[#f5f5f0] lg:h-screen lg:overflow-hidden lg:flex-row">
+        {/* Left Panel – Exactly as Login Page */}
+        <section className="relative hidden w-1/2 flex-col items-center justify-center overflow-hidden bg-surface p-8 lg:flex">
+          <div className="relative z-10 flex h-full w-full flex-col items-center justify-start">
+            <div className="title-wrapper">
+              <span className="title-nexus">Nexus</span>
+              <span className="title-ai">AI</span>
+            </div>
 
-            {/* Giant Robot – fills the rest */}
-            <div className="w-full max-w-4xl flex-1 flex items-center justify-center">
+            <div className="w-full flex-1 flex items-center justify-center">
               <Spline
-                scene="https://prod.spline.design/jENSkvxRxQfrmnBl/scene.splinecode"
-                className="h-[85vh] w-full"
+                scene="https://draft.spline.design/joTbeFyFhCIcKsZ1/scene.splinecode"
+                className="h-[75vh] w-full"
               />
             </div>
           </div>
         </section>
 
-        {/* Right Panel – Form */}
+        {/* Right Panel – Form (unchanged) */}
         <section className="flex flex-1 flex-col items-center justify-center bg-surface px-6 py-10 md:px-10 lg:h-screen lg:overflow-hidden lg:px-10 lg:py-5">
           <div className="w-full max-w-[520px]">
             <div className="mb-5">
