@@ -1,7 +1,13 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import Image from "next/image";
-import Spline from "@splinetool/react-spline";
+
+const SplineScene = dynamic(() => import("@splinetool/react-spline/next"), {
+  ssr: false,
+  loading: () => null,
+});
 
 interface AuthVisualPanelProps {
   imageSrc?: string;
@@ -18,6 +24,32 @@ export function AuthVisualPanel({
   title,
   description,
 }: AuthVisualPanelProps) {
+  const [canRenderSpline, setCanRenderSpline] = useState(false);
+  const fallbackImageSrc = imageSrc ?? "/auth-panel-nexus.png";
+
+  useEffect(() => {
+    if (!sceneUrl || !shouldEnableSplineScene()) return;
+
+    const windowWithIdleCallback = window as Window & {
+      requestIdleCallback?: (
+        callback: () => void,
+        options?: { timeout?: number },
+      ) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    if (windowWithIdleCallback.requestIdleCallback) {
+      const handle = windowWithIdleCallback.requestIdleCallback(
+        () => setCanRenderSpline(true),
+        { timeout: 1200 },
+      );
+      return () => windowWithIdleCallback.cancelIdleCallback?.(handle);
+    }
+
+    const timeout = window.setTimeout(() => setCanRenderSpline(true), 600);
+    return () => window.clearTimeout(timeout);
+  }, [sceneUrl]);
+
   return (
     <section
       className="relative hidden h-screen w-1/2 overflow-hidden rounded-r-3xl bg-[#174332] lg:flex"
@@ -72,24 +104,25 @@ export function AuthVisualPanel({
         `}
       </style>
 
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_65%_28%,rgba(198,163,100,0.24),transparent_34%),linear-gradient(145deg,#123529_0%,#1e5a43_52%,#123529_100%)]" />
-      <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-[#0b241b] via-[#123529]/80 to-transparent" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_65%_28%,rgba(198,163,100,0.12),transparent_34%),linear-gradient(145deg,#050505_0%,#111111_52%,#030303_100%)]" />
+      <div className="absolute inset-0 bg-black/45" />
+      <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black via-black/75 to-transparent" />
 
-      {imageSrc && !sceneUrl && (
+      {(!sceneUrl || !canRenderSpline) && (
         <Image
-          src={imageSrc}
+          src={fallbackImageSrc}
           alt={alt}
           fill
           priority
-          className="object-cover opacity-75"
+          className="object-cover opacity-55"
           sizes="50vw"
         />
       )}
 
-      {sceneUrl && (
+      {sceneUrl && canRenderSpline && (
         <div className="auth-robot-shell absolute left-1/2 top-1/2 z-[3] h-[60vh] w-[82%] max-w-[660px] -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing">
           <div className="auth-robot-float relative h-full w-full overflow-hidden opacity-95">
-            <Spline scene={sceneUrl} className="h-full w-full" />
+            <SplineScene scene={sceneUrl} className="h-full w-full" />
             <div
               aria-hidden="true"
               className="pointer-events-none absolute bottom-0 right-0 h-32 w-72 bg-gradient-to-br from-[#1e5a43]/90 via-[#174332] to-[#123529]"
@@ -98,7 +131,7 @@ export function AuthVisualPanel({
         </div>
       )}
 
-      {sceneUrl && (
+      {sceneUrl && canRenderSpline && (
         <div
           aria-hidden="true"
           className="pointer-events-none absolute bottom-[17%] right-[7%] z-[6] h-24 w-72 bg-gradient-to-br from-[#1e5a43]/95 via-[#174332] to-[#123529]"
@@ -128,4 +161,56 @@ export function AuthVisualPanel({
       </div>
     </section>
   );
+}
+
+function shouldEnableSplineScene() {
+  if (typeof window === "undefined") return false;
+
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    return false;
+  }
+
+  const navigatorWithMemory = navigator as Navigator & {
+    deviceMemory?: number;
+  };
+
+  if (
+    navigatorWithMemory.deviceMemory &&
+    navigatorWithMemory.deviceMemory <= 4
+  ) {
+    return false;
+  }
+
+  const userAgent = navigator.userAgent;
+  const isLinuxDesktop = /Linux/i.test(userAgent) && !/Android/i.test(userAgent);
+  if (isLinuxDesktop) return false;
+
+  return hasHardwareWebGlRenderer();
+}
+
+function hasHardwareWebGlRenderer() {
+  try {
+    const canvas = document.createElement("canvas");
+    const gl =
+      canvas.getContext("webgl2") ||
+      canvas.getContext("webgl") ||
+      (canvas.getContext(
+        "experimental-webgl",
+      ) as WebGLRenderingContext | null);
+
+    if (!gl) return false;
+
+    const debugInfo = gl.getExtension("WEBGL_debug_renderer_info");
+    if (!debugInfo) return true;
+
+    const renderer = String(
+      gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) ?? "",
+    ).toLowerCase();
+
+    return !/(swiftshader|llvmpipe|softpipe|software|basic render|virgl)/i.test(
+      renderer,
+    );
+  } catch {
+    return false;
+  }
 }

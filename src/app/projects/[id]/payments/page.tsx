@@ -21,6 +21,7 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   createEscrowCheckoutSession,
   getProjectPaymentSummary,
+  syncEscrowCheckoutSession,
   type ProjectPaymentSummary,
 } from "@/services/payments";
 import { formatBudget, formatDate, formatMoney } from "@/utils/format";
@@ -30,15 +31,29 @@ export default function ProjectPaymentsPage() {
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const toast = useToast();
+  const paymentState = searchParams.get("payment");
+  const checkoutSessionId = searchParams.get("session_id");
   const [summary, setSummary] = useState<ProjectPaymentSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
 
-  const loadSummary = () => {
+  const loadSummary = (syncSessionId?: string | null) => {
     if (!id || user?.role !== "customer") return;
     setLoading(true);
-    getProjectPaymentSummary(id)
-      .then(setSummary)
+    const request = syncSessionId
+      ? syncEscrowCheckoutSession(id, syncSessionId)
+      : getProjectPaymentSummary(id);
+
+    request
+      .then((nextSummary) => {
+        setSummary(nextSummary);
+        if (syncSessionId) {
+          toast.success(
+            "Escrow funded",
+            "Stripe confirmed the payment and the project balance is updated.",
+          );
+        }
+      })
       .catch((error) => {
         const message =
           error instanceof Error
@@ -51,22 +66,18 @@ export default function ProjectPaymentsPage() {
   };
 
   useEffect(() => {
-    loadSummary();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, user?.role]);
+    const shouldSyncCheckout =
+      paymentState === "success" && Boolean(checkoutSessionId);
 
-  useEffect(() => {
-    const paymentState = searchParams.get("payment");
-    if (paymentState === "success") {
-      toast.success(
-        "Payment started",
-        "Stripe will confirm escrow once the webhook arrives.",
-      );
-    }
+    void Promise.resolve().then(() =>
+      loadSummary(shouldSyncCheckout ? checkoutSessionId : null),
+    );
+
     if (paymentState === "cancelled") {
       toast.error("Payment cancelled", "No escrow was funded.");
     }
-  }, [searchParams, toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, user?.role, paymentState, checkoutSessionId]);
 
   const handlePay = async () => {
     if (!summary?.actions.canPay || !summary.actions.suggestedPaymentAmount)
@@ -84,7 +95,7 @@ export default function ProjectPaymentsPage() {
         throw new Error("Stripe did not return a checkout link");
       }
 
-      window.location.href = checkout.checkoutUrl;
+      window.location.assign(checkout.checkoutUrl);
     } catch (error) {
       toast.error(
         "Checkout failed",

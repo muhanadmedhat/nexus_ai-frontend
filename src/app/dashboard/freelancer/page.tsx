@@ -2,29 +2,75 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Briefcase, Clock, Star, DollarSign, AlertCircle, UserRound, ShieldCheck, X, Check } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowRight,
+  Briefcase,
+  Check,
+  Clock,
+  DollarSign,
+  Loader2,
+  ShieldCheck,
+  Star,
+  UserRound,
+  X,
+} from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { StatsCard } from "@/components/ui/stats-card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { getVerification } from "@/services/assessments";
 import type { VerificationChecklist } from "@/types/assessment";
+import {
+  getFreelancerAssignedProjects,
+  type FreelancerAssignedProject,
+} from "@/services/matching";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 export default function FreelancerDashboardPage() {
   const { user } = useAuth();
   const [verification, setVerification] = useState<VerificationChecklist | null>(null);
-  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [verificationLoading, setVerificationLoading] = useState(true);
+  const [assignedProjects, setAssignedProjects] = useState<
+    FreelancerAssignedProject[]
+  >([]);
+  const [assignmentsLoading, setAssignmentsLoading] = useState(true);
+  const [bannerDismissed, setBannerDismissed] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      sessionStorage.getItem("verificationBannerDismissed") === "1",
+  );
 
   useEffect(() => {
-    const dismissed =
-      typeof window !== "undefined" &&
-      sessionStorage.getItem("verificationBannerDismissed") === "1";
+    let active = true;
+
     getVerification()
       .then((v) => {
-        setVerification(v);
-        if (dismissed) setBannerDismissed(true);
+        if (active) setVerification(v);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (active) setVerificationLoading(false);
+      });
+
+    getFreelancerAssignedProjects({
+      phase: "planning",
+      status: "assigned,accepted,in_progress",
+      limit: 3,
+    })
+      .then((result) => {
+        if (active) {
+          setAssignedProjects(Array.isArray(result.data) ? result.data : []);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (active) setAssignmentsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   function dismissBanner() {
@@ -32,18 +78,28 @@ export default function FreelancerDashboardPage() {
     sessionStorage.setItem("verificationBannerDismissed", "1");
   }
 
+  const isApproved =
+    verification?.verificationStatus === "approved" ||
+    verification?.nextAction === "approved";
+  const isRejected =
+    verification?.verificationStatus === "rejected" ||
+    verification?.nextAction === "rejected";
   const showVerificationBanner =
     !bannerDismissed &&
+    !verificationLoading &&
     verification !== null &&
-    verification.verificationStatus !== "approved";
+    !isApproved &&
+    !isRejected;
   const isWaitingForAdminReview =
-    verification?.verificationStatus === "assessment_submitted" ||
-    verification?.verificationStatus === "interview_pending" ||
-    verification?.nextAction === "wait_for_review" ||
-    verification?.assessment?.status === "submitted" ||
-    verification?.assessment?.status === "graded" ||
-    verification?.assessment?.status === "needs_review";
-  const profileReady = verification?.profileComplete === true;
+    !isApproved &&
+    !isRejected &&
+    (verification?.verificationStatus === "assessment_submitted" ||
+      verification?.verificationStatus === "interview_pending" ||
+      verification?.nextAction === "wait_for_review" ||
+      verification?.assessment?.status === "submitted" ||
+      verification?.assessment?.status === "graded" ||
+      verification?.assessment?.status === "needs_review");
+  const profileReady = verification?.profileComplete === true || isApproved;
 
   const bannerCopy = isWaitingForAdminReview
     ? {
@@ -59,7 +115,21 @@ export default function FreelancerDashboardPage() {
         href: "/freelancer/verification",
       };
 
-  const readinessCopy = isWaitingForAdminReview
+  const readinessCopy = isApproved
+    ? {
+        title: "Ready for matching",
+        body: "You are approved. New planning or project assignments will appear here as soon as an admin selects you.",
+        progress: 100,
+        progressLabel: "Approved",
+      }
+    : isRejected
+      ? {
+          title: "Verification needs another attempt",
+          body: "Your latest review was not approved. Check the result and improve your profile before retrying when eligible.",
+          progress: 100,
+          progressLabel: "Rejected",
+        }
+      : isWaitingForAdminReview
     ? {
         title: "Waiting for admin review",
         body: "Your skill profile is ready. Matching will unlock once admin review is complete.",
@@ -81,8 +151,11 @@ export default function FreelancerDashboardPage() {
         };
 
   const stats = {
-    activeTasks: 0,
-    pendingSubmissions: 0,
+    activeTasks: assignedProjects.length,
+    pendingSubmissions: assignedProjects.filter(
+      (project) =>
+        project.status === "assigned" || project.roleBriefStatus === "pending",
+    ).length,
     avgScore: "—",
     estimatedEarnings: "$0.00",
   };
@@ -164,17 +237,74 @@ export default function FreelancerDashboardPage() {
         </div>
       </div>
 
-      {/* Empty tasks section */}
-      <div className="mt-6 rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-12 text-center card-shadow">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-surface-container-high">
-          <Briefcase size={32} className="text-outline" />
+      {/* Assigned work */}
+      <div className="mt-6 rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="font-headline text-lg font-semibold text-on-surface">
+              Assigned project work
+            </h3>
+            <p className="mt-1 text-sm text-on-surface-variant">
+              Planning roles and active assignments from the matching flow.
+            </p>
+          </div>
+          <Link
+            href="/freelancer/projects"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary-container hover:underline"
+          >
+            View all <ArrowRight size={16} />
+          </Link>
         </div>
-        <h3 className="text-lg font-semibold text-on-surface">No assigned project work yet</h3>
-        <p className="mt-1 text-sm text-on-surface-variant">
-          {isWaitingForAdminReview
-            ? "Matching starts after admin review is complete."
-            : "Complete verification to get matched with relevant projects."}
-        </p>
+
+        {assignmentsLoading ? (
+          <div className="flex items-center justify-center py-10 text-on-surface-variant">
+            <Loader2 size={22} className="animate-spin" />
+          </div>
+        ) : assignedProjects.length > 0 ? (
+          <div className="mt-5 grid gap-3 lg:grid-cols-3">
+            {assignedProjects.map((assignment) => (
+              <Link
+                key={assignment.assignmentId}
+                href={`/freelancer/projects/${assignment.projectId}`}
+                className="group rounded-xl border border-outline-variant/30 bg-surface-container-low p-4 transition hover:border-primary-container/40 hover:bg-primary-container/5"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-on-surface">
+                      {assignment.projectTitle || "Assigned project"}
+                    </p>
+                    <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-primary-container">
+                      {assignment.roleKey.replace(/_/g, " ")} · {assignment.phase}
+                    </p>
+                  </div>
+                  <StatusBadge status={assignment.status} />
+                </div>
+                <p className="mt-3 line-clamp-2 text-sm leading-6 text-on-surface-variant">
+                  {assignment.roleBriefSummary ||
+                    assignment.briefSummary ||
+                    "Your role brief is being prepared."}
+                </p>
+                <span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-primary-container group-hover:underline">
+                  Open assignment <ArrowRight size={14} />
+                </span>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="py-10 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-surface-container-high">
+              <Briefcase size={32} className="text-outline" />
+            </div>
+            <h3 className="text-lg font-semibold text-on-surface">No assigned project work yet</h3>
+            <p className="mt-1 text-sm text-on-surface-variant">
+              {isApproved
+                ? "You are approved. Matching results will appear here once an admin assigns you to a project."
+                : isWaitingForAdminReview
+                  ? "Matching starts after admin review is complete."
+                  : "Complete verification to get matched with relevant projects."}
+            </p>
+          </div>
+        )}
       </div>
     </DashboardShell>
   );

@@ -111,6 +111,7 @@ export default function RegisterPage() {
   return (
     <main className="flex min-h-screen w-full flex-col bg-[#f5f5f0] lg:h-screen lg:overflow-hidden lg:flex-row">
       <AuthVisualPanel
+        imageSrc="/auth-panel-signup.png"
         sceneUrl="https://prod.spline.design/jENSkvxRxQfrmnBl/scene.splinecode"
         alt="Nexus AI onboarding robot"
         title={
@@ -128,13 +129,13 @@ export default function RegisterPage() {
         }
       />
 
-      <section className="flex flex-1 flex-col items-center justify-center bg-surface px-6 py-10 md:px-10 lg:h-screen lg:overflow-hidden lg:px-10 lg:py-5">
-        <div className="w-full max-w-[520px]">
-          <div className="mb-5">
-            <h1 className="mb-2 font-headline text-3xl font-bold leading-tight tracking-tight text-on-surface md:text-4xl">
+      <section className="flex flex-1 flex-col items-center justify-center bg-surface px-6 py-8 md:px-10 lg:h-screen lg:overflow-hidden lg:px-8 lg:py-4 xl:px-12">
+        <div className="w-full max-w-[500px]">
+          <div className="mb-3">
+            <h1 className="mb-1.5 font-headline text-3xl font-bold leading-[1.05] tracking-tight text-on-surface md:text-[34px]">
               Create account
             </h1>
-            <p className="max-w-md text-sm leading-6 text-on-surface-variant">
+            <p className="max-w-sm text-xs leading-5 text-on-surface-variant">
               Choose your role and enter the details Nexus AI needs to start
               routing work clearly.
             </p>
@@ -142,13 +143,13 @@ export default function RegisterPage() {
 
           <form
             onSubmit={handleSubmit(onSubmit)}
-            className="space-y-4 lg:space-y-3"
+            className="space-y-3 lg:space-y-2.5"
           >
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-on-surface">
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold text-on-surface">
                 I want to use Nexus AI as
               </p>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
                 {ROLE_CARDS.map(({ value, label, icon: Icon, description }) => {
                   const active = role === value;
                   return (
@@ -164,7 +165,7 @@ export default function RegisterPage() {
                         });
                       }}
                       className={clsx(
-                        "group flex min-h-[116px] flex-col items-start rounded-lg border p-4 text-left transition-all lg:min-h-[104px] lg:p-3",
+                        "group flex min-h-[94px] flex-col items-start rounded-lg border p-3 text-left transition-all",
                         active
                           ? "border-primary-container bg-primary-container/[0.06] shadow-sm"
                           : "border-outline-variant bg-surface-container-lowest hover:border-primary-container/50 hover:bg-surface-container-low",
@@ -172,18 +173,18 @@ export default function RegisterPage() {
                     >
                       <span
                         className={clsx(
-                          "mb-3 flex h-10 w-10 items-center justify-center rounded-lg transition-colors",
+                          "mb-2 flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
                           active
                             ? "bg-primary-container text-on-primary"
                             : "bg-surface-container-high text-outline group-hover:text-primary",
                         )}
                       >
-                        <Icon size={20} />
+                        <Icon size={17} />
                       </span>
-                      <span className="mb-1 font-headline text-base font-semibold text-on-surface">
+                      <span className="mb-0.5 font-headline text-sm font-semibold text-on-surface">
                         {label}
                       </span>
-                      <span className="text-[11px] leading-4 text-on-surface-variant">
+                      <span className="text-[10.5px] leading-4 text-on-surface-variant">
                         {description}
                       </span>
                     </button>
@@ -196,12 +197,14 @@ export default function RegisterPage() {
               <Input
                 label="First name"
                 placeholder="Enter first name"
+                className="py-2.5 text-sm"
                 {...register("firstName")}
                 error={errors.firstName?.message}
               />
               <Input
                 label="Last name"
                 placeholder="Enter last name"
+                className="py-2.5 text-sm"
                 {...register("lastName")}
                 error={errors.lastName?.message}
               />
@@ -210,6 +213,7 @@ export default function RegisterPage() {
               label="Email address"
               type="email"
               placeholder="name@company.com"
+              className="py-2.5 text-sm"
               {...register("email")}
               error={errors.email?.message}
             />
@@ -223,6 +227,7 @@ export default function RegisterPage() {
                   value={field.value}
                   onChange={field.onChange}
                   onBlur={field.onBlur}
+                  compact
                   error={errors.phoneNumber?.message}
                 />
               )}
@@ -232,6 +237,7 @@ export default function RegisterPage() {
                 label="Password"
                 type="password"
                 placeholder="••••••••"
+                className="py-2.5 text-sm"
                 {...register("password")}
                 error={errors.password?.message}
               />
@@ -239,16 +245,17 @@ export default function RegisterPage() {
                 label="Confirm password"
                 type="password"
                 placeholder="••••••••"
+                className="py-2.5 text-sm"
                 {...register("confirmPassword")}
                 error={errors.confirmPassword?.message}
               />
             </div>
-            <Button type="submit" loading={isSubmitting}>
+            <Button type="submit" className="py-3 text-sm" loading={isSubmitting}>
               Create account
             </Button>
           </form>
 
-          <div className="relative my-5">
+          <div className="relative my-4">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-outline-variant/30" />
             </div>
@@ -265,7 +272,7 @@ export default function RegisterPage() {
             }}
           />
 
-          <p className="mt-5 text-center text-sm text-on-surface-variant">
+          <p className="mt-4 text-center text-xs text-on-surface-variant">
             Already have an account?{" "}
             <Link
               href="/login"

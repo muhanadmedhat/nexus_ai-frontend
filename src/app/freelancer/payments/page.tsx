@@ -25,9 +25,15 @@ const PAYOUT_COUNTRIES = [
   { code: "IE", label: "Ireland" },
 ] as const;
 
+const wait = (ms: number) =>
+  new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+
 export default function FreelancerPaymentsPage() {
   const [account, setAccount] = useState<FreelancerAccountStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshingStripeReturn, setRefreshingStripeReturn] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [openingDashboard, setOpeningDashboard] = useState(false);
   const [country, setCountry] = useState("US");
@@ -36,16 +42,19 @@ export default function FreelancerPaymentsPage() {
   const loadAccount = useCallback(async (showSpinner = true) => {
     if (showSpinner) setLoading(true);
     try {
-      setAccount(await getFreelancerAccount());
+      const nextAccount = await getFreelancerAccount();
+      setAccount(nextAccount);
+      return nextAccount;
     } catch {
       setAccount(null);
+      return null;
     } finally {
       if (showSpinner) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void loadAccount();
+    void Promise.resolve().then(() => loadAccount());
   }, [loadAccount]);
 
   useEffect(() => {
@@ -63,20 +72,60 @@ export default function FreelancerPaymentsPage() {
     };
   }, [loadAccount]);
 
+  const refreshAfterStripeReturn = useCallback(
+    async (stripeState: string) => {
+      setRefreshingStripeReturn(true);
+      try {
+        let latestAccount: FreelancerAccountStatus | null = null;
+
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+          latestAccount = await loadAccount(false);
+          if (
+            latestAccount?.stripeOnboardingStatus === "completed" ||
+            latestAccount?.stripeAccountId
+          ) {
+            break;
+          }
+          await wait(1200);
+        }
+
+        if (stripeState === "return") {
+          if (latestAccount?.stripeOnboardingStatus === "completed") {
+            toast.success(
+              "Stripe account linked",
+              "Your payouts are ready. You can manage the account from here.",
+            );
+          } else if (latestAccount?.stripeAccountId) {
+            toast.success(
+              "Stripe account connected",
+              "Finish any remaining Stripe requirements to unlock payouts.",
+            );
+          } else {
+            toast.error(
+              "Stripe status still pending",
+              "Stripe has not returned an account yet. Try opening onboarding again.",
+            );
+          }
+        }
+
+        if (stripeState === "refresh") {
+          toast.error("Stripe link expired", "Open onboarding again to continue.");
+        }
+      } finally {
+        setRefreshingStripeReturn(false);
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+    },
+    [loadAccount, toast],
+  );
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const stripeState = params.get("stripe");
     if (!stripeState) return;
 
-    void loadAccount(false);
-    if (stripeState === "return") {
-      toast.success("Stripe updated", "Your payout status has been refreshed.");
-    }
-    if (stripeState === "refresh") {
-      toast.error("Stripe link expired", "Open onboarding again to continue.");
-    }
-    window.history.replaceState(null, "", window.location.pathname);
-  }, [loadAccount, toast]);
+    void Promise.resolve().then(() => refreshAfterStripeReturn(stripeState));
+  }, [refreshAfterStripeReturn]);
 
   const handleOnboard = async () => {
     if (connecting) return;
@@ -131,8 +180,12 @@ export default function FreelancerPaymentsPage() {
 
   return (
     <DashboardShell role="freelancer" title="Payments & Onboarding" subtitle="Connect your Stripe account to receive payouts.">
-      {loading ? (
-        <p className="text-sm">Loading...</p>
+      {loading || refreshingStripeReturn ? (
+        <p className="text-sm text-on-surface-variant">
+          {refreshingStripeReturn
+            ? "Checking your Stripe account..."
+            : "Loading..."}
+        </p>
       ) : account?.stripeOnboardingStatus === "completed" ? (
         <div className="max-w-xl rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
           <h3 className="font-headline font-semibold text-on-surface">Stripe Account Linked</h3>
@@ -171,7 +224,8 @@ export default function FreelancerPaymentsPage() {
           </select>
           {hasStripeAccount && (
             <p className="mt-2 text-xs text-on-surface-variant">
-              Country is locked after Stripe creates the payout account.
+              Stripe account connected. Country is locked after Stripe creates
+              the payout account.
             </p>
           )}
           <Button onClick={handleOnboard} className="mt-6 w-full" disabled={connecting}>

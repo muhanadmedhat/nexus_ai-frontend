@@ -59,6 +59,7 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-screen w-full flex-col bg-[#f5f5f0] lg:h-screen lg:overflow-hidden lg:flex-row">
       <AuthVisualPanel
+        imageSrc="/auth-panel-nexus.png"
         sceneUrl="https://prod.spline.design/jENSkvxRxQfrmnBl/scene.splinecode"
         alt="Nexus AI assistant robot"
         title={

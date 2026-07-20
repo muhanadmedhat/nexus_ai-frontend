@@ -294,6 +294,22 @@ export async function createEscrowCheckoutSession(
   }
 }
 
+export async function syncEscrowCheckoutSession(
+  projectId: string,
+  sessionId: string,
+) {
+  try {
+    const { data } = await api.post<ApiDataResponse<ProjectPaymentSummary>>(
+      sprint4Endpoints.payments.syncCheckoutSession(projectId, sessionId),
+    );
+    return toSummary(data.data);
+  } catch (error) {
+    throw new Error(
+      getApiErrorMessage(error, "Could not confirm checkout status"),
+    );
+  }
+}
+
 export async function getCustomerPaymentProjects() {
   try {
     const { data } = await api.get<ApiDataResponse<ProjectPaymentSummary[]>>(

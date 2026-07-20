@@ -122,6 +122,8 @@ export const sprint4Endpoints = {
     freelancerAccount: "/payments/freelancer/account",
     escrowIntent: (projectId: string) => `/projects/${projectId}/payments/escrow-intent`,
     checkoutSession: (projectId: string) => `/projects/${projectId}/payments/checkout-session`,
+    syncCheckoutSession: (projectId: string, sessionId: string) =>
+      `/projects/${projectId}/payments/checkout-session/${sessionId}/sync`,
     projectSummary: (projectId: string) => `/projects/${projectId}/payments/summary`,
     projectPayments: (projectId: string) => `/projects/${projectId}/payments`,
     release: (projectId: string, paymentId: string) => `/projects/${projectId}/payments/${paymentId}/release`,

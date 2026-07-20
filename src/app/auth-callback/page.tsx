@@ -5,6 +5,30 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
 import { exchangeAuthCode, getMe } from "@/services/auth";
 import { DASHBOARD_BY_ROLE } from "@/types/auth";
+import type { AuthUser } from "@/types/auth";
+import { Loader2 } from "lucide-react";
+
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function getMeWithRetry(): Promise<AuthUser | null> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      const user = await getMe();
+      if (user) return user;
+    } catch (error) {
+      lastError = error;
+    }
+
+    await wait(250 + attempt * 250);
+  }
+
+  if (lastError) throw lastError;
+  return null;
+}
 
 export default function AuthCallbackPage() {
   const router = useRouter();
@@ -32,11 +56,18 @@ export default function AuthCallbackPage() {
       }
 
       try {
+        if (active) setMessage("Securing your session...");
         const exchange = await exchangeAuthCode(code);
-        const user = await getMe();
+        if (active) setMessage("Loading your account...");
+        const user = await getMeWithRetry();
         await refresh();
 
         if (!active) return;
+
+        if (!user) {
+          setMessage("We could not load your account yet. Please refresh and try again.");
+          return;
+        }
 
         if (!exchange.isProfileComplete) {
           setMessage("Almost done. Redirecting...");
@@ -45,7 +76,7 @@ export default function AuthCallbackPage() {
         }
 
         setMessage("Signed in. Redirecting...");
-        router.replace(user ? DASHBOARD_BY_ROLE[user.role] : "/login");
+        router.replace(DASHBOARD_BY_ROLE[user.role]);
       } catch (err) {
         if (active) {
           setMessage(err instanceof Error ? err.message : "Sign in failed. Please try again.");
@@ -62,7 +93,10 @@ export default function AuthCallbackPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-surface px-6 text-center">
-      <p className="text-sm text-on-surface-variant">{message}</p>
+      <div className="flex flex-col items-center gap-3 rounded-xl border border-outline-variant/30 bg-surface-container-lowest px-8 py-7 card-shadow">
+        <Loader2 className="h-6 w-6 animate-spin text-primary-container" />
+        <p className="text-sm text-on-surface-variant">{message}</p>
+      </div>
     </main>
   );
 }

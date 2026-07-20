@@ -8,6 +8,7 @@ interface PhoneNumberInputProps {
   error?: string;
   placeholder?: string;
   defaultCountry?: Country;
+  compact?: boolean;
   onChange: (value: string) => void;
   onBlur?: () => void;
 }
@@ -19,12 +20,19 @@ export function PhoneNumberInput({
   error,
   placeholder = "Phone number",
   defaultCountry = "EG",
+  compact = false,
   onChange,
   onBlur,
 }: PhoneNumberInputProps) {
   return (
     <div className="space-y-2">
-      <label htmlFor={name} className="block text-sm font-medium text-on-surface">
+      <label
+        htmlFor={name}
+        className={clsx(
+          "block font-medium text-on-surface",
+          compact ? "text-xs" : "text-sm",
+        )}
+      >
         {label}
       </label>
       <PhoneInput
@@ -39,6 +47,7 @@ export function PhoneNumberInput({
         placeholder={placeholder}
         className={clsx(
           "phone-number-input input-halo rounded-lg border border-outline-variant bg-surface-container-lowest px-4 transition-all",
+          compact && "phone-number-input-compact px-3",
           error && "border-error",
         )}
       />

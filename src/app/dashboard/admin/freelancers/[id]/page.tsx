@@ -212,6 +212,9 @@ export default function FreelancerDetailPage() {
   const statusStyle =
     statusStyles[profile.verificationStatus] ||
     "border-outline-variant/50 bg-surface-container-high text-on-surface-variant";
+  const isFinalStatus =
+    profile.verificationStatus === "approved" ||
+    profile.verificationStatus === "rejected";
 
   return (
     <DashboardShell
@@ -296,40 +299,62 @@ export default function FreelancerDetailPage() {
               </span>
             </div>
 
-            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <Button
-                type="button"
-                onClick={() => handleDecision("approved")}
-                loading={actioning === "approved"}
-                disabled={Boolean(actioning)}
-                className="!w-full rounded-full px-3 py-2 text-xs"
+            {isFinalStatus ? (
+              <div
+                className={`mt-4 flex items-start gap-3 rounded-xl border p-4 ${statusStyle}`}
               >
-                <CheckCircle size={15} />
-                Accept
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => handleDecision("interview_pending")}
-                loading={actioning === "interview_pending"}
-                disabled={Boolean(actioning)}
-                className="!w-full rounded-full px-3 py-2 text-xs"
-              >
-                <Clock size={15} />
-                Needs review
-              </Button>
-              <Button
-                type="button"
-                onClick={() => setShowRejectReason((current) => !current)}
-                disabled={Boolean(actioning)}
-                className="!w-full rounded-full bg-error px-3 py-2 text-xs text-on-error hover:bg-error/80"
-              >
-                <XCircle size={15} />
-                Reject
-              </Button>
-            </div>
+                {profile.verificationStatus === "approved" ? (
+                  <CheckCircle size={18} className="mt-0.5 shrink-0" />
+                ) : (
+                  <XCircle size={18} className="mt-0.5 shrink-0" />
+                )}
+                <div>
+                  <p className="text-sm font-semibold">
+                    {statusLabels[profile.verificationStatus]}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 opacity-80">
+                    {profile.verificationStatus === "approved"
+                      ? "This freelancer is already in the matching pool."
+                      : "This freelancer has already been declined for now."}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <Button
+                  type="button"
+                  onClick={() => handleDecision("approved")}
+                  loading={actioning === "approved"}
+                  disabled={Boolean(actioning)}
+                  className="!w-full rounded-full px-3 py-2 text-xs"
+                >
+                  <CheckCircle size={15} />
+                  Accept
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleDecision("interview_pending")}
+                  loading={actioning === "interview_pending"}
+                  disabled={Boolean(actioning)}
+                  className="!w-full rounded-full px-3 py-2 text-xs"
+                >
+                  <Clock size={15} />
+                  Needs review
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => setShowRejectReason((current) => !current)}
+                  disabled={Boolean(actioning)}
+                  className="!w-full rounded-full bg-error px-3 py-2 text-xs text-on-error hover:bg-error/80"
+                >
+                  <XCircle size={15} />
+                  Reject
+                </Button>
+              </div>
+            )}
 
-            {showRejectReason ? (
+            {!isFinalStatus && showRejectReason ? (
               <div className="mt-3 rounded-xl border border-error/20 bg-error-container/10 p-3">
                 <label className="text-xs font-semibold text-error">
                   Rejection reason

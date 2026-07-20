@@ -112,3 +112,12 @@ body {
 .phone-number-input .PhoneInputInput::placeholder {
   color: color-mix(in oklab, var(--color-outline) 50%, transparent);
 }
+
+.phone-number-input-compact {
+  min-height: 44px;
+}
+
+.phone-number-input-compact .PhoneInputInput {
+  padding-block: 0.55rem;
+  font-size: 0.875rem;
+}

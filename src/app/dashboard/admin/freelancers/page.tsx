@@ -70,6 +70,10 @@ function getSkillBadgeClass(value: string | null | undefined) {
   return "border-outline-variant/50 bg-surface-container-high text-on-surface-variant";
 }
 
+function isFinalVerificationStatus(status: string) {
+  return status === "approved" || status === "rejected";
+}
+
 export default function AdminFreelancersPage() {
   const toast = useToast();
   const [freelancers, setFreelancers] = useState<FreelancerListItem[]>([]);
@@ -300,6 +304,9 @@ export default function AdminFreelancersPage() {
                 {freelancers.map((freelancer) => {
                   const topScores = freelancer.topSkillScores?.slice(0, 3) ?? [];
                   const fallbackSkills = freelancer.skills?.slice(0, 3) ?? [];
+                  const isFinalStatus = isFinalVerificationStatus(
+                    freelancer.verificationStatus,
+                  );
 
                   return (
                     <tr
@@ -368,42 +375,66 @@ export default function AdminFreelancersPage() {
                           : "-"}
                       </td>
                       <td className="w-[260px] min-w-[260px] px-3 py-4 text-right">
-                        <div className="flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap">
-                          <Button
-                            type="button"
-                            className="!w-auto rounded-full px-2.5 py-1.5 text-[11px]"
-                            loading={actioning === `${freelancer.id}:approved`}
-                            disabled={Boolean(actioning)}
-                            onClick={() =>
-                              handleDecision(freelancer.id, "approved")
-                            }
-                          >
-                            <CheckCircle size={13} />
-                            Approve
-                          </Button>
-                          <Link href={`/dashboard/admin/freelancers/${freelancer.id}`}>
-                            <Button
-                              variant="outline"
-                              className="!w-auto rounded-full px-2.5 py-1.5 text-[11px]"
+                        {isFinalStatus ? (
+                          <div className="flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold ${statusBadgeColors[freelancer.verificationStatus]}`}
                             >
-                              <Eye size={13} />
-                              Review
+                              {freelancer.verificationStatus === "approved" ? (
+                                <CheckCircle size={13} />
+                              ) : (
+                                <XCircle size={13} />
+                              )}
+                              {statusLabels[freelancer.verificationStatus]}
+                            </span>
+                            <Link href={`/dashboard/admin/freelancers/${freelancer.id}`}>
+                              <Button
+                                variant="outline"
+                                className="!w-auto rounded-full px-2.5 py-1.5 text-[11px]"
+                              >
+                                <Eye size={13} />
+                                Review
+                              </Button>
+                            </Link>
+                          </div>
+                        ) : (
+                          <div className="flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap">
+                            <Button
+                              type="button"
+                              className="!w-auto rounded-full px-2.5 py-1.5 text-[11px]"
+                              loading={actioning === `${freelancer.id}:approved`}
+                              disabled={Boolean(actioning)}
+                              onClick={() =>
+                                handleDecision(freelancer.id, "approved")
+                              }
+                            >
+                              <CheckCircle size={13} />
+                              Approve
                             </Button>
-                          </Link>
-                          <Button
-                            type="button"
-                            className="!w-auto rounded-full bg-error px-2.5 py-1.5 text-[11px] text-on-error hover:bg-error/80"
-                            loading={actioning === `${freelancer.id}:rejected`}
-                            disabled={Boolean(actioning)}
-                            onClick={() =>
-                              handleDecision(freelancer.id, "rejected")
-                            }
-                          >
-                            <XCircle size={13} />
-                            Reject
-                          </Button>
-                        </div>
-                        {rejectingId === freelancer.id ? (
+                            <Link href={`/dashboard/admin/freelancers/${freelancer.id}`}>
+                              <Button
+                                variant="outline"
+                                className="!w-auto rounded-full px-2.5 py-1.5 text-[11px]"
+                              >
+                                <Eye size={13} />
+                                Review
+                              </Button>
+                            </Link>
+                            <Button
+                              type="button"
+                              className="!w-auto rounded-full bg-error px-2.5 py-1.5 text-[11px] text-on-error hover:bg-error/80"
+                              loading={actioning === `${freelancer.id}:rejected`}
+                              disabled={Boolean(actioning)}
+                              onClick={() =>
+                                handleDecision(freelancer.id, "rejected")
+                              }
+                            >
+                              <XCircle size={13} />
+                              Reject
+                            </Button>
+                          </div>
+                        )}
+                        {!isFinalStatus && rejectingId === freelancer.id ? (
                           <div className="mt-3 rounded-xl border border-error/20 bg-error-container/10 p-3 text-left">
                             <textarea
                               value={rejectReason}

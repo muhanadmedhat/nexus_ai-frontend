@@ -76,7 +76,7 @@ export default function PaymentsPage() {
         throw new Error("Stripe did not return a checkout link");
       }
 
-      window.location.href = checkout.checkoutUrl;
+      window.location.assign(checkout.checkoutUrl);
     } catch (error) {
       toast.error(
         "Checkout failed",

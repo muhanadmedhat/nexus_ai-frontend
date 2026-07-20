@@ -27,6 +27,21 @@ export default function ProjectDetailsPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const briefConfirmed = Boolean(brief?.confirmedAt);
+  const briefComplete = Boolean(brief?.isComplete);
+  const briefStarted = Boolean(brief && brief.completionPercent > 0);
+  const requirementsActionLabel = briefConfirmed
+    ? "View confirmed brief"
+    : briefComplete
+      ? "Review and confirm brief"
+      : briefStarted
+        ? "Continue requirements"
+        : "Start requirements";
+  const nextActionText = briefConfirmed
+    ? "Your requirements are confirmed. Review the final price and fund escrow when you are ready."
+    : briefComplete
+      ? "The brief details are captured. Review and confirm them to generate the final price."
+      : "Define your requirements with the AI agent.";
 
   useEffect(() => {
     if (!id || user?.role !== "customer") return;
@@ -129,7 +144,7 @@ export default function ProjectDetailsPage() {
             {/* Brief status */}
             <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
               <h3 className="font-headline text-lg font-semibold text-on-surface">Requirements brief</h3>
-              {brief && brief.completionPercent > 0 ? (
+              {brief && (brief.completionPercent > 0 || brief.isComplete) ? (
                 <>
                   <p className="mt-1 text-sm text-on-surface-variant">{brief.summary}</p>
                   <div className="mt-3 h-1.5 w-full rounded-full bg-surface-container-high">
@@ -139,7 +154,9 @@ export default function ProjectDetailsPage() {
                     />
                   </div>
                   <p className="mt-1 text-xs text-on-surface-variant">
-                    {brief.completionPercent}% complete
+                    {brief.confirmedAt
+                      ? "Brief confirmed"
+                      : `${brief.completionPercent}% complete`}
                   </p>
                 </>
               ) : (
@@ -175,16 +192,26 @@ export default function ProjectDetailsPage() {
             <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
               <h3 className="font-headline text-base font-semibold text-on-surface">Next action</h3>
               <p className="mt-1 text-sm text-on-surface-variant">
-                {brief?.isComplete
-                  ? "Brief complete — awaiting agent processing."
-                  : "Define your requirements with the AI agent."}
+                {nextActionText}
               </p>
               <Link href={`/projects/${project.id}/requirements`}>
                 <Button className="mt-4 inline-flex w-full items-center justify-center">
                   <MessageSquare size={18} className="mr-2" />
-                  {brief && brief.completionPercent > 0 ? "Continue requirements" : "Start requirements"}
+                  {requirementsActionLabel}
                 </Button>
               </Link>
+              {briefConfirmed && (
+                <Link href={`/projects/${project.id}/payments`}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="mt-2 inline-flex w-full items-center justify-center"
+                  >
+                    <Wallet size={18} className="mr-2" />
+                    View final price
+                  </Button>
+                </Link>
+              )}
             </div>
 
             <div className="rounded-xl border border-error/20 bg-surface-container-lowest p-6 card-shadow">
