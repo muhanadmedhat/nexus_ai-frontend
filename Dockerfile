@@ -4,6 +4,10 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
+# Next.js bakes NEXT_PUBLIC_* into the bundle at build time. A same-origin /api base
+# makes the browser call the backend through the ingress (any domain, cookies included).
+ARG NEXT_PUBLIC_API_URL=/api
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN npm run build
 RUN npm prune --omit=dev
 
