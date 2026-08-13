@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -84,13 +84,10 @@ export default function FreelancerProjectDetailPage() {
   }, [projectId, toast]);
 
   const assignments = detail?.assignments ?? [];
-  const assignment = useMemo(
-    () =>
-      assignments.find((item) => item.id === selectedAssignmentId) ??
-      assignments[0] ??
-      null,
-    [assignments, selectedAssignmentId],
-  );
+  const assignment =
+    assignments.find((item) => item.id === selectedAssignmentId) ??
+    assignments[0] ??
+    null;
   const roleBrief: RoleBrief | null = assignment?.roleBrief ?? null;
 
   const handleStatusChange = async (

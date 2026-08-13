@@ -2,7 +2,7 @@ import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
 import { clearAuthTokens, getAccessToken, setAuthTokens } from "./auth-tokens";
 
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api";
 
 export const API_ENDPOINTS = {
   health: "/health",

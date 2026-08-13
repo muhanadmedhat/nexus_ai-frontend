@@ -316,7 +316,11 @@ export default function AdminMatchingDetail() {
   }, [runId, toast]);
 
   useEffect(() => {
-    void loadProjectFlow();
+    const timeoutId = window.setTimeout(() => {
+      void loadProjectFlow();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [loadProjectFlow]);
 
   const projectId = initialRun?.projectId;
