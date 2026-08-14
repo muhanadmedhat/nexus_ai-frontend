@@ -130,6 +130,48 @@ export const sprint4Endpoints = {
   },
 };
 
+export const sprint5Endpoints = {
+  repositories: {
+    create: (projectId: string) => `/projects/${projectId}/repository`,
+    projectRepository: (projectId: string) => `/projects/${projectId}/repository`,
+    syncCollaborators: (projectId: string) => `/projects/${projectId}/repository/collaborators/sync`,
+    resendInvite: (collaboratorId: string) => `/repository-collaborators/${collaboratorId}/resend-invite`,
+    adminList: "/admin/repositories",
+  },
+  implementationMatching: {
+    startTasks: (projectId: string) => `/projects/${projectId}/matching/implementation-tasks`,
+    assignTask: (taskId: string) => `/project-tasks/${taskId}/assignment`,
+  },
+  submissions: {
+    create: (projectId: string) => `/projects/${projectId}/submissions`,
+    projectList: (projectId: string) => `/projects/${projectId}/submissions`,
+    detail: (submissionId: string) => `/project-submissions/${submissionId}`,
+    update: (submissionId: string) => `/project-submissions/${submissionId}`,
+    submit: (submissionId: string) => `/project-submissions/${submissionId}/submit`,
+    review: (submissionId: string) => `/project-submissions/${submissionId}/review`,
+    freelancerList: "/freelancer/submissions",
+    adminList: "/admin/submissions",
+  },
+  revisions: {
+    create: (projectId: string) => `/projects/${projectId}/revision-requests`,
+    projectList: (projectId: string) => `/projects/${projectId}/revision-requests`,
+    updateStatus: (revisionRequestId: string) => `/revision-requests/${revisionRequestId}/status`,
+  },
+  evaluations: {
+    create: (submissionId: string) => `/project-submissions/${submissionId}/evaluations`,
+    submissionList: (submissionId: string) => `/project-submissions/${submissionId}/evaluations`,
+    detail: (evaluationRunId: string) => `/evaluation-runs/${evaluationRunId}`,
+    retry: (evaluationRunId: string) => `/evaluation-runs/${evaluationRunId}/retry`,
+    adminList: "/admin/evaluations",
+  },
+  releaseRequests: {
+    create: (projectId: string) => `/projects/${projectId}/payment-release-requests`,
+    projectList: (projectId: string) => `/projects/${projectId}/payment-release-requests`,
+    adminList: "/admin/payment-release-requests",
+    review: (requestId: string) => `/payment-release-requests/${requestId}/review`,
+  },
+};
+
 interface TokenResponse {
   accessToken: string;
 }
