@@ -3,6 +3,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { formatDate, formatMoney } from "@/utils/format";
 import type { ProjectMilestone } from "@/services/planning";
 import type { DeliveryTask } from "@/types/delivery";
+import { toNumber } from "./helpers";
 
 function progressFor(tasks: DeliveryTask[]) {
   if (!tasks.length) return null;
@@ -66,9 +67,11 @@ export function MilestoneTimeline({
                 <div className="min-w-0">
                   <p className="truncate font-medium text-on-surface">{milestone.title}</p>
                   <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-on-surface-variant">
-                    {milestone.dueDate && <span>Due {formatDate(milestone.dueDate)}</span>}
-                    {typeof milestone.budgetAmount === "number" && (
-                      <span>{formatMoney(milestone.budgetAmount)}</span>
+                    {milestone.dueAt && <span>Due {formatDate(milestone.dueAt)}</span>}
+                    {toNumber(milestone.budgetAmount) !== null && (
+                      <span>
+                        {formatMoney(toNumber(milestone.budgetAmount), milestone.currency)}
+                      </span>
                     )}
                     {progress && (
                       <span>

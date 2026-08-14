@@ -112,7 +112,7 @@ export default function CustomerProjectWorkPage() {
     Promise.allSettled([
       getProject(projectId),
       getMilestones(projectId),
-      getTasks(projectId),
+      getTasks(projectId, { limit: 200 }),
       listDeliverySubmissions(projectId),
       listRevisionRequests(projectId),
       listProjectReleaseRequests(projectId),
@@ -174,6 +174,15 @@ export default function CustomerProjectWorkPage() {
     }
     return map;
   }, [submissions]);
+
+  // Tasks whose milestone is missing would otherwise never render, because the
+  // timeline only shows tasks nested under a milestone it knows about.
+  const unscheduledTasks = useMemo(() => {
+    const milestoneIds = new Set(milestones.map((milestone) => milestone.id));
+    return tasks.filter(
+      (task) => !task.milestoneId || !milestoneIds.has(task.milestoneId),
+    );
+  }, [tasks, milestones]);
 
   const releasesByMilestone = useMemo(() => {
     const map = new Map<string, PaymentReleaseRequest[]>();
@@ -320,6 +329,23 @@ export default function CustomerProjectWorkPage() {
                 }}
                 emptyLabel="The implementation plan has not been materialised yet."
               />
+
+              {unscheduledTasks.length > 0 && (
+                <div className="mt-6">
+                  <h4 className="mb-3 text-sm font-semibold text-on-surface">
+                    Not linked to a milestone
+                  </h4>
+                  <TaskList
+                    tasks={unscheduledTasks}
+                    allTasks={tasks}
+                    onSelect={(task) => {
+                      const submission = latestSubmissionByTask.get(task.id);
+                      if (submission) openDetail(submission.id);
+                    }}
+                    selectedTaskId={openSubmission?.taskId ?? null}
+                  />
+                </div>
+              )}
             </section>
 
             {openSubmission && (

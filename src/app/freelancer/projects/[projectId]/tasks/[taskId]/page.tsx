@@ -14,7 +14,12 @@ import {
   DeliveryRetryBanner,
   EvidenceList,
 } from "@/components/delivery";
-import { canSubmitTask, indexTasksById } from "@/components/delivery/helpers";
+import {
+  acceptanceCriteriaList,
+  canSubmitTask,
+  dependencyTaskIds,
+  indexTasksById,
+} from "@/components/delivery/helpers";
 import { getMilestones, getTasks, type ProjectMilestone } from "@/services/planning";
 import { getMyFreelancerProfile } from "@/services/freelancers";
 import {
@@ -22,6 +27,8 @@ import {
   listDeliverySubmissions,
   submitDeliverySubmission,
   updateDeliverySubmission,
+  type CreateSubmissionPayload,
+  type UpdateSubmissionPayload,
 } from "@/services/project-submissions";
 import { listRevisionRequests } from "@/services/revisions";
 import { formatDate } from "@/utils/format";
@@ -149,7 +156,7 @@ export default function FreelancerTaskWorkPage() {
         setProfileId(currentProfileId);
 
         return Promise.allSettled([
-          getTasks(projectId),
+          getTasks(projectId, { limit: 200 }),
           getMilestones(projectId),
           listDeliverySubmissions(projectId, { taskId }),
           listRevisionRequests(projectId, { taskId }),
@@ -245,40 +252,78 @@ export default function FreelancerTaskWorkPage() {
 
   const dependencies = useMemo(
     () =>
-      (task?.dependencies ?? [])
+      dependencyTaskIds(task?.dependencies)
         .map((id) => tasksById.get(id) ?? null)
         .filter((item): item is DeliveryTask => item !== null),
     [task, tasksById],
   );
 
-  const buildPayload = useCallback(() => {
+  const criteria = useMemo(() => acceptanceCriteriaList(task?.acceptanceCriteria), [task]);
+
+  const formValues = useCallback(() => {
     const screenshots = toUrlList(form.screenshots);
     const attachments = toUrlList(form.attachments);
 
     return {
+      title: form.title.trim(),
+      summary: form.summary.trim(),
+      content: form.notes.trim() ? { notes: form.notes.trim() } : null,
+      fileUrls:
+        screenshots.length || attachments.length ? { screenshots, attachments } : null,
+      repoUrl: form.repoUrl.trim(),
+      branchName: form.branchName.trim(),
+      pullRequestUrl: form.pullRequestUrl.trim(),
+      commitSha: form.commitSha.trim(),
+    };
+  }, [form]);
+
+  /** Empty fields are simply omitted when creating. */
+  const buildCreatePayload = useCallback((): CreateSubmissionPayload => {
+    const values = formValues();
+    return {
       taskId,
       milestoneId: task?.milestoneId ?? undefined,
       submissionType: form.submissionType,
-      title: form.title.trim() || undefined,
-      summary: form.summary.trim() || undefined,
-      content: form.notes.trim() ? { notes: form.notes.trim() } : undefined,
-      fileUrls:
-        screenshots.length || attachments.length ? { screenshots, attachments } : undefined,
-      repoUrl: form.repoUrl.trim() || undefined,
-      branchName: form.branchName.trim() || undefined,
-      pullRequestUrl: form.pullRequestUrl.trim() || undefined,
-      commitSha: form.commitSha.trim() || undefined,
+      title: values.title || undefined,
+      summary: values.summary || undefined,
+      content: values.content ?? undefined,
+      fileUrls: values.fileUrls ?? undefined,
+      repoUrl: values.repoUrl || undefined,
+      branchName: values.branchName || undefined,
+      pullRequestUrl: values.pullRequestUrl || undefined,
+      commitSha: values.commitSha || undefined,
     };
-  }, [form, taskId, task]);
+  }, [formValues, form.submissionType, taskId, task]);
+
+  /**
+   * Empty fields are sent as null when updating. Omitting them would leave the
+   * stored value in place, so a freelancer could never clear a URL they had
+   * entered by mistake.
+   */
+  const buildUpdatePayload = useCallback((): UpdateSubmissionPayload => {
+    const values = formValues();
+    return {
+      milestoneId: task?.milestoneId ?? undefined,
+      submissionType: form.submissionType,
+      title: values.title || null,
+      summary: values.summary || null,
+      content: values.content,
+      fileUrls: values.fileUrls,
+      repoUrl: values.repoUrl || null,
+      branchName: values.branchName || null,
+      pullRequestUrl: values.pullRequestUrl || null,
+      commitSha: values.commitSha || null,
+    };
+  }, [formValues, form.submissionType, task]);
 
   const handleSaveDraft = async () => {
     setSaving("draft");
     try {
       if (editableSubmission) {
-        await updateDeliverySubmission(editableSubmission.id, buildPayload());
+        await updateDeliverySubmission(editableSubmission.id, buildUpdatePayload());
       } else {
         await createDeliverySubmission(projectId, {
-          ...buildPayload(),
+          ...buildCreatePayload(),
           status: "draft",
         });
       }
@@ -298,13 +343,13 @@ export default function FreelancerTaskWorkPage() {
     setSaving("submit");
     try {
       if (editableSubmission) {
-        await updateDeliverySubmission(editableSubmission.id, buildPayload());
+        await updateDeliverySubmission(editableSubmission.id, buildUpdatePayload());
         await submitDeliverySubmission(editableSubmission.id, {
           summary: form.summary.trim() || undefined,
         });
       } else {
         await createDeliverySubmission(projectId, {
-          ...buildPayload(),
+          ...buildCreatePayload(),
           status: "submitted",
         });
       }
@@ -376,13 +421,13 @@ export default function FreelancerTaskWorkPage() {
               )}
             </section>
 
-            {(task.acceptanceCriteria?.length ?? 0) > 0 && (
+            {criteria.length > 0 && (
               <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
                 <h3 className="font-headline text-base font-semibold text-on-surface">
                   Acceptance criteria
                 </h3>
                 <ul className="mt-3 space-y-2 text-sm leading-6 text-on-surface-variant">
-                  {task.acceptanceCriteria?.map((criterion) => (
+                  {criteria.map((criterion) => (
                     <li key={criterion} className="flex gap-2">
                       <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary-container" />
                       <span>{criterion}</span>
@@ -568,7 +613,7 @@ export default function FreelancerTaskWorkPage() {
                 </ul>
               ) : (
                 <p className="mt-3 text-sm text-on-surface-variant">
-                  {task.dependencies?.length
+                  {dependencyTaskIds(task.dependencies).length
                     ? "This task has dependencies that are not visible to your profile."
                     : "No dependencies."}
                 </p>

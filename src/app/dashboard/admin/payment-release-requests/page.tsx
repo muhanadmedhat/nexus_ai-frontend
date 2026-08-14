@@ -35,17 +35,29 @@ export default function AdminPaymentReleaseRequestsPage() {
   const [acting, setActing] = useState<string | null>(null);
 
   useEffect(() => {
+    // Guard against an out-of-order response painting rows that no longer
+    // match the selected filter.
+    let active = true;
+
     listAdminReleaseRequests(status === "all" ? undefined : { status })
       .then((result) => {
+        if (!active) return;
         setRequests(result.items);
         setError(null);
       })
-      .catch((caught) =>
+      .catch((caught) => {
+        if (!active) return;
         setError(
           caught instanceof Error ? caught.message : "Could not load release requests",
-        ),
-      )
-      .finally(() => setLoading(false));
+        );
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, [status, reloadKey]);
 
   const refresh = useCallback(() => {

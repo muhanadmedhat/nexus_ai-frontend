@@ -73,7 +73,16 @@ export interface CreateSubmissionPayload {
   status?: Extract<SubmissionStatus, "draft" | "submitted">;
 }
 
-export type UpdateSubmissionPayload = Partial<Omit<CreateSubmissionPayload, "taskId">>;
+/**
+ * Update accepts null so a freelancer can clear a field they filled in by
+ * mistake. Omitting the key leaves the stored value untouched, so an empty
+ * input must send null rather than undefined.
+ */
+export type UpdateSubmissionPayload = {
+  [K in keyof Omit<CreateSubmissionPayload, "taskId">]?:
+    | Omit<CreateSubmissionPayload, "taskId">[K]
+    | null;
+};
 
 export interface ReviewSubmissionPayload {
   decision: "approved" | "changes_requested" | "rejected";

@@ -226,14 +226,34 @@ export interface EvaluationRun {
   updatedAt: string; // ISO date
 }
 
+/**
+ * Shape returned inside a task's `dependencies` array. The API maps the
+ * project_task_dependencies join rows, so these are objects — never bare ids.
+ */
+export interface TaskDependency {
+  taskId: string;
+  dependsOnTaskId: string;
+  dependencyType?: string | null;
+  notes?: string | null;
+}
+
 // Sprint 5 adds assignment-audit and planning fields to project_tasks that the
 // Sprint 4 ProjectTask interface predates. Extending rather than editing
 // planning.ts keeps this out of the shared Sprint 4 surface.
 export interface DeliveryTask extends ProjectTask {
   status: DeliveryTaskStatus | string;
-  acceptanceCriteria?: string[] | null;
-  dependencies?: string[] | null;
-  estimatedHours?: number | null;
+  /** jsonb — usually an array of strings, but the column allows an object. */
+  acceptanceCriteria?: unknown;
+  dependencies?: TaskDependency[] | null;
+  /** Postgres numeric — arrives as a string such as "24.00". */
+  estimatedHours?: string | number | null;
+  priority?: string | null;
+  requiredSkills?: string[] | null;
+  startsAt?: string | null;
+  dueAt?: string | null; // ISO date
+
+  // Written by the Sprint 5 assignment endpoint. Not currently returned by
+  // GET /projects/:id/tasks, so treat as absent rather than null.
   sourceMatchingRunId?: string | null;
   sourceCandidateId?: string | null;
   assignedBy?: string | null;

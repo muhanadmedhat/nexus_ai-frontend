@@ -55,8 +55,14 @@ export interface ProjectMilestone {
   description?: string | null;
   status: string;
   orderIndex?: number;
-  budgetAmount?: number | null;
-  dueDate?: string | null;
+  /** Postgres numeric — arrives as a string such as "6000.00". */
+  budgetAmount?: string | number | null;
+  currency?: string | null;
+  startsAt?: string | null;
+  /** The API field is `dueAt`, not `dueDate`. */
+  dueAt?: string | null;
+  acceptanceCriteria?: unknown;
+  taskCount?: number;
 }
 
 export interface ProjectTask {

@@ -5,7 +5,7 @@ import { Lock } from "lucide-react";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatDate } from "@/utils/format";
 import type { DeliveryTask } from "@/types/delivery";
-import { getTaskDependencyState, indexTasksById } from "./helpers";
+import { getTaskDependencyState, indexTasksById, toNumber } from "./helpers";
 
 export function TaskCard({
   task,
@@ -49,7 +49,9 @@ export function TaskCard({
         {assigneeLabel !== undefined && (
           <span>{assigneeLabel ? `Assigned to ${assigneeLabel}` : "Unassigned"}</span>
         )}
-        {typeof task.estimatedHours === "number" && <span>{task.estimatedHours}h estimated</span>}
+        {toNumber(task.estimatedHours) !== null && (
+          <span>{toNumber(task.estimatedHours)}h estimated</span>
+        )}
         {task.assignedAt && <span>Assigned {formatDate(task.assignedAt)}</span>}
       </div>
 

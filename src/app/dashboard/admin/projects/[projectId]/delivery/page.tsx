@@ -98,7 +98,7 @@ export default function AdminProjectDeliveryPage() {
     Promise.allSettled([
       getProject(projectId),
       getMilestones(projectId),
-      getTasks(projectId),
+      getTasks(projectId, { limit: 200 }),
       listDeliverySubmissions(projectId),
       listRevisionRequests(projectId),
       listProjectReleaseRequests(projectId),
@@ -151,6 +151,15 @@ export default function AdminProjectDeliveryPage() {
     () => tasks.filter((task) => !task.assignedFreelancerProfileId),
     [tasks],
   );
+
+  // Tasks whose milestone is missing would otherwise never render, because the
+  // timeline only shows tasks nested under a milestone it knows about.
+  const unscheduledTasks = useMemo(() => {
+    const milestoneIds = new Set(milestones.map((milestone) => milestone.id));
+    return tasks.filter(
+      (task) => !task.milestoneId || !milestoneIds.has(task.milestoneId),
+    );
+  }, [tasks, milestones]);
 
   return (
     <DashboardShell
@@ -209,18 +218,29 @@ export default function AdminProjectDeliveryPage() {
             description="Every implementation task, grouped by milestone."
           >
             {milestones.length || tasks.length ? (
-              <MilestoneTimeline
-                milestones={milestones}
-                tasks={tasks}
-                renderExtra={(milestone) => {
-                  const milestoneTasks = tasks.filter(
-                    (task) => task.milestoneId === milestone.id,
-                  );
-                  return milestoneTasks.length ? (
-                    <TaskList tasks={milestoneTasks} allTasks={tasks} />
-                  ) : null;
-                }}
-              />
+              <>
+                <MilestoneTimeline
+                  milestones={milestones}
+                  tasks={tasks}
+                  renderExtra={(milestone) => {
+                    const milestoneTasks = tasks.filter(
+                      (task) => task.milestoneId === milestone.id,
+                    );
+                    return milestoneTasks.length ? (
+                      <TaskList tasks={milestoneTasks} allTasks={tasks} />
+                    ) : null;
+                  }}
+                  emptyLabel=""
+                />
+                {unscheduledTasks.length > 0 && (
+                  <div className="mt-6">
+                    <h4 className="mb-3 text-sm font-semibold text-on-surface">
+                      Not linked to a milestone
+                    </h4>
+                    <TaskList tasks={unscheduledTasks} allTasks={tasks} />
+                  </div>
+                )}
+              </>
             ) : (
               <DeliveryEmpty
                 title="No tasks yet"

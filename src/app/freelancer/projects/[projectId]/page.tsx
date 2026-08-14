@@ -104,17 +104,18 @@ export default function FreelancerProjectDetailPage() {
 
   useEffect(() => {
     if (!projectId) return;
+    let currentProfileId: string | null = null;
 
     getMyFreelancerProfile()
       .catch(() => null)
       .then((profile) => {
-        const currentProfileId = profile?.id ?? null;
+        currentProfileId = profile?.id ?? null;
         setProfileId(currentProfileId);
 
         return Promise.allSettled([
           getFreelancerProjectAssignment(projectId),
           getProject(projectId),
-          getTasks(projectId),
+          getTasks(projectId, { limit: 200 }),
           listDeliverySubmissions(
             projectId,
             currentProfileId ? { freelancerProfileId: currentProfileId } : undefined,
@@ -166,6 +167,7 @@ export default function FreelancerProjectDetailPage() {
           );
 
           const failures: string[] = [];
+          if (!currentProfileId) failures.push("your freelancer profile");
           if (tasksResult.status === "rejected") failures.push("tasks");
           if (submissionsResult.status === "rejected") failures.push("submissions");
           if (revisionsResult.status === "rejected") {
