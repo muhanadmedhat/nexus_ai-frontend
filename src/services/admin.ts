@@ -1,4 +1,4 @@
-import { api, sprint4Endpoints, getApiErrorMessage } from "@/lib/api";
+import { API_ENDPOINTS, api, sprint4Endpoints, getApiErrorMessage } from "@/lib/api";
 
 // ===== Types =====
 
@@ -290,6 +290,32 @@ export async function getAdminStats(): Promise<AdminStats> {
     return data.data;
   } catch (error) {
     throw new Error(getApiErrorMessage(error, "Could not load admin stats"));
+  }
+}
+
+// ===== Projects =====
+
+export interface AdminProjectSummary {
+  id: string;
+  title: string;
+  status: string;
+}
+
+export async function getAdminProjects(params?: {
+  page?: number;
+  limit?: number;
+}) {
+  const query = new URLSearchParams();
+  if (params?.page) query.append("page", String(params.page));
+  if (params?.limit) query.append("limit", String(params.limit));
+
+  try {
+    const { data } = await api.get<AdminQueueResponse<AdminProjectSummary>>(
+      `${API_ENDPOINTS.admin.projects}?${query.toString()}`
+    );
+    return data;
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, "Could not load projects"));
   }
 }
 

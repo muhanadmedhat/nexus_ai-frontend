@@ -13,6 +13,7 @@ import {
   Users,
   ClipboardCheck,
   Cpu,
+  GitBranch,
   ListChecks,
   Star,
 } from "lucide-react";
@@ -47,6 +48,8 @@ const NAV_ITEMS: Record<UserRole, NavItem[]> = {
     { label: "Projects", href: "/dashboard/admin/matching", icon: <FolderOpen size={20} /> },
     { label: "Submissions", href: "/dashboard/admin/planning/submissions", icon: <ClipboardCheck size={20} /> },
     { label: "Scrum Plans", href: "/dashboard/admin/project-plans", icon: <CheckSquare size={20} /> },
+    { label: "Task Matching", href: "/dashboard/admin/implementation-matching", icon: <ListChecks size={20} /> },
+    { label: "Repositories", href: "/dashboard/admin/repositories", icon: <GitBranch size={20} /> },
     { label: "Escrow", href: "/dashboard/admin/payments", icon: <CreditCard size={20} /> },
     { label: "Freelancers", href: "/dashboard/admin/freelancers", icon: <ShieldCheck size={20} /> },
     { label: "Assessments", href: "/dashboard/admin/assessments", icon: <ClipboardCheck size={20} /> },
