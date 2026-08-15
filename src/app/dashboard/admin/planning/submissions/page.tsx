@@ -33,6 +33,7 @@ export default function AdminPlanningSubmissionsQueue() {
                   <th className="p-4">Type</th>
                   <th className="p-4">Freelancer</th>
                   <th className="p-4">Status</th>
+                  <th className="p-4">AI gate</th>
                   <th className="p-4 text-right">Action</th>
                 </tr>
               </thead>
@@ -43,6 +44,12 @@ export default function AdminPlanningSubmissionsQueue() {
                     <td className="p-4 uppercase text-xs tracking-wider">{s.submissionType?.replace("_", " ")} v{s.version}</td>
                     <td className="p-4">{s.freelancerName || "N/A"}</td>
                     <td className="p-4"><StatusBadge status={s.status} /></td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-2">
+                        <StatusBadge status={s.evaluationStatus || "pending"} />
+                        {s.evaluationScore !== null && s.evaluationScore !== undefined ? <span className="text-xs text-on-surface-variant">{s.evaluationScore}/100</span> : null}
+                      </div>
+                    </td>
                     <td className="p-4 text-right">
                       <Link href={`/dashboard/admin/planning/submissions/${s.id}`}>
                         <Button variant="outline" size="sm">Review</Button>

@@ -2,6 +2,50 @@ import { api, sprint4Endpoints, getApiErrorMessage } from "@/lib/api";
 
 type JsonObject = Record<string, unknown>;
 
+export interface PlanningRequirement {
+  key: string;
+  title: string;
+  description: string;
+  mandatory: boolean;
+  requiresUrl: boolean;
+}
+
+export interface PlanningRequirementEvidence {
+  summary: string;
+  urls: string[];
+}
+
+export interface PlanningEvaluationCheck {
+  key: string;
+  title: string;
+  status: "met" | "partial" | "missing" | "conflict";
+  mandatory: boolean;
+  severity: "info" | "minor" | "major" | "blocker";
+  evidence: string;
+  feedback: string;
+}
+
+export interface PlanningEvaluationResult {
+  passed: boolean;
+  score: number;
+  recommendation: "approve" | "changes_requested" | "reject";
+  summary: string;
+  checks: PlanningEvaluationCheck[];
+  strengths: string[];
+  risks: string[];
+  revisionItems: string[];
+  crossContractIssues: string[];
+  source: string;
+}
+
+export interface PlanningRequirementsResponse {
+  projectId: string;
+  submissionType: "architecture" | "ui_ux";
+  architectureApproved: boolean;
+  architectureSubmissionId: string | null;
+  requirements: PlanningRequirement[];
+}
+
 export interface PlanningSubmission {
   id: string;
   projectId: string;
@@ -22,6 +66,14 @@ export interface PlanningSubmission {
   fileUrls?: JsonObject;
   adminNotes?: string | null;
   reviewedBy?: string | null;
+  evaluationStatus?: "pending" | "pending_architecture" | "queued" | "running" | "completed" | "failed";
+  evaluationScore?: number | null;
+  evaluationRecommendation?: "approve" | "changes_requested" | "reject" | null;
+  evaluationRequirements?: JsonObject | null;
+  evaluationResult?: PlanningEvaluationResult | null;
+  evaluationError?: string | null;
+  evaluationAgentJobId?: string | null;
+  evaluatedAt?: string | null;
 }
 
 export interface ProjectPlan {
@@ -69,6 +121,14 @@ export interface ProjectTask {
   roleKey?: string | null;
   assignedFreelancerProfileId?: string | null;
   assignmentId?: string | null;
+  startsAt?: string | null;
+  dueAt?: string | null;
+  acceptanceCriteria?: JsonObject | null;
+  metadata?: {
+    contractReferences?: string[];
+    ownedPaths?: string[];
+    integrationChecks?: string[];
+  } | null;
 }
 
 export interface ReviewSubmissionResult {
@@ -84,6 +144,11 @@ export interface ReviewSubmissionResult {
     planId?: string;
     agentJobId?: string;
     queueName?: string;
+  } | null;
+  uiuxEvaluationJob?: {
+    status: string;
+    submissionId: string;
+    agentJobId?: string | null;
   } | null;
 }
 
@@ -117,6 +182,20 @@ export async function createPlanningSubmission(
     return data.data;
   } catch (error) {
     throw new Error(getApiErrorMessage(error, "Could not create planning submission"));
+  }
+}
+
+export async function getPlanningRequirements(
+  projectId: string,
+  submissionType: "architecture" | "ui_ux"
+): Promise<PlanningRequirementsResponse> {
+  try {
+    const { data } = await api.get<ApiDataResponse<PlanningRequirementsResponse>>(
+      sprint4Endpoints.planning.requirements(projectId, submissionType)
+    );
+    return data.data;
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, "Could not load planning requirements"));
   }
 }
 
@@ -160,6 +239,20 @@ export async function reviewSubmission(
     return data.data;
   } catch (error) {
     throw new Error(getApiErrorMessage(error, "Could not review submission"));
+  }
+}
+
+export async function retryPlanningEvaluation(submissionId: string) {
+  try {
+    const { data } = await api.post<ApiDataResponse<{
+      status: string;
+      submissionId: string;
+      agentJobId?: string | null;
+      error?: string;
+    }>>(sprint4Endpoints.planning.retrySubmissionEvaluation(submissionId));
+    return data.data;
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, "Could not retry planning evaluation"));
   }
 }
 

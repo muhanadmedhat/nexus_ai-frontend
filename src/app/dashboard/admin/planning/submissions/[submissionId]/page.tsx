@@ -3,12 +3,18 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, CheckCircle2, MessageSquareWarning, XCircle } from "lucide-react";
+import { ArrowLeft, BrainCircuit, CheckCircle2, MessageSquareWarning, RotateCcw, XCircle } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useToast } from "@/components/ui/toast";
-import { getSubmissionDetail, reviewSubmission, type PlanningSubmission } from "@/services/planning";
+import {
+  getSubmissionDetail,
+  retryPlanningEvaluation,
+  reviewSubmission,
+  type PlanningRequirementEvidence,
+  type PlanningSubmission,
+} from "@/services/planning";
 
 export default function AdminSubmissionDetail() {
   const { submissionId } = useParams<{ submissionId: string }>();
@@ -36,6 +42,29 @@ export default function AdminSubmissionDetail() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (!submissionId || !detail || !["queued", "running"].includes(detail.evaluationStatus ?? "")) return;
+    const interval = window.setInterval(() => {
+      void getSubmissionDetail(submissionId).then(setDetail).catch(() => undefined);
+    }, 5000);
+    return () => window.clearInterval(interval);
+  }, [detail, submissionId]);
+
+  async function retryEvaluation() {
+    if (!submissionId) return;
+    setActionLoading("retry");
+    try {
+      await retryPlanningEvaluation(submissionId);
+      toast.success("Evaluation queued", "The AI quality gate will retry this submission.");
+      await load();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not retry evaluation";
+      toast.error("Retry failed", message);
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
   async function decide(status: "approved" | "changes_requested" | "rejected") {
     if (!submissionId) return;
     setActionLoading(status);
@@ -62,6 +91,12 @@ export default function AdminSubmissionDetail() {
     }
   }
 
+  const canApprove = detail?.evaluationStatus === "completed" &&
+    detail.evaluationRecommendation === "approve" && detail.status === "submitted";
+  const evidenceEntries = Object.entries(
+    (detail?.content?.requirementEvidence ?? {}) as Record<string, PlanningRequirementEvidence>
+  );
+
   return (
     <DashboardShell role="admin" title="Planning Submission Details" subtitle="Approve architecture and UI/UX deliverables.">
       <Link href="/dashboard/admin/planning/submissions" className="mb-4 inline-flex items-center gap-1.5 text-sm text-on-surface-variant hover:text-primary">
@@ -87,15 +122,82 @@ export default function AdminSubmissionDetail() {
 
             <section className="mt-5">
               <h4 className="font-semibold text-on-surface">Submitted content</h4>
-              <div className="mt-2 max-h-[32rem] overflow-auto rounded-lg border border-outline-variant/30 bg-surface-container-low p-4 text-xs leading-5 text-on-surface">
-                <pre className="whitespace-pre-wrap font-mono">{JSON.stringify(detail.content || {}, null, 2)}</pre>
+              <div className="mt-2 space-y-3">
+                {evidenceEntries.length ? evidenceEntries.map(([key, evidence]) => (
+                  <article key={key} className="rounded-lg border border-outline-variant/30 bg-surface-container-low p-4">
+                    <h5 className="text-sm font-semibold capitalize text-on-surface">{key.replaceAll("_", " ")}</h5>
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-on-surface-variant">{evidence.summary}</p>
+                    {evidence.urls?.length ? (
+                      <ul className="mt-2 space-y-1">
+                        {evidence.urls.map((url) => (
+                          <li key={url}><a href={url} target="_blank" rel="noreferrer" className="break-all text-xs text-primary underline">{url}</a></li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </article>
+                )) : (
+                  <div className="rounded-lg border border-outline-variant/30 bg-surface-container-low p-4 text-xs leading-5 text-on-surface">
+                    <pre className="whitespace-pre-wrap font-mono">{JSON.stringify(detail.content || {}, null, 2)}</pre>
+                  </div>
+                )}
               </div>
+            </section>
+
+            <section className="mt-6 border-t border-outline-variant/30 pt-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <BrainCircuit size={19} className="text-primary" />
+                  <h4 className="font-semibold text-on-surface">AI quality evaluation</h4>
+                </div>
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={detail.evaluationStatus || "pending"} />
+                  {detail.evaluationScore !== null && detail.evaluationScore !== undefined ? (
+                    <span className="rounded-full bg-surface-container-high px-3 py-1 text-xs font-semibold">{detail.evaluationScore}/100</span>
+                  ) : null}
+                </div>
+              </div>
+              {detail.evaluationStatus === "pending_architecture" ? (
+                <p className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-on-surface">Evaluation is waiting for architecture approval. It will queue automatically after that decision.</p>
+              ) : null}
+              {detail.evaluationError ? (
+                <div className="mt-3 rounded-lg border border-error/30 bg-error/10 p-3 text-sm text-error">
+                  <p>{detail.evaluationError}</p>
+                  {detail.evaluationStatus === "failed" ? <Button type="button" variant="outline" size="sm" className="mt-3" loading={actionLoading === "retry"} onClick={retryEvaluation}><RotateCcw size={14} /> Retry evaluation</Button> : null}
+                </div>
+              ) : null}
+              {detail.evaluationResult ? (
+                <div className="mt-4 space-y-4">
+                  <div className="rounded-lg bg-surface-container-low p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-primary">Recommendation: {detail.evaluationResult.recommendation.replace("_", " ")}</p>
+                    <p className="mt-2 text-sm leading-6 text-on-surface-variant">{detail.evaluationResult.summary}</p>
+                  </div>
+                  {detail.evaluationResult.revisionItems.length ? (
+                    <div>
+                      <h5 className="text-sm font-semibold text-on-surface">Required revisions</h5>
+                      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-on-surface-variant">
+                        {detail.evaluationResult.revisionItems.map((item) => <li key={item}>{item}</li>)}
+                      </ul>
+                    </div>
+                  ) : null}
+                  <div className="space-y-2">
+                    {detail.evaluationResult.checks.map((check) => (
+                      <article key={check.key} className="rounded-lg border border-outline-variant/30 p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <h5 className="text-sm font-semibold text-on-surface">{check.title}</h5>
+                          <StatusBadge status={check.status} />
+                        </div>
+                        <p className="mt-2 text-xs leading-5 text-on-surface-variant">{check.feedback}</p>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </section>
           </div>
 
           <aside className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 card-shadow lg:sticky lg:top-24 lg:self-start">
             <h4 className="font-headline text-lg font-semibold text-on-surface">Admin decision</h4>
-            <p className="mt-1 text-sm text-on-surface-variant">Approving both architecture and UI/UX automatically queues the scrum master plan.</p>
+            <p className="mt-1 text-sm text-on-surface-variant">AI must first pass every mandatory requirement. Admin approval remains the final decision; approving both deliverables queues the scrum master plan.</p>
 
             <label className="mt-5 block text-sm font-medium text-on-surface" htmlFor="admin-notes">Admin notes</label>
             <textarea
@@ -108,9 +210,10 @@ export default function AdminSubmissionDetail() {
             />
 
             <div className="mt-5 grid gap-2">
-              <Button type="button" loading={actionLoading === "approved"} onClick={() => decide("approved")}>
+              <Button type="button" disabled={!canApprove} loading={actionLoading === "approved"} onClick={() => decide("approved")}>
                 <CheckCircle2 size={16} /> Approve
               </Button>
+              {!canApprove ? <p className="text-xs leading-5 text-on-surface-variant">Approval unlocks only after evaluation completes with an approve recommendation.</p> : null}
               <Button type="button" variant="outline" loading={actionLoading === "changes_requested"} onClick={() => decide("changes_requested")}>
                 <MessageSquareWarning size={16} /> Request changes
               </Button>

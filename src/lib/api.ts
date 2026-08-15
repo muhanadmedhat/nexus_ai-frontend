@@ -97,8 +97,12 @@ export const sprint4Endpoints = {
   planning: {
     createSubmission: (projectId: string) => `/projects/${projectId}/planning-submissions`,
     projectSubmissions: (projectId: string) => `/projects/${projectId}/planning-submissions`,
+    requirements: (projectId: string, submissionType: "architecture" | "ui_ux") =>
+      `/projects/${projectId}/planning-requirements/${submissionType}`,
     submissionDetail: (submissionId: string) => `/planning-submissions/${submissionId}`,
     reviewSubmission: (submissionId: string) => `/planning-submissions/${submissionId}/review`,
+    retrySubmissionEvaluation: (submissionId: string) =>
+      `/planning-submissions/${submissionId}/evaluation/retry`,
     generatePlan: (projectId: string) => `/projects/${projectId}/plans/generate`,
     projectPlans: (projectId: string) => `/projects/${projectId}/plans`,
     planDetail: (planId: string) => `/project-plans/${planId}`,
