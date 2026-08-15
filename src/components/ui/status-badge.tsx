@@ -43,6 +43,37 @@ const STYLES: Record<string, string> = {
   requires_payment: "bg-secondary-container/20 text-secondary",
   processing: "bg-secondary-container/20 text-secondary",
   succeeded: "bg-primary-container/15 text-primary-container",
+
+  // Sprint 5 delivery — task statuses
+  todo: "bg-surface-container-high text-on-surface-variant",
+  blocked: "bg-error/10 text-error",
+  review: "bg-secondary-container/20 text-secondary",
+  done: "bg-primary-container/15 text-primary-container",
+
+  // Sprint 5 delivery — milestone statuses (their own vocabulary)
+  planned: "bg-surface-container-high text-on-surface-variant",
+  funding_required: "bg-error/10 text-error",
+  funded: "bg-primary-container/15 text-primary-container",
+  paid: "bg-primary-container/15 text-primary-container",
+
+  // Sprint 5 delivery — submissions
+  superseded: "bg-surface-container-high text-on-surface-variant",
+
+  // Sprint 5 delivery — revision requests
+  open: "bg-secondary-container/20 text-secondary",
+  resolved: "bg-primary-container/15 text-primary-container",
+
+  // Sprint 5 delivery — payment release requests
+  pending: "bg-surface-container-high text-on-surface-variant",
+  released: "bg-primary-container/15 text-primary-container",
+
+  // Sprint 5 delivery — repositories and collaborator invites
+  creating: "bg-secondary-container/20 text-secondary",
+  archived: "bg-surface-container-high text-on-surface-variant",
+  invited: "bg-secondary-container/20 text-secondary",
+  missing_username: "bg-error/10 text-error",
+  declined: "bg-error/10 text-error",
+  removed: "bg-surface-container-high text-on-surface-variant",
 };
 
 function labelFor(status: string) {
