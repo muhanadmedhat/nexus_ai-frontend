@@ -1,4 +1,4 @@
-import { api, sprint5Endpoints, getApiErrorMessage } from "@/lib/api";
+import { api, deliveryEndpoints, getApiErrorMessage } from "@/lib/api";
 import {
   fixtureEvaluationRuns,
   fixtureReviews,
@@ -146,7 +146,7 @@ export async function createDeliverySubmission(
 
   try {
     const { data } = await api.post<ApiDataResponse<ProjectSubmission>>(
-      sprint5Endpoints.submissions.create(projectId),
+      deliveryEndpoints.submissions.create(projectId),
       payload,
     );
     return data.data;
@@ -171,7 +171,7 @@ export async function listDeliverySubmissions(
   try {
     const query = toQuery(params);
     const { data } = await api.get<ApiPaginatedResponse<ProjectSubmission>>(
-      `${sprint5Endpoints.submissions.projectList(projectId)}${query ? `?${query}` : ""}`,
+      `${deliveryEndpoints.submissions.projectList(projectId)}${query ? `?${query}` : ""}`,
     );
     return toPaginated(data, params);
   } catch (error) {
@@ -197,7 +197,7 @@ export async function getDeliverySubmission(submissionId: string): Promise<Submi
     const { data } = await api.get<
       ApiDataResponse<SubmissionDetailResponse | SubmissionDetail>
     >(
-      sprint5Endpoints.submissions.detail(submissionId),
+      deliveryEndpoints.submissions.detail(submissionId),
     );
     const detail = data.data;
     if ("submission" in detail) {
@@ -222,7 +222,7 @@ export async function updateDeliverySubmission(
 
   try {
     const { data } = await api.patch<ApiDataResponse<ProjectSubmission>>(
-      sprint5Endpoints.submissions.update(submissionId),
+      deliveryEndpoints.submissions.update(submissionId),
       payload,
     );
     return data.data;
@@ -239,7 +239,7 @@ export async function submitDeliverySubmission(
 
   try {
     const { data } = await api.post<ApiDataResponse<ProjectSubmission>>(
-      sprint5Endpoints.submissions.submit(submissionId),
+      deliveryEndpoints.submissions.submit(submissionId),
       payload ?? {},
     );
     return data.data;
@@ -263,7 +263,7 @@ export async function reviewDeliverySubmission(
 
   try {
     const { data } = await api.patch<ApiDataResponse<ReviewSubmissionResult>>(
-      sprint5Endpoints.submissions.review(submissionId),
+      deliveryEndpoints.submissions.review(submissionId),
       payload,
     );
     return data.data;

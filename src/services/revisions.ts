@@ -1,4 +1,4 @@
-import { api, sprint5Endpoints, getApiErrorMessage } from "@/lib/api";
+import { api, deliveryEndpoints, getApiErrorMessage } from "@/lib/api";
 import {
   fixtureRevisionRequests,
   paginateFixture,
@@ -61,7 +61,7 @@ export async function createRevisionRequest(
 
   try {
     const { data } = await api.post<ApiDataResponse<ProjectRevisionRequest>>(
-      sprint5Endpoints.revisions.create(projectId),
+      deliveryEndpoints.revisions.create(projectId),
       payload,
     );
     return data.data;
@@ -96,7 +96,7 @@ export async function listRevisionRequests(
 
     const queryString = query.toString();
     const { data } = await api.get<ApiPaginatedResponse<ProjectRevisionRequest>>(
-      `${sprint5Endpoints.revisions.projectList(projectId)}${queryString ? `?${queryString}` : ""}`,
+      `${deliveryEndpoints.revisions.projectList(projectId)}${queryString ? `?${queryString}` : ""}`,
     );
 
     const items = Array.isArray(data.data) ? data.data : [];
@@ -121,7 +121,7 @@ export async function updateRevisionRequestStatus(
 
   try {
     const { data } = await api.patch<ApiDataResponse<ProjectRevisionRequest>>(
-      sprint5Endpoints.revisions.updateStatus(revisionRequestId),
+      deliveryEndpoints.revisions.updateStatus(revisionRequestId),
       payload,
     );
     return data.data;

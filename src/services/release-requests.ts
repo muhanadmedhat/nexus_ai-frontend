@@ -1,4 +1,4 @@
-import { api, sprint5Endpoints, getApiErrorMessage } from "@/lib/api";
+import { api, deliveryEndpoints, getApiErrorMessage } from "@/lib/api";
 import {
   fixtureReleaseRequests,
   paginateFixture,
@@ -119,7 +119,7 @@ export async function createReleaseRequest(
 
   try {
     const { data } = await api.post<ApiDataResponse<PaymentReleaseRequest>>(
-      sprint5Endpoints.releaseRequests.create(projectId),
+      deliveryEndpoints.releaseRequests.create(projectId),
       payload,
     );
     return data.data;
@@ -142,7 +142,7 @@ export async function listProjectReleaseRequests(
   try {
     const query = buildQuery(params);
     const { data } = await api.get<ApiPaginatedResponse<PaymentReleaseRequest>>(
-      `${sprint5Endpoints.releaseRequests.projectList(projectId)}${query ? `?${query}` : ""}`,
+      `${deliveryEndpoints.releaseRequests.projectList(projectId)}${query ? `?${query}` : ""}`,
     );
     return toPaginated(data, params);
   } catch (error) {
@@ -163,7 +163,7 @@ export async function listAdminReleaseRequests(
   try {
     const query = buildQuery(params);
     const { data } = await api.get<ApiPaginatedResponse<PaymentReleaseRequest>>(
-      `${sprint5Endpoints.releaseRequests.adminList}${query ? `?${query}` : ""}`,
+      `${deliveryEndpoints.releaseRequests.adminList}${query ? `?${query}` : ""}`,
     );
     return toPaginated(data, params);
   } catch (error) {
@@ -191,7 +191,7 @@ export async function reviewReleaseRequest(
 
   try {
     const { data } = await api.patch<ApiDataResponse<ReviewReleaseRequestResult>>(
-      sprint5Endpoints.releaseRequests.review(requestId),
+      deliveryEndpoints.releaseRequests.review(requestId),
       payload,
     );
     return data.data;

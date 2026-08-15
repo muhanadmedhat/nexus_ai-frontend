@@ -134,7 +134,7 @@ export const sprint4Endpoints = {
   },
 };
 
-export const sprint5Endpoints = {
+export const deliveryEndpoints = {
   repositories: {
     create: (projectId: string) => `/projects/${projectId}/repository`,
     projectRepository: (projectId: string) => `/projects/${projectId}/repository`,
@@ -175,10 +175,6 @@ export const sprint5Endpoints = {
     review: (requestId: string) => `/payment-release-requests/${requestId}/review`,
   },
 };
-
-// Keep the original delivery API name for the repository, matching, and
-// evaluation services while the Sprint 5 delivery pages use the broader name.
-export const deliveryEndpoints = sprint5Endpoints;
 
 interface TokenResponse {
   accessToken: string;
