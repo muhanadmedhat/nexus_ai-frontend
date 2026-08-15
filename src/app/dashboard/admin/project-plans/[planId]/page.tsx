@@ -62,14 +62,19 @@ export default function AdminProjectPlanDetail() {
     const key = materialize ? "approved_materialize" : status;
     setActionLoading(key);
     try {
-      await reviewProjectPlan(planId, {
+      const result = await reviewProjectPlan(planId, {
         status,
         adminNotes: notes.trim() || undefined,
         materialize,
       });
+      const matching = result.materialization?.matchingDispatch;
       toast.success(
-        materialize ? "Plan approved and materialized" : "Plan reviewed",
-        materialize ? "Milestones and dependency-aware tasks were created for the project." : `Marked as ${status.replace("_", " ")}.`,
+        materialize ? "Plan materialized and matching started" : "Plan reviewed",
+        materialize
+          ? matching?.triggered
+            ? `${matching.runs?.length ?? 0} task matching runs were created. Review the ranked candidates before assigning freelancers.`
+            : "Tasks were created. Matching was already started or there were no unmatched tasks."
+          : `Marked as ${status.replace("_", " ")}.`,
       );
       await load();
     } catch (error) {
@@ -84,8 +89,13 @@ export default function AdminProjectPlanDetail() {
     if (!planId) return;
     setActionLoading("materialize");
     try {
-      await materializeProjectPlan(planId, { replaceExisting: false });
-      toast.success("Plan materialized", "Milestones and tasks are now available on the project.");
+      const result = await materializeProjectPlan(planId, { replaceExisting: false });
+      toast.success(
+        "Plan materialized",
+        result.matchingDispatch?.triggered
+          ? `${result.matchingDispatch.runs?.length ?? 0} task matching runs started automatically. Review candidates before assigning freelancers.`
+          : "Milestones and tasks are available; matching was already started or no unmatched tasks remain.",
+      );
       await load();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not materialize project plan";
@@ -165,7 +175,7 @@ export default function AdminProjectPlanDetail() {
 
           <aside className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 card-shadow xl:sticky xl:top-24 xl:self-start">
             <h4 className="font-headline text-lg font-semibold text-on-surface">Admin decision</h4>
-            <p className="mt-1 text-sm text-on-surface-variant">Approve and materialize when the plan is ready to become real milestones and tasks.</p>
+            <p className="mt-1 text-sm text-on-surface-variant">Approving and materializing creates the tasks and automatically starts AI freelancer matching. You still approve each final assignment.</p>
 
             <label className="mt-5 block text-sm font-medium text-on-surface" htmlFor="plan-notes">Admin notes</label>
             <textarea

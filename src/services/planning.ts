@@ -158,7 +158,27 @@ export interface ReviewProjectPlanResult {
   materialized?: boolean;
   milestoneCount?: number;
   taskCount?: number;
+  matchingDispatch?: ImplementationMatchingDispatch;
+  materialization?: {
+    matchingDispatch?: ImplementationMatchingDispatch;
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
+}
+
+export interface ImplementationMatchingDispatch {
+  triggered: boolean;
+  projectId: string;
+  projectStatus?: string;
+  processing?: string;
+  reason?: string;
+  error?: string;
+  runs?: Array<{
+    id: string;
+    targetTaskId?: string | null;
+    targetRoleKey?: string | null;
+    status: string;
+  }>;
 }
 
 interface ApiDataResponse<T> {
