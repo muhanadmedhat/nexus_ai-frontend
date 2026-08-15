@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -22,6 +22,24 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { StatusBadge } from "@/components/ui/status-badge";
+import {
+  DeliveryEmpty,
+  DeliveryRetryBanner,
+  TaskList,
+} from "@/components/delivery";
+import { toNumber } from "@/components/delivery/helpers";
+import { getTasks } from "@/services/planning";
+import { getMyFreelancerProfile } from "@/services/freelancers";
+import { listDeliverySubmissions } from "@/services/project-submissions";
+import { listRevisionRequests } from "@/services/revisions";
+import { listProjectReleaseRequests } from "@/services/release-requests";
+import { formatDate, formatMoney } from "@/utils/format";
+import type {
+  DeliveryTask,
+  PaymentReleaseRequest,
+  ProjectRevisionRequest,
+  ProjectSubmission,
+} from "@/types/delivery";
 
 function roleLabel(role?: string | null) {
   if (!role) return "Planning role";
@@ -55,6 +73,10 @@ function BriefList({ title, items }: { title: string; items?: string[] | null })
   );
 }
 
+function settled<T>(result: PromiseSettledResult<T>, fallback: T): T {
+  return result.status === "fulfilled" ? result.value : fallback;
+}
+
 export default function FreelancerProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const toast = useToast();
@@ -67,21 +89,118 @@ export default function FreelancerProjectDetailPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  // Sprint 5 delivery state
+  const [profileId, setProfileId] = useState<string | null>(null);
+  const [allTasks, setAllTasks] = useState<DeliveryTask[]>([]);
+  const [submissions, setSubmissions] = useState<ProjectSubmission[]>([]);
+  const [revisions, setRevisions] = useState<ProjectRevisionRequest[]>([]);
+  const [releases, setReleases] = useState<PaymentReleaseRequest[]>([]);
+  const [loadErrors, setLoadErrors] = useState<string[]>([]);
+
+  const [reloadKey, setReloadKey] = useState(0);
+
   useEffect(() => {
     if (!projectId) return;
+    let currentProfileId: string | null = null;
 
-    getFreelancerProjectAssignment(projectId)
-      .then((result) => {
-        setDetail(result);
-        setSelectedAssignmentId(result.assignments[0]?.id ?? null);
+    getMyFreelancerProfile()
+      .catch(() => null)
+      .then((profile) => {
+        currentProfileId = profile?.id ?? null;
+        setProfileId(currentProfileId);
+
+        return Promise.allSettled([
+          getFreelancerProjectAssignment(projectId),
+          getTasks(projectId, { limit: 200 }),
+          listDeliverySubmissions(
+            projectId,
+            currentProfileId ? { freelancerProfileId: currentProfileId } : undefined,
+          ),
+          listRevisionRequests(
+            projectId,
+            currentProfileId
+              ? { assignedToFreelancerProfileId: currentProfileId }
+              : undefined,
+          ),
+          listProjectReleaseRequests(
+            projectId,
+            currentProfileId ? { freelancerProfileId: currentProfileId } : undefined,
+          ),
+        ]);
       })
-      .catch((error) => {
-        const message =
-          error instanceof Error ? error.message : "Could not load assignment";
-        toast.error("Could not load assignment", message);
-      })
+      .then(
+        ([
+          assignmentResult,
+          tasksResult,
+          submissionsResult,
+          revisionsResult,
+          releasesResult,
+        ]) => {
+          // The detail endpoint returns the project for either a planning role
+          // or an implementation-task assignment.
+          if (assignmentResult.status === "fulfilled") {
+            setDetail(assignmentResult.value);
+            setSelectedAssignmentId(
+              assignmentResult.value.assignments[0]?.id ?? null,
+            );
+          } else {
+            setDetail(null);
+          }
+
+          setAllTasks(settled(tasksResult, []) as DeliveryTask[]);
+          setSubmissions(
+            submissionsResult.status === "fulfilled"
+              ? submissionsResult.value.items
+              : [],
+          );
+          setRevisions(
+            revisionsResult.status === "fulfilled" ? revisionsResult.value.items : [],
+          );
+          setReleases(
+            releasesResult.status === "fulfilled" ? releasesResult.value.items : [],
+          );
+
+          const failures: string[] = [];
+          if (!currentProfileId) failures.push("your freelancer profile");
+          if (tasksResult.status === "rejected") failures.push("tasks");
+          if (submissionsResult.status === "rejected") failures.push("submissions");
+          if (revisionsResult.status === "rejected") {
+            failures.push("revision requests");
+          }
+          if (releasesResult.status === "rejected") {
+            failures.push("payment releases");
+          }
+          setLoadErrors(failures);
+        },
+      )
       .finally(() => setLoading(false));
-  }, [projectId, toast]);
+  }, [projectId, reloadKey]);
+
+  const refresh = useCallback(() => {
+    setLoading(true);
+    setLoadErrors([]);
+    setReloadKey((key) => key + 1);
+  }, []);
+
+  const myTasks = useMemo(
+    () =>
+      profileId
+        ? allTasks.filter((task) => task.assignedFreelancerProfileId === profileId)
+        : [],
+    [allTasks, profileId],
+  );
+
+  const latestSubmissionByTask = useMemo(() => {
+    const map = new Map<string, ProjectSubmission>();
+    for (const submission of submissions) {
+      if (!submission.taskId) continue;
+      const existing = map.get(submission.taskId);
+      if (!existing || submission.version > existing.version) {
+        map.set(submission.taskId, submission);
+      }
+    }
+    return map;
+  }, [submissions]);
 
   const assignments = detail?.assignments ?? [];
   const assignment =
@@ -134,16 +253,43 @@ export default function FreelancerProjectDetailPage() {
 
       {loading ? (
         <p className="text-sm text-on-surface-variant">Loading assignment...</p>
-      ) : !detail || !assignment ? (
+      ) : !assignment && !myTasks.length ? (
         <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-8 text-center card-shadow">
-          <p className="font-semibold text-on-surface">Assignment not found.</p>
+          <p className="font-semibold text-on-surface">Nothing assigned to you here.</p>
           <p className="mt-1 text-sm text-on-surface-variant">
-            This project is not assigned to your freelancer profile.
+            This project has no planning role or implementation task assigned to
+            your freelancer profile.
           </p>
         </div>
       ) : (
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
           <main className="space-y-5">
+            {loadErrors.length > 0 && (
+              <DeliveryRetryBanner
+                title="Some sections could not be loaded"
+                message={`Failed to load ${loadErrors.join(", ")}. Everything else on this page is up to date.`}
+                onAction={refresh}
+              />
+            )}
+
+            {!assignment && (
+              <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary-container">
+                  Implementation work
+                </p>
+                <h2 className="mt-1 font-headline text-2xl font-semibold text-on-surface">
+                  {detail?.project.title ?? "Project delivery"}
+                </h2>
+                {detail?.project.description && (
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-on-surface-variant">
+                    {detail.project.description}
+                  </p>
+                )}
+              </section>
+            )}
+
+            {assignment && detail && (
+              <>
             <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
@@ -237,9 +383,72 @@ export default function FreelancerProjectDetailPage() {
                 items={roleBrief?.suggestedQuestions}
               />
             ) : null}
+              </>
+            )}
+
+            <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="font-headline text-xl font-semibold text-on-surface">
+                  Implementation tasks
+                </h3>
+                <span className="text-sm text-on-surface-variant">
+                  {myTasks.length} assigned to you
+                </span>
+              </div>
+
+              {myTasks.length ? (
+                <TaskList
+                  className="mt-4"
+                  tasks={myTasks}
+                  allTasks={allTasks}
+                  hrefForTask={(task) =>
+                    `/freelancer/projects/${projectId}/tasks/${task.id}`
+                  }
+                />
+              ) : (
+                <DeliveryEmpty
+                  className="mt-4"
+                  title="No implementation tasks yet"
+                  description="Once the admin assigns you a task from the approved plan, it will appear here."
+                />
+              )}
+            </section>
+
+            {latestSubmissionByTask.size > 0 && (
+              <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
+                <h3 className="font-headline text-xl font-semibold text-on-surface">
+                  Your latest submissions
+                </h3>
+                <ul className="mt-4 space-y-2">
+                  {[...latestSubmissionByTask.values()].map((submission) => (
+                    <li key={submission.id}>
+                      <Link
+                        href={`/freelancer/projects/${projectId}/tasks/${submission.taskId}`}
+                        className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-outline-variant/30 px-4 py-3 transition-colors hover:bg-surface-container-low"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium text-on-surface">
+                            {submission.title || "Untitled submission"}
+                          </span>
+                          <span className="text-xs text-on-surface-variant">
+                            Version {submission.version}
+                            {submission.submittedAt
+                              ? ` · submitted ${formatDate(submission.submittedAt)}`
+                              : ""}
+                          </span>
+                        </span>
+                        <StatusBadge status={submission.status} />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
           </main>
 
           <aside className="space-y-4">
+            {assignment && detail && (
+              <>
             <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 card-shadow">
               <h3 className="font-headline text-base font-semibold text-on-surface">
                 Your Assignment
@@ -342,6 +551,62 @@ export default function FreelancerProjectDetailPage() {
                   ) : null,
                 )}
               </dl>
+            </section>
+              </>
+            )}
+
+            <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 card-shadow">
+              <h3 className="font-headline text-base font-semibold text-on-surface">
+                Revision requests
+              </h3>
+              {revisions.length ? (
+                <ul className="mt-4 space-y-3">
+                  {revisions.map((revision) => (
+                    <li key={revision.id} className="text-sm">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="min-w-0 font-medium text-on-surface">
+                          {revision.title}
+                        </span>
+                        <StatusBadge status={revision.status} />
+                      </div>
+                      {revision.dueAt && (
+                        <p className="mt-1 text-xs text-on-surface-variant">
+                          Due {formatDate(revision.dueAt)}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-3 text-sm text-on-surface-variant">
+                  No revisions requested.
+                </p>
+              )}
+            </section>
+
+            <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 card-shadow">
+              <h3 className="font-headline text-base font-semibold text-on-surface">
+                Payment releases
+              </h3>
+              {releases.length ? (
+                <ul className="mt-4 space-y-3">
+                  {releases.map((release) => (
+                    <li
+                      key={release.id}
+                      className="flex items-center justify-between gap-3 text-sm"
+                    >
+                      <span className="font-semibold text-on-surface">
+                        {formatMoney(toNumber(release.amount), release.currency)}
+                      </span>
+                      <StatusBadge status={release.status} />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-3 text-sm text-on-surface-variant">
+                  No release requests yet.
+                </p>
+              )}
             </section>
           </aside>
         </div>
