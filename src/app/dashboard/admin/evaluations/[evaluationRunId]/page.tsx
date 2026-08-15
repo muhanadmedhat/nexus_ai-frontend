@@ -43,8 +43,13 @@ export default function AdminEvaluationDetail() {
     if (!evaluationRunId) return;
     setRetrying(true);
     try {
-      await retryEvaluationRun(evaluationRunId, { reason: "admin_manual_retry" });
-      toast.success("Evaluation re-queued", "The submission will be evaluated again.");
+      await retryEvaluationRun(evaluationRunId, {
+        reason: "admin_manual_retry",
+      });
+      toast.success(
+        "Evaluation re-queued",
+        "The submission will be evaluated again.",
+      );
       await load();
     } catch (error) {
       const message =
@@ -171,7 +176,10 @@ export default function AdminEvaluationDetail() {
               Run details
             </h4>
             <dl className="mt-4 space-y-2 text-sm">
-              <MetaRow label="Recommendation" value={run.recommendation ?? "—"} />
+              <MetaRow
+                label="Recommendation"
+                value={run.recommendation ?? "—"}
+              />
               <MetaRow label="Model" value={run.modelName ?? "—"} />
               <MetaRow label="Prompt" value={run.promptVersion ?? "—"} />
               <MetaRow
@@ -197,13 +205,6 @@ export default function AdminEvaluationDetail() {
               >
                 <RefreshCw size={16} /> Re-run evaluation
               </Button>
-              {run.submissionId && (
-                <Link href={`/dashboard/admin/submissions/${run.submissionId}`}>
-                  <Button type="button" variant="outline">
-                    Open submission
-                  </Button>
-                </Link>
-              )}
             </div>
           </aside>
         </div>
