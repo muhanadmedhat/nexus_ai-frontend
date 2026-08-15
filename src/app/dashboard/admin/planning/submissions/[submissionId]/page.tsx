@@ -16,6 +16,15 @@ import {
   type PlanningSubmission,
 } from "@/services/planning";
 
+function safeArtifactUrl(value: string | null) {
+  if (!value) return null;
+  try {
+    return new URL(value).protocol === "https:" ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function AdminSubmissionDetail() {
   const { submissionId } = useParams<{ submissionId: string }>();
   const toast = useToast();
@@ -96,6 +105,8 @@ export default function AdminSubmissionDetail() {
   const evidenceEntries = Object.entries(
     (detail?.content?.requirementEvidence ?? {}) as Record<string, PlanningRequirementEvidence>
   );
+  const inspectedArtifacts = detail?.evaluationResult?.artifactManifest?.artifacts ?? [];
+  const artifactById = new Map(inspectedArtifacts.map((artifact) => [artifact.id, artifact]));
 
   return (
     <DashboardShell role="admin" title="Planning Submission Details" subtitle="Approve architecture and UI/UX deliverables.">
@@ -170,7 +181,36 @@ export default function AdminSubmissionDetail() {
                   <div className="rounded-lg bg-surface-container-low p-4">
                     <p className="text-xs font-semibold uppercase tracking-wide text-primary">Recommendation: {detail.evaluationResult.recommendation.replace("_", " ")}</p>
                     <p className="mt-2 text-sm leading-6 text-on-surface-variant">{detail.evaluationResult.summary}</p>
+                    <p className="mt-2 text-xs text-on-surface-variant">
+                      {detail.evaluationResult.reused ? "Identical artifact snapshot — previous verdict reused." : `Evaluated by ${detail.evaluationResult.modelName || "the configured model"}`} · prompt {detail.evaluationResult.promptVersion || "legacy"}
+                    </p>
                   </div>
+                  {inspectedArtifacts.length ? (
+                    <div>
+                      <h5 className="text-sm font-semibold text-on-surface">Artifact snapshot</h5>
+                      <div className="mt-2 space-y-2">
+                        {inspectedArtifacts.map((artifact) => {
+                          const artifactUrl = safeArtifactUrl(artifact.sourceUrl);
+                          return (
+                            <article key={artifact.id} className="rounded-lg border border-outline-variant/30 p-3 text-xs">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                {artifactUrl ? <a href={artifactUrl} target="_blank" rel="noreferrer" className="break-all font-medium text-primary underline">{artifact.location || artifactUrl}</a> : <span className="font-medium">{artifact.location || artifact.id}</span>}
+                                <StatusBadge status={artifact.status} />
+                              </div>
+                              <p className="mt-1 text-on-surface-variant">{artifact.mimeType || "Unknown type"} · {Math.ceil((artifact.sizeBytes || 0) / 1024)} KB{artifact.version ? ` · version ${artifact.version}` : ""}</p>
+                              {artifact.sha256 ? <p className="mt-1 font-mono text-[11px] text-on-surface-variant">SHA-256 {artifact.sha256}</p> : null}
+                              {artifact.error ? <p className="mt-1 text-error">{artifact.error}</p> : null}
+                            </article>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+                  {detail.evaluationResult.regressions?.length ? (
+                    <div className="rounded-lg border border-error/30 bg-error/10 p-3 text-sm text-error">
+                      Regressed requirements: {detail.evaluationResult.regressions.join(", ")}
+                    </div>
+                  ) : null}
                   {detail.evaluationResult.revisionItems.length ? (
                     <div>
                       <h5 className="text-sm font-semibold text-on-surface">Required revisions</h5>
@@ -187,6 +227,15 @@ export default function AdminSubmissionDetail() {
                           <StatusBadge status={check.status} />
                         </div>
                         <p className="mt-2 text-xs leading-5 text-on-surface-variant">{check.feedback}</p>
+                        {check.citations?.length ? (
+                          <ul className="mt-2 space-y-1 border-t border-outline-variant/20 pt-2 text-xs text-on-surface-variant">
+                            {check.citations.map((citation, index) => {
+                              const artifact = artifactById.get(citation.artifactId);
+                              const artifactUrl = safeArtifactUrl(artifact?.sourceUrl ?? null);
+                              return <li key={`${citation.artifactId}-${index}`}><span className="font-medium">{citation.location}:</span> {citation.finding}{artifactUrl ? <> · <a href={artifactUrl} target="_blank" rel="noreferrer" className="text-primary underline">open artifact</a></> : null}</li>;
+                            })}
+                          </ul>
+                        ) : null}
                       </article>
                     ))}
                   </div>

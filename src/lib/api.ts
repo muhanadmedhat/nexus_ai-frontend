@@ -96,6 +96,7 @@ export const sprint4Endpoints = {
   },
   planning: {
     createSubmission: (projectId: string) => `/projects/${projectId}/planning-submissions`,
+    uploadArtifact: (projectId: string) => `/projects/${projectId}/planning-artifacts`,
     projectSubmissions: (projectId: string) => `/projects/${projectId}/planning-submissions`,
     requirements: (projectId: string, submissionType: "architecture" | "ui_ux") =>
       `/projects/${projectId}/planning-requirements/${submissionType}`,

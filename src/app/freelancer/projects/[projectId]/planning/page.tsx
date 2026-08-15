@@ -9,7 +9,11 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import {
   createPlanningSubmission,
+  getProjectSubmissions,
   getPlanningRequirements,
+  getSubmissionDetail,
+  uploadPlanningArtifact,
+  type PlanningSubmission,
   type PlanningRequirement,
   type PlanningRequirementEvidence,
 } from "@/services/planning";
@@ -33,9 +37,11 @@ export default function FreelancerPlanningSubmission() {
   const [requirements, setRequirements] = useState<PlanningRequirement[]>([]);
   const [requirementEvidence, setRequirementEvidence] = useState<Record<string, PlanningRequirementEvidence>>({});
   const [architectureApproved, setArchitectureApproved] = useState(false);
+  const [previousSubmission, setPreviousSubmission] = useState<PlanningSubmission | null>(null);
   const [loadingAssignment, setLoadingAssignment] = useState(true);
   const [loadingRequirements, setLoadingRequirements] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadingArtifact, setUploadingArtifact] = useState<string | null>(null);
   const router = useRouter();
   const toast = useToast();
 
@@ -80,11 +86,60 @@ export default function FreelancerPlanningSubmission() {
       .finally(() => setLoadingRequirements(false));
   }, [assignment, projectId, submissionType, toast]);
 
+  useEffect(() => {
+    if (!projectId || !assignment) return;
+    let cancelled = false;
+    getProjectSubmissions(projectId, { submissionType, limit: 1 })
+      .then(async (items) => {
+        const latest = items[0];
+        if (!latest) {
+          if (!cancelled) setPreviousSubmission(null);
+          return;
+        }
+        const detail = await getSubmissionDetail(latest.id);
+        if (cancelled) return;
+        setPreviousSubmission(detail);
+        setTitle(detail.title || (submissionType === "architecture" ? "System architecture proposal" : "UI/UX design proposal"));
+        setSummary(detail.summary || "");
+        const priorEvidence = (detail.content?.requirementEvidence ?? {}) as Record<string, PlanningRequirementEvidence>;
+        setRequirementEvidence((current) => ({ ...current, ...priorEvidence }));
+      })
+      .catch(() => {
+        if (!cancelled) setPreviousSubmission(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [assignment, projectId, submissionType]);
+
   function updateEvidence(key: string, update: Partial<PlanningRequirementEvidence>) {
     setRequirementEvidence((current) => ({
       ...current,
       [key]: { ...(current[key] ?? { summary: "", urls: [] }), ...update },
     }));
+  }
+
+  async function handleArtifactUpload(key: string, file: File) {
+    if (!projectId) return;
+    setUploadingArtifact(key);
+    try {
+      const uploaded = await uploadPlanningArtifact(projectId, file);
+      setRequirementEvidence((current) => {
+        const evidence = current[key] ?? { summary: "", urls: [] };
+        return {
+          ...current,
+          [key]: {
+            ...evidence,
+            urls: Array.from(new Set([...evidence.urls, uploaded.url])),
+          },
+        };
+      });
+      toast.success("Artifact uploaded", `${uploaded.originalName} is stored as an immutable evaluation artifact.`);
+    } catch (error) {
+      toast.error("Artifact upload failed", error instanceof Error ? error.message : "Could not upload the artifact");
+    } finally {
+      setUploadingArtifact(null);
+    }
   }
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -195,6 +250,17 @@ export default function FreelancerPlanningSubmission() {
                   You may submit now, but UI/UX evaluation waits for the architecture contract to be approved so endpoints, fields, roles, and states can be cross-checked.
                 </div>
               ) : null}
+              {previousSubmission?.evaluationResult ? (
+                <div className="rounded-lg border border-outline-variant/30 bg-surface-container-low p-4">
+                  <p className="text-sm font-semibold text-on-surface">Previous verdict · version {previousSubmission.version}</p>
+                  <p className="mt-1 text-xs leading-5 text-on-surface-variant">The new evaluation preserves this issue history and only closes an issue when the submitted artifact proves it was fixed.</p>
+                  {previousSubmission.evaluationResult.openIssues?.length ? (
+                    <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-error">
+                      {previousSubmission.evaluationResult.openIssues.map((issue) => <li key={issue.id}>{issue.message}</li>)}
+                    </ul>
+                  ) : <p className="mt-2 text-sm text-on-surface-variant">No open issues in the previous verdict.</p>}
+                </div>
+              ) : null}
               {loadingRequirements ? (
                 <p className="text-sm text-on-surface-variant">Loading project-specific requirements...</p>
               ) : (
@@ -234,13 +300,27 @@ export default function FreelancerPlanningSubmission() {
                           className="mt-1 w-full rounded-md border border-outline-variant bg-surface p-2.5 text-sm"
                           placeholder="One accessible Figma, diagram, contract, document, or repository URL per line"
                         />
+                        <label className="mt-3 block text-xs font-medium text-on-surface" htmlFor={`${requirement.key}-file`}>Upload immutable artifact <span className="font-normal text-on-surface-variant">(PDF, JSON, YAML, text, PNG, JPEG or WebP; 25 MB max)</span></label>
+                        <input
+                          id={`${requirement.key}-file`}
+                          type="file"
+                          accept=".pdf,.json,.yaml,.yml,.txt,.md,.png,.jpg,.jpeg,.webp,application/pdf,application/json,image/png,image/jpeg,image/webp,text/plain,text/markdown,text/yaml"
+                          disabled={uploadingArtifact !== null}
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            if (file) void handleArtifactUpload(requirement.key, file);
+                            event.target.value = "";
+                          }}
+                          className="mt-1 block w-full text-xs text-on-surface-variant file:mr-3 file:rounded-md file:border-0 file:bg-primary/10 file:px-3 file:py-2 file:text-xs file:font-medium file:text-primary"
+                        />
+                        {uploadingArtifact === requirement.key ? <p className="mt-1 text-xs text-primary">Uploading and hashing artifact…</p> : null}
                       </div>
                     );
                   })}
                 </div>
               )}
             </section>
-            <Button type="submit" loading={submitting} disabled={loadingRequirements || !requirements.length} className="w-full mt-4"><Upload size={16} className="mr-2" /> Submit for AI evaluation</Button>
+            <Button type="submit" loading={submitting} disabled={loadingRequirements || !requirements.length || uploadingArtifact !== null} className="w-full mt-4"><Upload size={16} className="mr-2" /> Submit for AI evaluation</Button>
           </form>
         )}
       </div>

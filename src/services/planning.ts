@@ -23,6 +23,35 @@ export interface PlanningEvaluationCheck {
   severity: "info" | "minor" | "major" | "blocker";
   evidence: string;
   feedback: string;
+  citations: PlanningEvaluationCitation[];
+}
+
+export interface PlanningEvaluationCitation {
+  artifactId: string;
+  location: string;
+  finding: string;
+}
+
+export interface PlanningEvaluationArtifact {
+  id: string;
+  sourceUrl: string | null;
+  finalUrl: string | null;
+  requirementKeys: string[];
+  mimeType: string | null;
+  sizeBytes: number;
+  sha256: string | null;
+  status: "inspected" | "unreadable" | "unsupported";
+  error: string | null;
+  location?: string;
+  version?: string | null;
+}
+
+export interface PlanningEvaluationIssue {
+  id: string;
+  criterionKey: string;
+  severity: "minor" | "major" | "blocker";
+  message: string;
+  citations: PlanningEvaluationCitation[];
 }
 
 export interface PlanningEvaluationResult {
@@ -35,6 +64,21 @@ export interface PlanningEvaluationResult {
   risks: string[];
   revisionItems: string[];
   crossContractIssues: string[];
+  artifactManifest: {
+    schemaVersion?: number;
+    artifacts?: PlanningEvaluationArtifact[];
+    totalBytes?: number;
+    manifestHash?: string;
+  };
+  artifactManifestHash: string;
+  evaluationInputHash: string;
+  contextHash: string;
+  promptVersion: string;
+  modelName: string;
+  openIssues: PlanningEvaluationIssue[];
+  resolvedIssues: string[];
+  regressions: string[];
+  reused: boolean;
   source: string;
 }
 
@@ -208,6 +252,25 @@ export async function createPlanningSubmission(
     return data.data;
   } catch (error) {
     throw new Error(getApiErrorMessage(error, "Could not create planning submission"));
+  }
+}
+
+export async function uploadPlanningArtifact(projectId: string, file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  try {
+    const { data } = await api.post<ApiDataResponse<{
+      url: string;
+      publicId: string;
+      storageVersion: number;
+      originalName: string;
+      contentType: string;
+      sizeBytes: number;
+      sha256: string;
+    }>>(sprint4Endpoints.planning.uploadArtifact(projectId), form);
+    return data.data;
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, "Could not upload planning artifact"));
   }
 }
 
