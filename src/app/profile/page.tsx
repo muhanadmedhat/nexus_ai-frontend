@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Clock,
   ExternalLink,
+  Code2,
   FileText,
   Mail,
   Save,
@@ -34,7 +35,12 @@ interface ProfileFormValues {
   lastName: string;
   phoneNumber: string;
   availabilityHoursPerWeek: string;
+  githubUsername: string;
 }
+
+// GitHub username rules: letters, numbers and single hyphens, no leading or
+// trailing hyphen. Required before repository invites, not for verification.
+const GITHUB_USERNAME_PATTERN = /^(?!.*--)[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
 
 function isEgyptianPhoneNumber(value: string) {
   return value.startsWith("+20") && isValidPhoneNumber(value);
@@ -79,6 +85,7 @@ export default function ProfilePage() {
       lastName: "",
       phoneNumber: "",
       availabilityHoursPerWeek: "",
+      githubUsername: "",
     },
   });
 
@@ -90,6 +97,7 @@ export default function ProfilePage() {
       lastName: user.lastName,
       phoneNumber: user.phoneNumber ?? "",
       availabilityHoursPerWeek: "",
+      githubUsername: "",
     };
 
     reset(baseValues);
@@ -109,6 +117,7 @@ export default function ProfilePage() {
             profile.availabilityHoursPerWeek == null
               ? ""
               : String(profile.availabilityHoursPerWeek),
+          githubUsername: profile.githubUsername ?? "",
         });
       })
       .catch((error) => {
@@ -130,6 +139,7 @@ export default function ProfilePage() {
       lastName: values.lastName.trim(),
       phoneNumber: values.phoneNumber,
       availabilityHoursPerWeek: values.availabilityHoursPerWeek,
+      githubUsername: values.githubUsername.trim(),
     };
 
     const availabilityHoursPerWeek = parseNonNegativeInteger(values.availabilityHoursPerWeek);
@@ -152,6 +162,9 @@ export default function ProfilePage() {
       if (role === "freelancer") {
         updatedFreelancer = await updateMyFreelancerProfile({
           availabilityHoursPerWeek,
+          ...(nextValues.githubUsername
+            ? { githubUsername: nextValues.githubUsername }
+            : {}),
         });
         setFreelancerProfile(updatedFreelancer);
         setCvUrl(updatedFreelancer.cvUrl);
@@ -164,6 +177,8 @@ export default function ProfilePage() {
           updatedFreelancer?.availabilityHoursPerWeek == null
             ? nextValues.availabilityHoursPerWeek
             : String(updatedFreelancer.availabilityHoursPerWeek),
+        githubUsername:
+          updatedFreelancer?.githubUsername ?? nextValues.githubUsername,
       });
       toast.success("Profile updated");
     } catch (error) {
@@ -512,6 +527,26 @@ export default function ProfilePage() {
                     },
                   })}
                   error={errors.availabilityHoursPerWeek?.message}
+                />
+
+                <Input
+                  label="GitHub username"
+                  placeholder="octocat"
+                  disabled={isSubmitting}
+                  icon={<Code2 size={18} className="text-outline" />}
+                  labelExtra={
+                    <span className="text-xs text-on-surface-variant">
+                      for repository invites
+                    </span>
+                  }
+                  {...register("githubUsername", {
+                    validate: (value) =>
+                      !value.trim() ||
+                      (value.trim().length <= 120 &&
+                        GITHUB_USERNAME_PATTERN.test(value.trim())) ||
+                      "Letters, numbers and single hyphens only",
+                  })}
+                  error={errors.githubUsername?.message}
                 />
               </div>
             </section>

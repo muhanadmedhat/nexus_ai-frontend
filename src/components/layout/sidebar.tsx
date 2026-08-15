@@ -13,7 +13,10 @@ import {
   Users,
   ClipboardCheck,
   Cpu,
+  GitBranch,
+  GitPullRequest,
   ListChecks,
+  Gauge,
   Star,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
@@ -48,6 +51,9 @@ const NAV_ITEMS: Record<UserRole, NavItem[]> = {
     { label: "Submissions", href: "/dashboard/admin/planning/submissions", icon: <ClipboardCheck size={20} /> },
     { label: "Scrum Plans", href: "/dashboard/admin/project-plans", icon: <CheckSquare size={20} /> },
     { label: "Delivery", href: "/dashboard/admin/delivery", icon: <ListChecks size={20} /> },
+    { label: "Task Matching", href: "/dashboard/admin/implementation-matching", icon: <GitPullRequest size={20} /> },
+    { label: "Repositories", href: "/dashboard/admin/repositories", icon: <GitBranch size={20} /> },
+    { label: "Evaluations", href: "/dashboard/admin/evaluations", icon: <Gauge size={20} /> },
     { label: "Escrow", href: "/dashboard/admin/payments", icon: <CreditCard size={20} /> },
     {
       label: "Releases",

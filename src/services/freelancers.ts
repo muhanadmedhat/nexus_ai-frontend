@@ -11,6 +11,7 @@ export interface FreelancerProfile {
   hourlyRate: string | null;
   isAvailable: boolean;
   availabilityHoursPerWeek: number | null;
+  githubUsername: string | null;
   skillScores?: FreelancerSkillScore[];
 }
 
@@ -28,6 +29,7 @@ export interface UpdateFreelancerProfileInput {
   skills?: string[];
   yearsExperience?: number;
   availabilityHoursPerWeek?: number;
+  githubUsername?: string;
 }
 
 interface FreelancerProfileResponse {

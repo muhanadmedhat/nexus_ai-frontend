@@ -130,7 +130,9 @@ export const sprint4Endpoints = {
   },
 };
 
-export const sprint5Endpoints = {
+// The Sprint 5 handoff names this block sprint5Endpoints; dev settled on
+// deliveryEndpoints. Same routes either way — the handoff should be updated.
+export const deliveryEndpoints = {
   repositories: {
     create: (projectId: string) => `/projects/${projectId}/repository`,
     projectRepository: (projectId: string) => `/projects/${projectId}/repository`,
