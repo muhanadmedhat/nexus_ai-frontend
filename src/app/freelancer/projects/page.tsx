@@ -12,7 +12,9 @@ export default function FreelancerProjectsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getFreelancerAssignedProjects({ phase: "planning", status: "assigned,accepted,in_progress" })
+    // No phase filter: Sprint 5 assigns freelancers to implementation work, and
+    // filtering to "planning" hid every implementation assignment.
+    getFreelancerAssignedProjects({ status: "assigned,accepted,in_progress" })
       .then((res) => setProjects(Array.isArray(res.data) ? res.data : []))
       .catch((err) => console.error(err))
       .finally(() => setLoading(false));

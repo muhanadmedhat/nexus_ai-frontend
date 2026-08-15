@@ -5,6 +5,13 @@ import type { ProjectMilestone } from "@/services/planning";
 import type { DeliveryTask } from "@/types/delivery";
 import { toNumber } from "./helpers";
 
+/**
+ * Milestones use their own status vocabulary — planned, funding_required,
+ * funded, active, submitted, approved, paid, cancelled — not the task
+ * vocabulary. These are the states that count as finished.
+ */
+const MILESTONE_DONE_STATUSES = new Set(["approved", "paid"]);
+
 function progressFor(tasks: DeliveryTask[]) {
   if (!tasks.length) return null;
   const done = tasks.filter((task) => task.status === "done").length;
@@ -53,7 +60,7 @@ export function MilestoneTimeline({
               <span
                 className={clsx(
                   "mt-1.5 h-3 w-3 shrink-0 rounded-full border-2",
-                  milestone.status === "completed"
+                  MILESTONE_DONE_STATUSES.has(milestone.status)
                     ? "border-primary-container bg-primary-container"
                     : "border-outline-variant bg-surface-container-lowest",
                 )}

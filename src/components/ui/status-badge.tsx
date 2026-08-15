@@ -50,6 +50,12 @@ const STYLES: Record<string, string> = {
   review: "bg-secondary-container/20 text-secondary",
   done: "bg-primary-container/15 text-primary-container",
 
+  // Sprint 5 delivery — milestone statuses (their own vocabulary)
+  planned: "bg-surface-container-high text-on-surface-variant",
+  funding_required: "bg-error/10 text-error",
+  funded: "bg-primary-container/15 text-primary-container",
+  paid: "bg-primary-container/15 text-primary-container",
+
   // Sprint 5 delivery — submissions
   superseded: "bg-surface-container-high text-on-surface-variant",
 
