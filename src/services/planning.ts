@@ -385,7 +385,7 @@ export async function getTasks(projectId: string, params?: { milestoneId?: strin
   }
 }
 
-export async function updateTask(taskId: string, payload: { status?: string; assignedFreelancerProfileId?: string; assignmentId?: string; notes?: string }) {
+export async function updateTask(taskId: string, payload: { status?: string; notes?: string }) {
   try {
     const { data } = await api.patch<ApiDataResponse<ProjectTask>>(
       sprint4Endpoints.planning.updateTask(taskId),

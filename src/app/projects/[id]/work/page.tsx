@@ -40,6 +40,8 @@ function EvaluationSummary({ detail }: { detail: SubmissionDetail }) {
   if (!run) return null;
 
   const score = toNumber(run.score);
+  const rubric = run.acceptanceCoverage?.items ?? run.findings?.rubric ?? [];
+  const revisionNotes = run.findings?.revisionNotes?.trim();
 
   return (
     <div className="rounded-lg border border-outline-variant/30 bg-surface-container-low p-4">
@@ -58,29 +60,31 @@ function EvaluationSummary({ detail }: { detail: SubmissionDetail }) {
         <p className="mt-2 text-sm leading-6 text-on-surface-variant">{run.summary}</p>
       )}
 
-      {run.acceptanceCoverage && run.acceptanceCoverage.length > 0 && (
+      {run.acceptanceCoverage && (
+        <p className="mt-2 text-xs text-on-surface-variant">
+          Acceptance criteria: {run.acceptanceCoverage.met}/{run.acceptanceCoverage.total} met
+        </p>
+      )}
+
+      {rubric.length > 0 && (
         <ul className="mt-3 space-y-1.5">
-          {run.acceptanceCoverage.map((item) => (
+          {rubric.map((item) => (
             <li
               key={item.criterion}
               className="flex flex-wrap items-center justify-between gap-2 text-sm"
             >
               <span className="min-w-0 text-on-surface-variant">{item.criterion}</span>
-              <StatusBadge status={item.status ?? "unknown"} />
+              <StatusBadge status={item.met ? "met" : "unmet"} />
             </li>
           ))}
         </ul>
       )}
 
-      {run.findings && run.findings.length > 0 && (
-        <ul className="mt-3 space-y-2">
-          {run.findings.map((finding, index) => (
-            <li key={index} className="text-sm text-on-surface-variant">
-              <span className="font-medium text-on-surface">{finding.area}: </span>
-              {finding.message}
-            </li>
-          ))}
-        </ul>
+      {revisionNotes && (
+        <p className="mt-3 text-sm text-on-surface-variant">
+          <span className="font-medium text-on-surface">Revision notes: </span>
+          {revisionNotes}
+        </p>
       )}
     </div>
   );

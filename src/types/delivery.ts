@@ -175,17 +175,26 @@ export interface PaymentReleaseRequest {
   updatedAt: string; // ISO date
 }
 
-export interface EvaluationFinding {
-  severity?: string;
-  area?: string;
-  message?: string;
-  evidence?: string;
+export interface EvaluationRubricItem {
+  criterion: string;
+  met: boolean;
+  evidence: string;
 }
 
 export interface EvaluationAcceptanceCoverage {
-  criterion?: string;
-  status?: string;
-  evidence?: string;
+  total: number;
+  met: number;
+  unmet: number;
+  items: EvaluationRubricItem[];
+}
+
+export interface EvaluationFindings {
+  passed?: boolean;
+  revisionRequested?: boolean;
+  requiresHumanReview?: boolean;
+  revisionNotes?: string;
+  rubric?: EvaluationRubricItem[];
+  source?: string;
 }
 
 // Read-only here. Ebrahim owns evaluations.ts and the review screens; these
@@ -202,9 +211,8 @@ export interface EvaluationRun {
   score: string | null; // numeric -> arrives as "72.00"
   recommendation: EvaluationRecommendation | null;
   summary: string | null;
-  // These jsonb columns contain arrays in the evaluation wire contract.
-  findings: EvaluationFinding[] | null;
-  acceptanceCoverage: EvaluationAcceptanceCoverage[] | null;
+  findings: EvaluationFindings | null;
+  acceptanceCoverage: EvaluationAcceptanceCoverage | null;
   riskFlags: string[] | null;
   modelName: string | null;
   promptVersion: string | null;

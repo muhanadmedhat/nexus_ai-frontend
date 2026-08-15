@@ -124,26 +124,42 @@ export const fixtureEvaluationRuns: EvaluationRun[] = [
     recommendation: "changes_requested",
     summary:
       "Checkout session creation is present, but webhook idempotency tests are missing.",
-    findings: [
-      {
-        severity: "major",
-        area: "webhook",
-        message: "Duplicate Stripe event handling is not proven.",
-        evidence: "No test or code path found for duplicate event ids.",
-      },
-    ],
-    acceptanceCoverage: [
-      {
-        criterion: "Endpoint creates checkout session",
-        status: "met",
-        evidence: "API route exists and validates amount.",
-      },
-      {
-        criterion: "Webhook is idempotent",
-        status: "partial",
-        evidence: "Webhook stores events but lacks a duplicate handling test.",
-      },
-    ],
+    findings: {
+      passed: false,
+      revisionRequested: true,
+      requiresHumanReview: true,
+      revisionNotes: "Add webhook idempotency tests and resubmit.",
+      rubric: [
+        {
+          criterion: "Endpoint creates checkout session",
+          met: true,
+          evidence: "API route exists and validates amount.",
+        },
+        {
+          criterion: "Webhook is idempotent",
+          met: false,
+          evidence: "Webhook stores events but lacks a duplicate handling test.",
+        },
+      ],
+      source: "local_mock",
+    },
+    acceptanceCoverage: {
+      total: 2,
+      met: 1,
+      unmet: 1,
+      items: [
+        {
+          criterion: "Endpoint creates checkout session",
+          met: true,
+          evidence: "API route exists and validates amount.",
+        },
+        {
+          criterion: "Webhook is idempotent",
+          met: false,
+          evidence: "Webhook stores events but lacks a duplicate handling test.",
+        },
+      ],
+    },
     riskFlags: ["payment_integrity", "missing_tests"],
     modelName: "gemini-2.0-flash",
     promptVersion: "submission-evaluation-v1",
