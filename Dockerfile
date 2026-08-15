@@ -20,6 +20,8 @@ COPY --from=build --chown=node:node /app/.next ./.next
 COPY --from=build --chown=node:node /app/public ./public
 COPY --from=build --chown=node:node /app/package.json ./package.json
 COPY --from=build --chown=node:node /app/next.config.ts ./
+RUN rm -rf /usr/local/lib/node_modules/npm \
+  && rm -f /usr/local/bin/npm /usr/local/bin/npx
 USER node
 EXPOSE 3000
-CMD ["npm", "start"]
+CMD ["node", "node_modules/next/dist/bin/next", "start"]

@@ -93,16 +93,18 @@ export interface ReviewSubmissionPayload {
   releasePayment?: boolean;
 }
 
-/**
- * Detail response. The handoff names the contents but never the key names —
- * see R3 in sprint-5-issues.md — so the composite fields are optional until
- * Asaad confirms them.
- */
 export interface SubmissionDetail extends ProjectSubmission {
   latestEvaluationRun?: EvaluationRun | null;
   evaluationRun?: EvaluationRun | null;
   reviews?: ProjectSubmissionReview[];
   revisionRequests?: ProjectRevisionRequest[];
+  openRevisionRequests?: ProjectRevisionRequest[];
+}
+
+interface SubmissionDetailResponse {
+  submission: ProjectSubmission;
+  latestEvaluationRun?: EvaluationRun | null;
+  reviews?: ProjectSubmissionReview[];
   openRevisionRequests?: ProjectRevisionRequest[];
 }
 
@@ -192,10 +194,21 @@ export async function getDeliverySubmission(submissionId: string): Promise<Submi
   }
 
   try {
-    const { data } = await api.get<ApiDataResponse<SubmissionDetail>>(
+    const { data } = await api.get<
+      ApiDataResponse<SubmissionDetailResponse | SubmissionDetail>
+    >(
       deliveryEndpoints.submissions.detail(submissionId),
     );
-    return data.data;
+    const detail = data.data;
+    if ("submission" in detail) {
+      return {
+        ...detail.submission,
+        latestEvaluationRun: detail.latestEvaluationRun ?? null,
+        reviews: detail.reviews ?? [],
+        openRevisionRequests: detail.openRevisionRequests ?? [],
+      };
+    }
+    return detail;
   } catch (error) {
     throw new Error(getApiErrorMessage(error, "Could not load submission"));
   }

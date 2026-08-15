@@ -34,8 +34,6 @@ export type EvaluationRunStatus =
   | "failed"
   | "cancelled";
 
-// NOTE: the AI service contract returns "request_revision", which this
-// constraint rejects. Tracked as R9 in sprint-5-issues.md.
 export type EvaluationRecommendation =
   | "approve"
   | "changes_requested"
@@ -60,16 +58,12 @@ export type DeliveryTaskStatus =
   | "done"
   | "cancelled";
 
-// Accepted by the AI evaluation contract. No DB constraint exists because
-// project_submissions has no submission_type column yet — see R10.
 export type SubmissionType =
-  | "pdf"
-  | "repo"
   | "pull_request"
+  | "repository"
+  | "file"
   | "figma"
-  | "zip"
-  | "text"
-  | "other";
+  | "text";
 
 export interface SubmissionContent {
   notes?: string;
@@ -117,11 +111,8 @@ export interface ProjectSubmission {
   createdAt: string; // ISO date
   updatedAt: string; // ISO date
 
-  // Required by the create/update payloads and by the freelancer submission
-  // form, but project_submissions has no matching column yet — see R10.
-  submissionType?: SubmissionType;
+  submissionType: SubmissionType;
 
-  // Present only on detail responses. Exact key names unconfirmed — see R3.
   reviews?: ProjectSubmissionReview[];
   evaluationRuns?: EvaluationRun[];
 }
@@ -184,17 +175,26 @@ export interface PaymentReleaseRequest {
   updatedAt: string; // ISO date
 }
 
-export interface EvaluationFinding {
-  severity?: string;
-  area?: string;
-  message?: string;
-  evidence?: string;
+export interface EvaluationRubricItem {
+  criterion: string;
+  met: boolean;
+  evidence: string;
 }
 
 export interface EvaluationAcceptanceCoverage {
-  criterion?: string;
-  status?: string;
-  evidence?: string;
+  total: number;
+  met: number;
+  unmet: number;
+  items: EvaluationRubricItem[];
+}
+
+export interface EvaluationFindings {
+  passed?: boolean;
+  revisionRequested?: boolean;
+  requiresHumanReview?: boolean;
+  revisionNotes?: string;
+  rubric?: EvaluationRubricItem[];
+  source?: string;
 }
 
 // Read-only here. Ebrahim owns evaluations.ts and the review screens; these
@@ -211,11 +211,8 @@ export interface EvaluationRun {
   score: string | null; // numeric -> arrives as "72.00"
   recommendation: EvaluationRecommendation | null;
   summary: string | null;
-  // The entity declares both as Record<string, unknown>, but the AI contract
-  // returns arrays and the column is jsonb. Typed to match the wire shape —
-  // see R5.
-  findings: EvaluationFinding[] | null;
-  acceptanceCoverage: EvaluationAcceptanceCoverage[] | null;
+  findings: EvaluationFindings | null;
+  acceptanceCoverage: EvaluationAcceptanceCoverage | null;
   riskFlags: string[] | null;
   modelName: string | null;
   promptVersion: string | null;
@@ -242,7 +239,7 @@ export interface TaskDependency {
 // planning.ts keeps this out of the shared Sprint 4 surface.
 export interface DeliveryTask extends ProjectTask {
   status: DeliveryTaskStatus | string;
-  /** jsonb — usually an array of strings, but the column allows an object. */
+  /** jsonb — normalized by the delivery helper before it is rendered. */
   acceptanceCriteria?: unknown;
   dependencies?: TaskDependency[] | null;
   /** Postgres numeric — arrives as a string such as "24.00". */

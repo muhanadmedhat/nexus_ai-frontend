@@ -30,12 +30,10 @@ import {
 import { toNumber } from "@/components/delivery/helpers";
 import { getTasks } from "@/services/planning";
 import { getMyFreelancerProfile } from "@/services/freelancers";
-import { getProject } from "@/services/projects";
 import { listDeliverySubmissions } from "@/services/project-submissions";
 import { listRevisionRequests } from "@/services/revisions";
 import { listProjectReleaseRequests } from "@/services/release-requests";
 import { formatDate, formatMoney } from "@/utils/format";
-import type { Project } from "@/types/project";
 import type {
   DeliveryTask,
   PaymentReleaseRequest,
@@ -93,7 +91,6 @@ export default function FreelancerProjectDetailPage() {
 
   // Sprint 5 delivery state
   const [profileId, setProfileId] = useState<string | null>(null);
-  const [project, setProject] = useState<Project | null>(null);
   const [allTasks, setAllTasks] = useState<DeliveryTask[]>([]);
   const [submissions, setSubmissions] = useState<ProjectSubmission[]>([]);
   const [revisions, setRevisions] = useState<ProjectRevisionRequest[]>([]);
@@ -114,7 +111,6 @@ export default function FreelancerProjectDetailPage() {
 
         return Promise.allSettled([
           getFreelancerProjectAssignment(projectId),
-          getProject(projectId),
           getTasks(projectId, { limit: 200 }),
           listDeliverySubmissions(
             projectId,
@@ -135,14 +131,13 @@ export default function FreelancerProjectDetailPage() {
       .then(
         ([
           assignmentResult,
-          projectResult,
           tasksResult,
           submissionsResult,
           revisionsResult,
           releasesResult,
         ]) => {
-          // A freelancer with only implementation tasks has no planning role
-          // assignment, so this call failing is expected rather than fatal.
+          // The detail endpoint returns the project for either a planning role
+          // or an implementation-task assignment.
           if (assignmentResult.status === "fulfilled") {
             setDetail(assignmentResult.value);
             setSelectedAssignmentId(
@@ -152,7 +147,6 @@ export default function FreelancerProjectDetailPage() {
             setDetail(null);
           }
 
-          setProject(settled(projectResult, null));
           setAllTasks(settled(tasksResult, []) as DeliveryTask[]);
           setSubmissions(
             submissionsResult.status === "fulfilled"
@@ -284,11 +278,11 @@ export default function FreelancerProjectDetailPage() {
                   Implementation work
                 </p>
                 <h2 className="mt-1 font-headline text-2xl font-semibold text-on-surface">
-                  {project?.title ?? "Project delivery"}
+                  {detail?.project.title ?? "Project delivery"}
                 </h2>
-                {project?.description && (
+                {detail?.project.description && (
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-on-surface-variant">
-                    {project.description}
+                    {detail.project.description}
                   </p>
                 )}
               </section>

@@ -14,7 +14,11 @@ pipeline {
   }
 
   stages {
-    // No unit tests in this repo yet; add a Test stage here when they exist.
+    stage('Test') {
+      steps {
+        sh 'docker run --rm -v $WORKSPACE:/app -w /app node:24-alpine sh -c "npm ci && npm run lint"'
+      }
+    }
 
     stage('Build image') {
       steps {
@@ -32,8 +36,11 @@ pipeline {
     stage('Deploy to EKS') {
       steps {
         sh 'aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER'
-        // First run: kubectl apply the Kubernetes/ manifests. After that, just swap the image tag:
+        sh 'kubectl apply -f Kubernetes/evaluation-sandbox-rbac.yaml'
+        sh 'kubectl apply -f Kubernetes/evaluation-sandbox-networkpolicy.yaml'
+        sh 'kubectl apply -f Kubernetes/Deployments/frontend-deployment.yaml'
         sh 'kubectl set image deployment/frontend frontend=$IMAGE'
+        sh 'kubectl rollout status deployment/frontend --timeout=5m'
       }
     }
   }

@@ -41,12 +41,10 @@ import type {
 
 const SUBMISSION_TYPES: { value: SubmissionType; label: string }[] = [
   { value: "pull_request", label: "Pull request" },
-  { value: "repo", label: "Repository" },
-  { value: "pdf", label: "PDF" },
+  { value: "repository", label: "Repository" },
+  { value: "file", label: "File evidence" },
   { value: "figma", label: "Figma" },
-  { value: "zip", label: "Zip archive" },
   { value: "text", label: "Text only" },
-  { value: "other", label: "Other" },
 ];
 
 interface FormState {

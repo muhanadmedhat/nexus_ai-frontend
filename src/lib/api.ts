@@ -96,9 +96,14 @@ export const sprint4Endpoints = {
   },
   planning: {
     createSubmission: (projectId: string) => `/projects/${projectId}/planning-submissions`,
+    uploadArtifact: (projectId: string) => `/projects/${projectId}/planning-artifacts`,
     projectSubmissions: (projectId: string) => `/projects/${projectId}/planning-submissions`,
+    requirements: (projectId: string, submissionType: "architecture" | "ui_ux") =>
+      `/projects/${projectId}/planning-requirements/${submissionType}`,
     submissionDetail: (submissionId: string) => `/planning-submissions/${submissionId}`,
     reviewSubmission: (submissionId: string) => `/planning-submissions/${submissionId}/review`,
+    retrySubmissionEvaluation: (submissionId: string) =>
+      `/planning-submissions/${submissionId}/evaluation/retry`,
     generatePlan: (projectId: string) => `/projects/${projectId}/plans/generate`,
     projectPlans: (projectId: string) => `/projects/${projectId}/plans`,
     planDetail: (planId: string) => `/project-plans/${planId}`,
@@ -130,8 +135,6 @@ export const sprint4Endpoints = {
   },
 };
 
-// The Sprint 5 handoff names this block sprint5Endpoints; dev settled on
-// deliveryEndpoints. Same routes either way — the handoff should be updated.
 export const deliveryEndpoints = {
   repositories: {
     create: (projectId: string) => `/projects/${projectId}/repository`,

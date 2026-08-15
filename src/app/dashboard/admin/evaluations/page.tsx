@@ -27,7 +27,7 @@ type StatusFilter = (typeof STATUS_FILTERS)[number];
 function recommendationBadge(recommendation: string | null): string | null {
   if (!recommendation) return null;
   if (recommendation === "approve") return "approved";
-  if (recommendation === "needs_review") return "under_review";
+  if (recommendation === "manual_review") return "under_review";
   return recommendation;
 }
 
@@ -113,9 +113,14 @@ export default function AdminEvaluationsQueue() {
               </thead>
               <tbody className="divide-y divide-outline-variant/30">
                 {runs.map((run) => {
-                  const recommendation = recommendationBadge(run.recommendation);
+                  const recommendation = recommendationBadge(
+                    run.recommendation,
+                  );
                   return (
-                    <tr key={run.id} className="hover:bg-surface-container-low/50">
+                    <tr
+                      key={run.id}
+                      className="hover:bg-surface-container-low/50"
+                    >
                       <td className="p-4 font-mono text-xs">
                         {run.submissionId?.slice(0, 8) ?? "—"}
                       </td>

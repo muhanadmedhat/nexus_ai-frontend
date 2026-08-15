@@ -46,10 +46,10 @@ export interface ReleaseRequestListParams {
 
 export interface CreateReleaseRequestPayload {
   milestoneId?: string;
-  submissionId?: string;
+  submissionId: string;
   freelancerProfileId?: string;
   amount: number;
-  currency?: string;
+  currency: string;
   reason?: string;
 }
 
@@ -111,7 +111,7 @@ export async function createReleaseRequest(
     return {
       ...fixtureReleaseRequests[0],
       amount: payload.amount.toFixed(2),
-      currency: payload.currency ?? "EGP",
+      currency: payload.currency,
       reason: payload.reason ?? null,
       status: "pending",
     };

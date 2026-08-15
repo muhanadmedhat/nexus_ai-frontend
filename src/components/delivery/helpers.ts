@@ -28,6 +28,7 @@ export function dependencyTaskIds(
     .map((dependency) => {
       if (typeof dependency === "string") return dependency;
       const row = dependency as TaskDependency;
+      if (row?.dependencyType === "related") return null;
       return row?.dependsOnTaskId ?? null;
     })
     .filter((id): id is string => Boolean(id));

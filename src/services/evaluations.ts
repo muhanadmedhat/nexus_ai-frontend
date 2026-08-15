@@ -1,16 +1,10 @@
 import { api, deliveryEndpoints, getApiErrorMessage } from "@/lib/api";
 
 export type EvaluationRunStatus =
-  | "queued"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled";
+  "queued" | "running" | "completed" | "failed" | "cancelled";
 
 export type EvaluationRecommendation =
-  | "approve"
-  | "changes_requested"
-  | "needs_review";
+  "approve" | "changes_requested" | "reject" | "manual_review";
 
 export interface EvaluationRubricItem {
   criterion: string;
@@ -74,25 +68,27 @@ interface PaginatedResponse<T> {
 
 export async function queueEvaluation(
   submissionId: string,
-  payload: { mode?: "async" | "sync"; reason?: string } = {}
+  payload: { mode?: "async" | "sync"; reason?: string } = {},
 ): Promise<QueueEvaluationResult> {
   try {
     const { data } = await api.post<ApiDataResponse<QueueEvaluationResult>>(
       deliveryEndpoints.evaluations.create(submissionId),
-      payload
+      payload,
     );
     return data.data;
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not queue the evaluation"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not queue the evaluation"),
+    );
   }
 }
 
 export async function listSubmissionEvaluations(
-  submissionId: string
+  submissionId: string,
 ): Promise<EvaluationRun[]> {
   try {
     const { data } = await api.get<ApiDataResponse<EvaluationRun[]>>(
-      deliveryEndpoints.evaluations.submissionList(submissionId)
+      deliveryEndpoints.evaluations.submissionList(submissionId),
     );
     return data.data;
   } catch (error) {
@@ -101,30 +97,34 @@ export async function listSubmissionEvaluations(
 }
 
 export async function getEvaluationRun(
-  evaluationRunId: string
+  evaluationRunId: string,
 ): Promise<EvaluationRunDetail> {
   try {
     const { data } = await api.get<ApiDataResponse<EvaluationRunDetail>>(
-      deliveryEndpoints.evaluations.detail(evaluationRunId)
+      deliveryEndpoints.evaluations.detail(evaluationRunId),
     );
     return data.data;
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not load the evaluation run"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not load the evaluation run"),
+    );
   }
 }
 
 export async function retryEvaluationRun(
   evaluationRunId: string,
-  payload: { reason?: string } = {}
+  payload: { reason?: string } = {},
 ): Promise<QueueEvaluationResult> {
   try {
     const { data } = await api.post<ApiDataResponse<QueueEvaluationResult>>(
       deliveryEndpoints.evaluations.retry(evaluationRunId),
-      payload
+      payload,
     );
     return data.data;
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not retry the evaluation"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not retry the evaluation"),
+    );
   }
 }
 
@@ -147,7 +147,7 @@ export async function getAdminEvaluations(params?: {
     if (params?.limit) query.append("limit", String(params.limit));
 
     const { data } = await api.get<PaginatedResponse<EvaluationRunDetail>>(
-      `${deliveryEndpoints.evaluations.adminList}?${query.toString()}`
+      `${deliveryEndpoints.evaluations.adminList}?${query.toString()}`,
     );
     return data;
   } catch (error) {
