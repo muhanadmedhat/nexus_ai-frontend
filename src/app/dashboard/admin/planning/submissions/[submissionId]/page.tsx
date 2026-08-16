@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, BrainCircuit, CheckCircle2, MessageSquareWarning, RotateCcw, XCircle } from "lucide-react";
+import { ArrowLeft, BrainCircuit, CheckCircle2, Download, MessageSquareWarning, RotateCcw, ShieldAlert, XCircle } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -31,6 +31,8 @@ export default function AdminSubmissionDetail() {
   const [detail, setDetail] = useState<PlanningSubmission | null>(null);
   const [loading, setLoading] = useState(true);
   const [notes, setNotes] = useState("");
+  const [aiOverride, setAiOverride] = useState(false);
+  const [aiOverrideReason, setAiOverrideReason] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -39,6 +41,8 @@ export default function AdminSubmissionDetail() {
       .then((submission) => {
         setDetail(submission);
         setNotes(submission.adminNotes || "");
+        setAiOverride(Boolean(submission.aiOverride));
+        setAiOverrideReason(submission.aiOverrideReason || "");
       })
       .catch((error) => {
         const message = error instanceof Error ? error.message : "Could not load submission";
@@ -81,6 +85,11 @@ export default function AdminSubmissionDetail() {
       const result = await reviewSubmission(submissionId, {
         status,
         adminNotes: notes.trim() || undefined,
+        aiOverride: status === "approved" && aiOverride ? true : undefined,
+        aiOverrideReason:
+          status === "approved" && aiOverride
+            ? aiOverrideReason.trim()
+            : undefined,
       });
 
       if (status === "approved" && result?.planGenerationJob?.queued) {
@@ -100,13 +109,32 @@ export default function AdminSubmissionDetail() {
     }
   }
 
+  const evaluationAllowsNormalApproval = detail?.evaluationRecommendation === "approve";
+  const canReview = detail?.status === "submitted";
+  const needsOverride = detail?.evaluationStatus === "completed" &&
+    !evaluationAllowsNormalApproval;
   const canApprove = detail?.evaluationStatus === "completed" &&
-    detail.evaluationRecommendation === "approve" && detail.status === "submitted";
+    canReview &&
+    (evaluationAllowsNormalApproval || (aiOverride && aiOverrideReason.trim().length >= 20));
   const evidenceEntries = Object.entries(
     (detail?.content?.requirementEvidence ?? {}) as Record<string, PlanningRequirementEvidence>
   );
   const inspectedArtifacts = detail?.evaluationResult?.artifactManifest?.artifacts ?? [];
   const artifactById = new Map(inspectedArtifacts.map((artifact) => [artifact.id, artifact]));
+
+  function downloadAuditBundle() {
+    if (!detail?.evaluationAuditBundle) return;
+    const blob = new Blob(
+      [JSON.stringify(detail.evaluationAuditBundle, null, 2)],
+      { type: "application/json" }
+    );
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = href;
+    link.download = `planning-evaluation-${detail.id}-v${detail.version}.json`;
+    link.click();
+    URL.revokeObjectURL(href);
+  }
 
   return (
     <DashboardShell role="admin" title="Planning Submission Details" subtitle="Approve architecture and UI/UX deliverables.">
@@ -185,6 +213,17 @@ export default function AdminSubmissionDetail() {
                       {detail.evaluationResult.reused ? "Identical artifact snapshot — previous verdict reused." : `Evaluated by ${detail.evaluationResult.modelName || "the configured model"}`} · prompt {detail.evaluationResult.promptVersion || "legacy"}
                     </p>
                   </div>
+                  {detail.evaluationAuditBundle ? (
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-outline-variant/30 p-3 text-xs text-on-surface-variant">
+                      <span>
+                        Immutable audit snapshot · {detail.evaluationAuditBundle.executionMode || "service"}
+                        {detail.evaluationAuditBundle.capturedAt ? ` · ${new Date(detail.evaluationAuditBundle.capturedAt).toLocaleString()}` : ""}
+                      </span>
+                      <Button type="button" variant="outline" size="sm" onClick={downloadAuditBundle}>
+                        <Download size={14} /> Download audit
+                      </Button>
+                    </div>
+                  ) : null}
                   {inspectedArtifacts.length ? (
                     <div>
                       <h5 className="text-sm font-semibold text-on-surface">Artifact snapshot</h5>
@@ -258,17 +297,63 @@ export default function AdminSubmissionDetail() {
               placeholder="Optional notes for the freelancer or internal review..."
             />
 
+            {needsOverride && detail.status === "submitted" ? (
+              <div className="mt-5 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4">
+                <div className="flex items-start gap-2">
+                  <ShieldAlert size={18} className="mt-0.5 shrink-0 text-amber-700" />
+                  <div>
+                    <p className="text-sm font-semibold text-on-surface">Controlled AI override</p>
+                    <p className="mt-1 text-xs leading-5 text-on-surface-variant">The AI recommended {detail.evaluationRecommendation?.replace("_", " ")}. Approval is possible only with an explicit audited exception.</p>
+                  </div>
+                </div>
+                <label className="mt-3 flex items-start gap-2 text-sm text-on-surface">
+                  <input
+                    aria-label="Override AI recommendation"
+                    type="checkbox"
+                    checked={aiOverride}
+                    onChange={(event) => setAiOverride(event.target.checked)}
+                    className="mt-0.5"
+                  />
+                  I accept responsibility for overriding the AI recommendation
+                </label>
+                {aiOverride ? (
+                  <div className="mt-3">
+                    <label className="text-sm font-medium text-on-surface" htmlFor="ai-override-reason">Override reason</label>
+                    <textarea
+                      id="ai-override-reason"
+                      value={aiOverrideReason}
+                      onChange={(event) => setAiOverrideReason(event.target.value)}
+                      rows={4}
+                      minLength={20}
+                      maxLength={2000}
+                      className="mt-2 w-full rounded-lg border border-outline-variant bg-surface-container-lowest p-3 text-sm outline-none transition focus:border-primary"
+                      placeholder="At least 20 characters. Reference the accepted exception or evidence."
+                    />
+                    <p className="mt-1 text-xs text-on-surface-variant">{aiOverrideReason.trim().length}/20 minimum</p>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {detail.aiOverride ? (
+              <div className="mt-5 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-5 text-on-surface">
+                <p className="font-semibold">Approved with AI override</p>
+                <p className="mt-1">{detail.aiOverrideReason}</p>
+              </div>
+            ) : null}
+
             <div className="mt-5 grid gap-2">
               <Button type="button" disabled={!canApprove} loading={actionLoading === "approved"} onClick={() => decide("approved")}>
                 <CheckCircle2 size={16} /> Approve
               </Button>
-              {!canApprove ? <p className="text-xs leading-5 text-on-surface-variant">Approval unlocks only after evaluation completes with an approve recommendation.</p> : null}
-              <Button type="button" variant="outline" loading={actionLoading === "changes_requested"} onClick={() => decide("changes_requested")}>
+              {!canApprove ? <p className="text-xs leading-5 text-on-surface-variant">Approval requires a completed evaluation; a non-approve verdict also requires the audited override above.</p> : null}
+              <Button type="button" variant="outline" disabled={!canReview || !notes.trim()} loading={actionLoading === "changes_requested"} onClick={() => decide("changes_requested")}>
                 <MessageSquareWarning size={16} /> Request changes
               </Button>
               <Button
                 type="button"
                 variant="outline"
+                disabled={!canReview}
                 className="border-error/30 text-error hover:bg-error/10"
                 loading={actionLoading === "rejected"}
                 onClick={() => decide("rejected")}

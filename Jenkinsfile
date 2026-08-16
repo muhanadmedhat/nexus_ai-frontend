@@ -16,7 +16,13 @@ pipeline {
   stages {
     stage('Test') {
       steps {
-        sh 'docker run --rm -v $WORKSPACE:/app -w /app node:24-alpine sh -c "npm ci && npm run lint"'
+        sh 'docker run --rm -v $WORKSPACE:/app -w /app node:24-alpine sh -c "npm ci && npm run lint && npm run build"'
+      }
+    }
+
+    stage('Planning UI browser tests') {
+      steps {
+        sh 'docker run --rm --ipc=host -e CI=1 -v $WORKSPACE:/app -w /app mcr.microsoft.com/playwright:v1.62.1-noble sh -c "npm ci && npm run test:e2e"'
       }
     }
 
@@ -36,6 +42,7 @@ pipeline {
     stage('Deploy to EKS') {
       steps {
         sh 'aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER'
+        sh 'kubectl apply -f Kubernetes/configmap.yaml'
         sh 'kubectl apply -f Kubernetes/evaluation-sandbox-rbac.yaml'
         sh 'kubectl apply -f Kubernetes/evaluation-sandbox-networkpolicy.yaml'
         sh 'kubectl apply -f Kubernetes/Deployments/frontend-deployment.yaml'

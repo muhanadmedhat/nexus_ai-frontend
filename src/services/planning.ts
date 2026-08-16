@@ -115,9 +115,22 @@ export interface PlanningSubmission {
   evaluationRecommendation?: "approve" | "changes_requested" | "reject" | null;
   evaluationRequirements?: JsonObject | null;
   evaluationResult?: PlanningEvaluationResult | null;
+  evaluationAuditBundle?: {
+    schemaVersion?: number;
+    capturedAt?: string;
+    executionMode?: string;
+    summaryMarkdown?: string;
+    verdictSha256?: string;
+    sandboxLog?: JsonObject | null;
+    [key: string]: unknown;
+  } | null;
   evaluationError?: string | null;
   evaluationAgentJobId?: string | null;
   evaluatedAt?: string | null;
+  aiOverride?: boolean;
+  aiOverrideReason?: string | null;
+  aiOverriddenBy?: string | null;
+  aiOverriddenAt?: string | null;
 }
 
 export interface ProjectPlan {
@@ -318,7 +331,12 @@ export async function getSubmissionDetail(submissionId: string): Promise<Plannin
 
 export async function reviewSubmission(
   submissionId: string,
-  payload: { status: "approved" | "changes_requested" | "rejected"; adminNotes?: string }
+  payload: {
+    status: "approved" | "changes_requested" | "rejected";
+    adminNotes?: string;
+    aiOverride?: boolean;
+    aiOverrideReason?: string;
+  }
 ) {
   try {
     const { data } = await api.patch<ApiDataResponse<ReviewSubmissionResult>>(
