@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, CheckCircle, MessageSquareWarning } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle,
+  MessageSquareWarning,
+  XCircle,
+} from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -37,7 +42,124 @@ import type {
   PaymentReleaseRequest,
   ProjectRevisionRequest,
   ProjectSubmission,
+  ProjectSubmissionReview,
+  SubmissionCriterionReview,
 } from "@/types/delivery";
+
+type HumanCriterionReview = {
+  criterionKey: string;
+  criterion: string;
+  rating: number | null;
+  comment: string;
+};
+
+function submissionReviewCriteria(
+  detail: SubmissionDetail,
+): Array<Pick<HumanCriterionReview, "criterionKey" | "criterion">> {
+  const coverage =
+    (detail.latestEvaluationRun ?? detail.evaluationRun)?.acceptanceCoverage ??
+    null;
+  if (!coverage) return [];
+
+  const completedItems = Array.isArray(coverage.items) ? coverage.items : [];
+  const snapshotItems = Array.isArray(coverage.rubricSnapshot?.criteria)
+    ? coverage.rubricSnapshot.criteria
+    : [];
+  const source = completedItems.length > 0 ? completedItems : snapshotItems;
+  const seen = new Set<string>();
+
+  return source.flatMap((item, index) => {
+    if (completedItems.length > 0 && item.status === "not_applicable") {
+      return [];
+    }
+    const criterion = item.criterion?.trim();
+    if (!criterion) return [];
+    const criterionKey = item.key?.trim() || `criterion_${index + 1}`;
+    if (seen.has(criterionKey)) return [];
+    seen.add(criterionKey);
+    return [{ criterionKey, criterion }];
+  });
+}
+
+function reviewCriterionResults(
+  review: ProjectSubmissionReview | undefined,
+): SubmissionCriterionReview[] {
+  const value = review?.metadata?.criteriaReviews;
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const item = entry as Record<string, unknown>;
+    if (
+      typeof item.criterionKey !== "string" ||
+      typeof item.criterion !== "string" ||
+      typeof item.rating !== "number"
+    ) {
+      return [];
+    }
+    return [
+      {
+        criterionKey: item.criterionKey,
+        criterion: item.criterion,
+        rating: item.rating,
+        comment: typeof item.comment === "string" ? item.comment : null,
+      },
+    ];
+  });
+}
+
+function HumanReviewSummary({ review }: { review: ProjectSubmissionReview }) {
+  const criteria = reviewCriterionResults(review);
+
+  return (
+    <div className="rounded-lg border border-outline-variant/40 bg-surface-container-low p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-sm font-semibold text-on-surface">
+          Human review
+        </span>
+        <StatusBadge status={review.decision} />
+        {review.score !== null && (
+          <span className="text-sm font-semibold text-on-surface">
+            {Math.round(Number(review.score))}
+            <span className="text-on-surface-variant">/100</span>
+          </span>
+        )}
+      </div>
+      {review.feedback && (
+        <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-on-surface-variant">
+          <span className="font-medium text-on-surface">
+            General comments:{" "}
+          </span>
+          {review.feedback}
+        </p>
+      )}
+      {criteria.length > 0 && (
+        <ol className="mt-3 space-y-2">
+          {criteria.map((item, index) => (
+            <li
+              key={item.criterionKey}
+              className="rounded-md bg-surface-container-lowest p-3 text-sm"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className="font-medium text-on-surface">
+                  {index + 1}. {item.criterion}
+                </span>
+                <span className="shrink-0 font-semibold text-primary-container">
+                  {item.rating}/5
+                </span>
+              </div>
+              {item.comment && (
+                <p className="mt-1 whitespace-pre-wrap text-on-surface-variant">
+                  {item.comment}
+                </p>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
 
 function EvaluationSummary({ detail }: { detail: SubmissionDetail }) {
   const run = detail.latestEvaluationRun ?? detail.evaluationRun ?? null;
@@ -161,9 +283,14 @@ export default function CustomerProjectWorkPage() {
   );
   const [detailLoading, setDetailLoading] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const [criterionReviews, setCriterionReviews] = useState<
+    Record<string, HumanCriterionReview>
+  >({});
   const [manualReviewAcknowledged, setManualReviewAcknowledged] =
     useState(false);
-  const [deciding, setDeciding] = useState<"approve" | "revise" | null>(null);
+  const [deciding, setDeciding] = useState<
+    "approve" | "revise" | "reject" | null
+  >(null);
 
   useEffect(() => {
     if (!projectId) return;
@@ -235,6 +362,7 @@ export default function CustomerProjectWorkPage() {
     setLoadErrors([]);
     setOpenSubmission(null);
     setFeedback("");
+    setCriterionReviews({});
     setManualReviewAcknowledged(false);
     setReloadKey((key) => key + 1);
   }, []);
@@ -275,9 +403,20 @@ export default function CustomerProjectWorkPage() {
   const openDetail = (submissionId: string) => {
     setDetailLoading(true);
     setFeedback("");
+    setCriterionReviews({});
     setManualReviewAcknowledged(false);
     getDeliverySubmission(submissionId)
-      .then((detail) => setOpenSubmission(detail))
+      .then((detail) => {
+        setOpenSubmission(detail);
+        setCriterionReviews(
+          Object.fromEntries(
+            submissionReviewCriteria(detail).map((criterion) => [
+              criterion.criterionKey,
+              { ...criterion, rating: null, comment: "" },
+            ]),
+          ),
+        );
+      })
       .catch((error) =>
         toast.error(
           "Could not load submission",
@@ -287,12 +426,29 @@ export default function CustomerProjectWorkPage() {
       .finally(() => setDetailLoading(false));
   };
 
-  const decide = async (decision: "approved" | "changes_requested") => {
+  const decide = async (
+    decision: "approved" | "changes_requested" | "rejected",
+  ) => {
     if (!openSubmission) return;
-    if (decision === "changes_requested" && !feedback.trim()) {
+    if (decision !== "approved" && !feedback.trim()) {
       toast.error(
-        "Feedback required",
-        "Tell the freelancer what needs to change.",
+        "General comments required",
+        decision === "rejected"
+          ? "Tell the freelancer why this version is rejected."
+          : "Tell the freelancer what needs to change.",
+      );
+      return;
+    }
+    const criteria = submissionReviewCriteria(openSubmission);
+    const unratedCriteria = criteria.filter(
+      ({ criterionKey }) =>
+        criterionReviews[criterionKey]?.rating === null ||
+        criterionReviews[criterionKey]?.rating === undefined,
+    );
+    if (unratedCriteria.length > 0) {
+      toast.error(
+        "Rate every criterion",
+        `${unratedCriteria.length} review ${unratedCriteria.length === 1 ? "criterion is" : "criteria are"} still unrated.`,
       );
       return;
     }
@@ -325,17 +481,50 @@ export default function CustomerProjectWorkPage() {
       }
     }
 
-    setDeciding(decision === "approved" ? "approve" : "revise");
+    const criteriaPayload = criteria.map(({ criterionKey }) => {
+      const input = criterionReviews[criterionKey];
+      return {
+        criterionKey,
+        rating: input.rating as number,
+        comment: input.comment.trim() || undefined,
+      };
+    });
+    const requestedItems = criteriaPayload
+      .filter((item) => item.rating <= 2 || item.comment)
+      .map((item) => ({
+        area:
+          criteria.find(
+            (criterion) => criterion.criterionKey === item.criterionKey,
+          )?.criterion ?? item.criterionKey,
+        comment: item.comment ?? `This criterion received ${item.rating}/5.`,
+      }));
+
+    setDeciding(
+      decision === "approved"
+        ? "approve"
+        : decision === "rejected"
+          ? "reject"
+          : "revise",
+    );
     try {
       await reviewDeliverySubmission(openSubmission.id, {
         decision,
         feedback: feedback.trim() || undefined,
+        criteriaReviews: criteriaPayload,
+        requestedChanges:
+          decision !== "approved" && requestedItems.length > 0
+            ? { items: requestedItems }
+            : undefined,
         createRevisionRequest: decision === "changes_requested",
         manualReviewAcknowledged:
           decision === "approved" && manualReviewAcknowledged,
       });
       toast.success(
-        decision === "approved" ? "Submission approved" : "Revision requested",
+        decision === "approved"
+          ? "Submission approved"
+          : decision === "rejected"
+            ? "Submission rejected"
+            : "Revision requested",
         decision === "approved"
           ? "The task is now marked done."
           : "The freelancer has been notified.",
@@ -358,6 +547,21 @@ export default function CustomerProjectWorkPage() {
     openSubmission?.latestEvaluationRun ??
     openSubmission?.evaluationRun ??
     null;
+  const reviewCriteria = openSubmission
+    ? submissionReviewCriteria(openSubmission)
+    : [];
+  const allCriteriaRated = reviewCriteria.every(({ criterionKey }) => {
+    const rating = criterionReviews[criterionKey]?.rating;
+    return typeof rating === "number" && rating >= 1 && rating <= 5;
+  });
+  const humanRatingAverage = reviewCriteria.length
+    ? reviewCriteria.reduce(
+        (sum, { criterionKey }) =>
+          sum + (criterionReviews[criterionKey]?.rating ?? 0),
+        0,
+      ) / reviewCriteria.length
+    : null;
+  const currentReview = openSubmission?.reviews?.[0];
   const evaluatedCommitMatches =
     !openSubmission ||
     !["pull_request", "repository"].includes(openSubmission.submissionType) ||
@@ -368,6 +572,7 @@ export default function CustomerProjectWorkPage() {
         latestEvaluation.evaluatedCommitSha.toLowerCase(),
     );
   const approvalReady = Boolean(
+    allCriteriaRated &&
     latestEvaluation?.status === "completed" &&
     evaluatedCommitMatches &&
     ["approve", "manual_review"].includes(
@@ -521,22 +726,119 @@ export default function CustomerProjectWorkPage() {
                 <div className="mt-4 space-y-4">
                   <EvidenceList submission={openSubmission} />
                   <EvaluationSummary detail={openSubmission} />
+                  {currentReview && (
+                    <HumanReviewSummary review={currentReview} />
+                  )}
                 </div>
 
                 {canDecide ? (
-                  <div className="mt-5 space-y-3">
+                  <div className="mt-5 space-y-4">
+                    {reviewCriteria.length > 0 && (
+                      <div className="space-y-3 rounded-lg border border-outline-variant/40 bg-surface-container-low p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <h4 className="text-sm font-semibold text-on-surface">
+                              Human criterion review
+                            </h4>
+                            <p className="mt-1 text-xs text-on-surface-variant">
+                              Rate every applicable criterion from 1 to 5. Add a
+                              focused comment wherever it helps the freelancer
+                              act on your decision.
+                            </p>
+                          </div>
+                          {humanRatingAverage !== null && allCriteriaRated && (
+                            <span className="rounded-full bg-primary-container/10 px-3 py-1 text-sm font-semibold text-primary-container">
+                              Average {humanRatingAverage.toFixed(1)}/5
+                            </span>
+                          )}
+                        </div>
+                        <ol className="space-y-3">
+                          {reviewCriteria.map((criterion, index) => {
+                            const input = criterionReviews[
+                              criterion.criterionKey
+                            ] ?? {
+                              ...criterion,
+                              rating: null,
+                              comment: "",
+                            };
+                            return (
+                              <li
+                                key={criterion.criterionKey}
+                                className="rounded-lg bg-surface-container-lowest p-4"
+                              >
+                                <p className="text-sm font-medium leading-6 text-on-surface">
+                                  {index + 1}. {criterion.criterion}
+                                </p>
+                                <div
+                                  className="mt-3 flex flex-wrap gap-2"
+                                  aria-label={`Rating for ${criterion.criterion}`}
+                                >
+                                  {[1, 2, 3, 4, 5].map((rating) => (
+                                    <button
+                                      key={rating}
+                                      type="button"
+                                      aria-pressed={input.rating === rating}
+                                      onClick={() =>
+                                        setCriterionReviews((current) => ({
+                                          ...current,
+                                          [criterion.criterionKey]: {
+                                            ...input,
+                                            rating,
+                                          },
+                                        }))
+                                      }
+                                      className={`rounded-md border px-3 py-1.5 text-sm font-semibold transition-colors ${
+                                        input.rating === rating
+                                          ? "border-primary-container bg-primary-container text-on-primary"
+                                          : "border-outline-variant bg-surface-container-lowest text-on-surface-variant hover:border-primary-container hover:text-primary-container"
+                                      }`}
+                                    >
+                                      {rating}/5
+                                    </button>
+                                  ))}
+                                </div>
+                                <label
+                                  htmlFor={`criterion-comment-${criterion.criterionKey}`}
+                                  className="mt-3 block text-xs font-medium text-on-surface-variant"
+                                >
+                                  Criterion comment (optional)
+                                </label>
+                                <textarea
+                                  id={`criterion-comment-${criterion.criterionKey}`}
+                                  rows={2}
+                                  maxLength={4000}
+                                  value={input.comment}
+                                  onChange={(event) =>
+                                    setCriterionReviews((current) => ({
+                                      ...current,
+                                      [criterion.criterionKey]: {
+                                        ...input,
+                                        comment: event.target.value,
+                                      },
+                                    }))
+                                  }
+                                  placeholder="Evidence, issue, or specific improvement for this criterion."
+                                  className="input-halo mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface outline-none transition-all placeholder:text-outline/50"
+                                />
+                              </li>
+                            );
+                          })}
+                        </ol>
+                      </div>
+                    )}
                     <label
                       htmlFor="review-feedback"
                       className="block text-sm font-medium text-on-surface"
                     >
-                      Feedback
+                      General comments
                     </label>
                     <textarea
                       id="review-feedback"
                       rows={3}
+                      maxLength={12000}
                       value={feedback}
                       onChange={(event) => setFeedback(event.target.value)}
-                      placeholder="Required for revisions and manual-review approvals."
+                      placeholder="Summarize the verdict. Required for revisions, rejection, and manual-review approvals."
                       className="input-halo w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-3 text-on-surface outline-none transition-all placeholder:text-outline/50"
                     />
                     {latestEvaluation?.recommendation === "manual_review" && (
@@ -556,11 +858,16 @@ export default function CustomerProjectWorkPage() {
                         </span>
                       </label>
                     )}
+                    {!allCriteriaRated && reviewCriteria.length > 0 && (
+                      <p className="text-sm text-on-surface-variant">
+                        Rate every criterion before submitting a decision.
+                      </p>
+                    )}
                     {!approvalReady && (
                       <p className="text-sm text-on-surface-variant">
                         Approval is locked until the latest evaluation
                         completes, matches this commit, and returns an approving
-                        or manual-review verdict.
+                        or manual-review verdict, and every criterion is rated.
                       </p>
                     )}
                     <div className="flex flex-wrap gap-3">
@@ -578,10 +885,20 @@ export default function CustomerProjectWorkPage() {
                         variant="outline"
                         onClick={() => decide("changes_requested")}
                         loading={deciding === "revise"}
-                        disabled={deciding !== null}
+                        disabled={deciding !== null || !allCriteriaRated}
                       >
                         <MessageSquareWarning size={15} />
                         Request changes
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => decide("rejected")}
+                        loading={deciding === "reject"}
+                        disabled={deciding !== null || !allCriteriaRated}
+                      >
+                        <XCircle size={15} />
+                        Reject version
                       </Button>
                     </div>
                   </div>

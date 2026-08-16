@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { Bell, Check, X } from "lucide-react";
 import { clsx } from "clsx";
 import {
@@ -10,43 +11,61 @@ import {
   type Notification,
 } from "@/services/notifications";
 
-const NOTIFICATION_CACHE_MS = 30_000;
+const NOTIFICATION_POLL_MS = 10_000;
 
 export function NotificationDropdown() {
-  const lastLoadedAtRef = useRef(0);
+  const inFlightRef = useRef(false);
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadNotifications = useCallback(async (force = false) => {
-    if (!force && Date.now() - lastLoadedAtRef.current < NOTIFICATION_CACHE_MS) {
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
+  const loadNotifications = useCallback(async (showLoading = false) => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    if (showLoading) setLoading(true);
     try {
       const { data, unreadCount } = await getNotifications();
       setNotifications(data);
       setUnreadCount(unreadCount);
-      lastLoadedAtRef.current = Date.now();
+      setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load notifications");
+      setError(
+        err instanceof Error ? err.message : "Failed to load notifications",
+      );
     } finally {
+      inFlightRef.current = false;
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (!isOpen) return;
+    const initialLoad = window.setTimeout(() => {
+      void loadNotifications(true);
+    }, 0);
+    const interval = window.setInterval(() => {
+      void loadNotifications();
+    }, NOTIFICATION_POLL_MS);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void loadNotifications();
+    };
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearTimeout(initialLoad);
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [loadNotifications]);
 
-    const loadTimer = window.setTimeout(() => {
+  useEffect(() => {
+    if (!isOpen) return;
+    const openLoad = window.setTimeout(() => {
       void loadNotifications();
     }, 0);
-
-    return () => window.clearTimeout(loadTimer);
+    return () => window.clearTimeout(openLoad);
   }, [isOpen, loadNotifications]);
 
   const handleMarkRead = async (id: string) => {
@@ -54,7 +73,9 @@ export function NotificationDropdown() {
     const previousUnreadCount = unreadCount;
     setNotifications((items) =>
       items.map((item) =>
-        item.id === id ? { ...item, isRead: true, readAt: new Date().toISOString() } : item,
+        item.id === id
+          ? { ...item, isRead: true, readAt: new Date().toISOString() }
+          : item,
       ),
     );
     setUnreadCount((count) => Math.max(0, count - 1));
@@ -72,7 +93,11 @@ export function NotificationDropdown() {
     const previousNotifications = notifications;
     const previousUnreadCount = unreadCount;
     setNotifications((items) =>
-      items.map((item) => ({ ...item, isRead: true, readAt: new Date().toISOString() })),
+      items.map((item) => ({
+        ...item,
+        isRead: true,
+        readAt: new Date().toISOString(),
+      })),
     );
     setUnreadCount(0);
 
@@ -99,15 +124,16 @@ export function NotificationDropdown() {
     return `${diffDays}d ago`;
   };
 
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case "assessment_approved":
-        return <Check className="h-4 w-4 text-green-500" />;
-      case "assessment_rejected":
-        return <X className="h-4 w-4 text-red-500" />;
-      default:
-        return <Bell className="h-4 w-4 text-blue-500" />;
+  const getTypeIcon = (notification: Notification) => {
+    const kind =
+      `${notification.type ?? ""} ${notification.title}`.toLowerCase();
+    if (kind.includes("approved")) {
+      return <Check className="h-4 w-4 text-green-500" />;
     }
+    if (kind.includes("rejected") || kind.includes("revision")) {
+      return <X className="h-4 w-4 text-red-500" />;
+    }
+    return <Bell className="h-4 w-4 text-blue-500" />;
   };
 
   return (
@@ -127,7 +153,10 @@ export function NotificationDropdown() {
 
       {isOpen && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setIsOpen(false)}
+          />
           <div className="absolute right-0 top-full z-50 mt-2 w-80 max-h-[400px] overflow-y-auto rounded-xl border border-outline-variant/30 bg-surface-container-lowest shadow-lg">
             <div className="sticky top-0 flex items-center justify-between border-b border-outline-variant/30 bg-surface-container-lowest px-4 py-3">
               <h3 className="font-semibold text-on-surface">Notifications</h3>
@@ -168,19 +197,19 @@ export function NotificationDropdown() {
                     key={n.id}
                     className={clsx(
                       "px-4 py-3 transition-colors hover:bg-surface-container-low",
-                      !n.isRead && "bg-primary-container/5"
+                      !n.isRead && "bg-primary-container/5",
                     )}
                   >
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 flex-shrink-0">
-                        {getTypeIcon(n.type)}
+                        {getTypeIcon(n)}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-on-surface">
                           {n.title}
                         </p>
                         <p className="text-xs text-on-surface-variant line-clamp-2">
-                          {n.body}
+                          {n.body || "Open Messages for more details."}
                         </p>
                         <p className="mt-1 text-[10px] text-on-surface-variant/60">
                           {formatTime(n.createdAt)}
@@ -202,6 +231,15 @@ export function NotificationDropdown() {
                 ))}
               </div>
             )}
+            <div className="sticky bottom-0 border-t border-outline-variant/30 bg-surface-container-lowest p-3">
+              <Link
+                href="/messages"
+                onClick={() => setIsOpen(false)}
+                className="block rounded-md px-3 py-2 text-center text-sm font-semibold text-primary-container hover:bg-surface-container-low"
+              >
+                View all messages
+              </Link>
+            </div>
           </div>
         </>
       )}

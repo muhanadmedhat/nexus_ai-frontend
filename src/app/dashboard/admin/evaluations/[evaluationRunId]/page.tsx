@@ -300,6 +300,14 @@ export default function AdminEvaluationDetail() {
             </dl>
 
             <div className="mt-5 grid gap-2">
+              {run.submissionId && (
+                <Link
+                  href={`/dashboard/admin/submissions/${run.submissionId}`}
+                  className="inline-flex items-center justify-center rounded-lg border border-primary-container/30 px-4 py-2 text-sm font-semibold text-primary-container transition-colors hover:bg-primary-container/5"
+                >
+                  Review submission
+                </Link>
+              )}
               <Button
                 type="button"
                 loading={retrying}

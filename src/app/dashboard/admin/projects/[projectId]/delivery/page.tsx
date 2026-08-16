@@ -13,7 +13,11 @@ import {
   TaskList,
 } from "@/components/delivery";
 import { toNumber } from "@/components/delivery/helpers";
-import { getMilestones, getTasks, type ProjectMilestone } from "@/services/planning";
+import {
+  getMilestones,
+  getTasks,
+  type ProjectMilestone,
+} from "@/services/planning";
 import { getProject } from "@/services/projects";
 import { listDeliverySubmissions } from "@/services/project-submissions";
 import { listRevisionRequests } from "@/services/revisions";
@@ -31,9 +35,8 @@ import type {
  * Admin project delivery workspace.
  *
  * This file owns the shell, the shared status components, and sections 3, 5
- * and 6. Sections 1 and 2 (repository, implementation matching) and section 4's
- * evaluation panel belong to other verticals and mount into the slots below —
- * replace each PanelSlot with the real component when that service lands.
+ * and 6. Sections 1 and 2 (repository and implementation matching) belong to
+ * other verticals and mount into the slots below.
  */
 
 function Section({
@@ -53,10 +56,14 @@ function Section({
         <span className="font-mono text-xs text-on-surface-variant tabular-nums">
           {String(index).padStart(2, "0")}
         </span>
-        <h3 className="font-headline text-xl font-semibold text-on-surface">{title}</h3>
+        <h3 className="font-headline text-xl font-semibold text-on-surface">
+          {title}
+        </h3>
       </div>
       {description && (
-        <p className="-mt-2 mb-4 text-sm text-on-surface-variant">{description}</p>
+        <p className="-mt-2 mb-4 text-sm text-on-surface-variant">
+          {description}
+        </p>
       )}
       {children}
     </section>
@@ -112,29 +119,45 @@ export default function AdminProjectDeliveryPage() {
           revisionsResult,
           releasesResult,
         ]) => {
-          setProject(projectResult.status === "fulfilled" ? projectResult.value : null);
+          setProject(
+            projectResult.status === "fulfilled" ? projectResult.value : null,
+          );
           setMilestones(
-            milestonesResult.status === "fulfilled" ? milestonesResult.value : [],
+            milestonesResult.status === "fulfilled"
+              ? milestonesResult.value
+              : [],
           );
           setTasks(
-            tasksResult.status === "fulfilled" ? (tasksResult.value as DeliveryTask[]) : [],
+            tasksResult.status === "fulfilled"
+              ? (tasksResult.value as DeliveryTask[])
+              : [],
           );
           setSubmissions(
-            submissionsResult.status === "fulfilled" ? submissionsResult.value.items : [],
+            submissionsResult.status === "fulfilled"
+              ? submissionsResult.value.items
+              : [],
           );
           setRevisions(
-            revisionsResult.status === "fulfilled" ? revisionsResult.value.items : [],
+            revisionsResult.status === "fulfilled"
+              ? revisionsResult.value.items
+              : [],
           );
           setReleases(
-            releasesResult.status === "fulfilled" ? releasesResult.value.items : [],
+            releasesResult.status === "fulfilled"
+              ? releasesResult.value.items
+              : [],
           );
 
           const failures: string[] = [];
-          if (milestonesResult.status === "rejected") failures.push("milestones");
+          if (milestonesResult.status === "rejected")
+            failures.push("milestones");
           if (tasksResult.status === "rejected") failures.push("tasks");
-          if (submissionsResult.status === "rejected") failures.push("submissions");
-          if (revisionsResult.status === "rejected") failures.push("revision requests");
-          if (releasesResult.status === "rejected") failures.push("payment releases");
+          if (submissionsResult.status === "rejected")
+            failures.push("submissions");
+          if (revisionsResult.status === "rejected")
+            failures.push("revision requests");
+          if (releasesResult.status === "rejected")
+            failures.push("payment releases");
           setLoadErrors(failures);
         },
       )
@@ -175,7 +198,9 @@ export default function AdminProjectDeliveryPage() {
       </Link>
 
       {loading ? (
-        <p className="text-sm text-on-surface-variant">Loading project delivery...</p>
+        <p className="text-sm text-on-surface-variant">
+          Loading project delivery...
+        </p>
       ) : (
         <div className="space-y-5">
           {loadErrors.length > 0 && (
@@ -209,7 +234,10 @@ export default function AdminProjectDeliveryPage() {
             title="Implementation task matching"
             description="Task-level matching runs and candidate approval."
           >
-            <PanelSlot owner="Sameh" service="src/services/implementation-matching.ts" />
+            <PanelSlot
+              owner="Sameh"
+              service="src/services/implementation-matching.ts"
+            />
           </Section>
 
           <Section
@@ -257,31 +285,30 @@ export default function AdminProjectDeliveryPage() {
             {submissions.length ? (
               <ul className="space-y-2">
                 {submissions.map((submission) => (
-                  <li
-                    key={submission.id}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-outline-variant/30 px-4 py-3"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate font-medium text-on-surface">
-                        {submission.title || "Untitled submission"}
+                  <li key={submission.id}>
+                    <Link
+                      href={`/dashboard/admin/submissions/${submission.id}`}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-outline-variant/30 px-4 py-3 transition-colors hover:bg-surface-container-low focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium text-on-surface">
+                          {submission.title || "Untitled submission"}
+                        </span>
+                        <span className="text-xs text-on-surface-variant">
+                          Version {submission.version}
+                          {submission.submittedAt
+                            ? ` · ${formatDate(submission.submittedAt)}`
+                            : ""}
+                        </span>
                       </span>
-                      <span className="text-xs text-on-surface-variant">
-                        Version {submission.version}
-                        {submission.submittedAt
-                          ? ` · ${formatDate(submission.submittedAt)}`
-                          : ""}
-                      </span>
-                    </span>
-                    <StatusBadge status={submission.status} />
+                      <StatusBadge status={submission.status} />
+                    </Link>
                   </li>
                 ))}
               </ul>
             ) : (
               <DeliveryEmpty title="Nothing submitted yet" />
             )}
-            <div className="mt-4">
-              <PanelSlot owner="Ebrahim" service="src/services/evaluations.ts" />
-            </div>
           </Section>
 
           <Section index={5} title="Revisions">

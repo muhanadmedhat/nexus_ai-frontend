@@ -89,6 +89,11 @@ export interface ReviewSubmissionPayload {
   feedback?: string;
   requestedChanges?: RequestedChanges;
   score?: number;
+  criteriaReviews?: Array<{
+    criterionKey: string;
+    rating: number;
+    comment?: string;
+  }>;
   createRevisionRequest?: boolean;
   releasePayment?: boolean;
   manualReviewAcknowledged?: boolean;
@@ -182,6 +187,31 @@ export async function listDeliverySubmissions(
     return toPaginated(data, params);
   } catch (error) {
     throw new Error(getApiErrorMessage(error, "Could not load submissions"));
+  }
+}
+
+export async function listAdminDeliverySubmissions(
+  params?: SubmissionListParams,
+): Promise<PaginatedResult<ProjectSubmission>> {
+  if (deliveryFixturesEnabled()) {
+    const matching = fixtureSubmissions.filter(
+      (submission) =>
+        (!params?.taskId || submission.taskId === params.taskId) &&
+        (!params?.status || submission.status === params.status),
+    );
+    return paginateFixture(matching, params?.page, params?.limit);
+  }
+
+  try {
+    const query = toQuery(params);
+    const { data } = await api.get<ApiPaginatedResponse<ProjectSubmission>>(
+      `${deliveryEndpoints.submissions.adminList}${query ? `?${query}` : ""}`,
+    );
+    return toPaginated(data, params);
+  } catch (error) {
+    throw new Error(
+      getApiErrorMessage(error, "Could not load the submission review queue"),
+    );
   }
 }
 

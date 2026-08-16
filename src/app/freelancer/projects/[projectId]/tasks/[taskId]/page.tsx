@@ -44,6 +44,7 @@ import type {
   ProjectRevisionRequest,
   ProjectSubmission,
   ProjectSubmissionReview,
+  SubmissionCriterionReview,
   SubmissionType,
 } from "@/types/delivery";
 
@@ -207,6 +208,27 @@ function SubmissionReceipt({
       ? submission.content.notes
       : null;
   const requestedChanges = review?.requestedChanges?.items ?? [];
+  const criterionReviews = Array.isArray(review?.metadata?.criteriaReviews)
+    ? (review.metadata.criteriaReviews as unknown[]).flatMap((value) => {
+        if (!value || typeof value !== "object") return [];
+        const item = value as Record<string, unknown>;
+        if (
+          typeof item.criterionKey !== "string" ||
+          typeof item.criterion !== "string" ||
+          typeof item.rating !== "number"
+        ) {
+          return [];
+        }
+        return [
+          {
+            criterionKey: item.criterionKey,
+            criterion: item.criterion,
+            rating: item.rating,
+            comment: typeof item.comment === "string" ? item.comment : null,
+          } satisfies SubmissionCriterionReview,
+        ];
+      })
+    : [];
 
   return (
     <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
@@ -290,9 +312,38 @@ function SubmissionReceipt({
             <StatusBadge status={review.decision} />
           </div>
           {review.feedback && (
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-on-surface-variant">
-              {review.feedback}
-            </p>
+            <div className="mt-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+                General comments
+              </p>
+              <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-on-surface-variant">
+                {review.feedback}
+              </p>
+            </div>
+          )}
+          {criterionReviews.length > 0 && (
+            <ul className="mt-4 space-y-3">
+              {criterionReviews.map((item, index) => (
+                <li
+                  key={item.criterionKey}
+                  className="rounded-md bg-surface-container-lowest p-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-sm font-medium text-on-surface">
+                      {index + 1}. {item.criterion}
+                    </span>
+                    <span className="shrink-0 rounded-full bg-primary-container/10 px-2.5 py-1 text-xs font-semibold text-primary-container">
+                      {item.rating}/5
+                    </span>
+                  </div>
+                  {item.comment && (
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-on-surface-variant">
+                      {item.comment}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
           )}
           {requestedChanges.length > 0 && (
             <ul className="mt-3 space-y-1 text-sm text-on-surface-variant">
@@ -459,9 +510,11 @@ export default function FreelancerTaskWorkPage() {
   useEffect(() => {
     if (!latestSubmission?.id) return;
     let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
+    let inFlight = false;
 
-    const loadEvaluation = async (): Promise<void> => {
+    const loadLatestSubmission = async (): Promise<void> => {
+      if (inFlight) return;
+      inFlight = true;
       try {
         const detail = await getDeliverySubmission(latestSubmission.id);
         if (cancelled) return;
@@ -469,11 +522,21 @@ export default function FreelancerTaskWorkPage() {
           detail.latestEvaluationRun ?? detail.evaluationRun ?? null;
         setLatestDetail(detail);
         setLatestEvaluation(evaluation);
-        setSubmissions((current) =>
-          current.map((submission) =>
-            submission.id === detail.id ? detail : submission,
-          ),
-        );
+        setSubmissions((current) => {
+          let changed = false;
+          const next = current.map((submission) => {
+            if (submission.id !== detail.id) return submission;
+            if (
+              submission.status === detail.status &&
+              submission.updatedAt === detail.updatedAt
+            ) {
+              return submission;
+            }
+            changed = true;
+            return detail;
+          });
+          return changed ? next : current;
+        });
         if (detail.task) {
           setAllTasks((current) =>
             current.map((item) =>
@@ -487,20 +550,31 @@ export default function FreelancerTaskWorkPage() {
         if (detail.openRevisionRequests) {
           setRevisions(detail.openRevisionRequests);
         }
-        if (
-          ["submitted", "under_review"].includes(detail.status) ||
-          (evaluation && ["queued", "running"].includes(evaluation.status))
-        ) {
-          timer = setTimeout(() => void loadEvaluation(), 5_000);
-        }
       } catch {
-        if (!cancelled) setLatestEvaluation(null);
+        // A transient request failure must not stop later polling attempts.
+      } finally {
+        inFlight = false;
       }
     };
-    void loadEvaluation();
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        void loadLatestSubmission();
+      }
+    };
+    const awaitingDecision = ["submitted", "under_review"].includes(
+      latestSubmission.status,
+    );
+    const interval = awaitingDecision
+      ? window.setInterval(() => void loadLatestSubmission(), 3_000)
+      : null;
+    void loadLatestSubmission();
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
       cancelled = true;
-      if (timer) clearTimeout(timer);
+      if (interval) window.clearInterval(interval);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, [latestSubmission?.id, latestSubmission?.status]);
 
@@ -745,7 +819,22 @@ export default function FreelancerTaskWorkPage() {
               </section>
             )}
 
-            {showSubmissionForm ? (
+            {latestSubmission && latestSubmission.status !== "draft" && (
+              <SubmissionReceipt
+                submission={latestSubmission}
+                review={latestReview}
+                onRevise={
+                  latestSubmission.status === "rejected"
+                    ? () => {
+                        setForm(formFromSubmission(latestSubmission));
+                        setStartNewVersion(true);
+                      }
+                    : undefined
+                }
+              />
+            )}
+
+            {showSubmissionForm && (
               <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
                 <h3 className="font-headline text-xl font-semibold text-on-surface">
                   {editableSubmission
@@ -921,20 +1010,7 @@ export default function FreelancerTaskWorkPage() {
                   </Button>
                 </div>
               </section>
-            ) : latestSubmission ? (
-              <SubmissionReceipt
-                submission={latestSubmission}
-                review={latestReview}
-                onRevise={
-                  latestSubmission.status === "rejected"
-                    ? () => {
-                        setForm(formFromSubmission(latestSubmission));
-                        setStartNewVersion(true);
-                      }
-                    : undefined
-                }
-              />
-            ) : null}
+            )}
           </main>
 
           <aside className="space-y-4">

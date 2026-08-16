@@ -117,6 +117,13 @@ export interface ProjectSubmissionReview {
   createdAt: string; // ISO date
 }
 
+export interface SubmissionCriterionReview {
+  criterionKey: string;
+  criterion: string;
+  rating: number;
+  comment: string | null;
+}
+
 export interface ProjectRevisionRequest {
   id: string;
   projectId: string;
@@ -164,8 +171,10 @@ export interface EvaluationRubricItem {
   criterion: string;
   category?: string;
   status?: "met" | "not_applicable" | "unmet";
-  met: boolean;
-  evidence: string;
+  met?: boolean;
+  evidence?: string;
+  mandatory?: boolean;
+  allowNotApplicable?: boolean;
 }
 
 export interface EvaluationAcceptanceCoverage {
@@ -175,6 +184,10 @@ export interface EvaluationAcceptanceCoverage {
   unmet: number;
   pending?: number;
   items: EvaluationRubricItem[];
+  rubricSnapshot?: {
+    criteria?: EvaluationRubricItem[];
+    [key: string]: unknown;
+  };
 }
 
 export interface EvaluationFindings {
