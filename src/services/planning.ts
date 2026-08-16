@@ -8,17 +8,22 @@ export interface PlanningRequirement {
   description: string;
   mandatory: boolean;
   requiresUrl: boolean;
+  applicability: "required" | "optional";
+  allowNotApplicable: boolean;
+  rationale: string;
 }
 
 export interface PlanningRequirementEvidence {
   summary: string;
   urls: string[];
+  disposition?: "covered" | "not_applicable";
+  notApplicableReason?: string;
 }
 
 export interface PlanningEvaluationCheck {
   key: string;
   title: string;
-  status: "met" | "partial" | "missing" | "conflict";
+  status: "met" | "not_applicable" | "partial" | "missing" | "conflict";
   mandatory: boolean;
   severity: "info" | "minor" | "major" | "blocker";
   evidence: string;
@@ -87,6 +92,13 @@ export interface PlanningRequirementsResponse {
   submissionType: "architecture" | "ui_ux";
   architectureApproved: boolean;
   architectureSubmissionId: string | null;
+  profile: {
+    complexity: "trivial" | "standard" | "complex";
+    rationale: string;
+    featureCount: number;
+    features: string[];
+    capabilities: Record<string, boolean>;
+  };
   requirements: PlanningRequirement[];
 }
 
@@ -110,7 +122,13 @@ export interface PlanningSubmission {
   fileUrls?: JsonObject;
   adminNotes?: string | null;
   reviewedBy?: string | null;
-  evaluationStatus?: "pending" | "pending_architecture" | "queued" | "running" | "completed" | "failed";
+  evaluationStatus?:
+    | "pending"
+    | "pending_architecture"
+    | "queued"
+    | "running"
+    | "completed"
+    | "failed";
   evaluationScore?: number | null;
   evaluationRecommendation?: "approve" | "changes_requested" | "reject" | null;
   evaluationRequirements?: JsonObject | null;
@@ -250,21 +268,35 @@ interface ApiDataResponse<T> {
 }
 
 function dataOrArray<T>(payload: ApiDataResponse<T[]> | T[]): T[] {
-  return Array.isArray(payload) ? payload : Array.isArray(payload.data) ? payload.data : [];
+  return Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload.data)
+      ? payload.data
+      : [];
 }
 
 export async function createPlanningSubmission(
   projectId: string,
-  payload: { assignmentId: string; submissionType: "architecture" | "ui_ux"; title: string; summary: string; content: JsonObject; fileUrls: JsonObject; status: "submitted" | "draft" }
+  payload: {
+    assignmentId: string;
+    submissionType: "architecture" | "ui_ux";
+    title: string;
+    summary: string;
+    content: JsonObject;
+    fileUrls: JsonObject;
+    status: "submitted" | "draft";
+  },
 ) {
   try {
     const { data } = await api.post<ApiDataResponse<PlanningSubmission>>(
       sprint4Endpoints.planning.createSubmission(projectId),
-      payload
+      payload,
     );
     return data.data;
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not create planning submission"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not create planning submission"),
+    );
   }
 }
 
@@ -272,60 +304,83 @@ export async function uploadPlanningArtifact(projectId: string, file: File) {
   const form = new FormData();
   form.append("file", file);
   try {
-    const { data } = await api.post<ApiDataResponse<{
-      url: string;
-      publicId: string;
-      storageVersion: number;
-      originalName: string;
-      contentType: string;
-      sizeBytes: number;
-      sha256: string;
-    }>>(sprint4Endpoints.planning.uploadArtifact(projectId), form);
+    const { data } = await api.post<
+      ApiDataResponse<{
+        url: string;
+        publicId: string;
+        storageVersion: number;
+        originalName: string;
+        contentType: string;
+        sizeBytes: number;
+        sha256: string;
+      }>
+    >(sprint4Endpoints.planning.uploadArtifact(projectId), form);
     return data.data;
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not upload planning artifact"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not upload planning artifact"),
+    );
   }
 }
 
 export async function getPlanningRequirements(
   projectId: string,
-  submissionType: "architecture" | "ui_ux"
+  submissionType: "architecture" | "ui_ux",
 ): Promise<PlanningRequirementsResponse> {
   try {
-    const { data } = await api.get<ApiDataResponse<PlanningRequirementsResponse>>(
-      sprint4Endpoints.planning.requirements(projectId, submissionType)
-    );
+    const { data } = await api.get<
+      ApiDataResponse<PlanningRequirementsResponse>
+    >(sprint4Endpoints.planning.requirements(projectId, submissionType));
     return data.data;
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not load planning requirements"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not load planning requirements"),
+    );
   }
 }
 
-export async function getProjectSubmissions(projectId: string, params?: { submissionType?: string; status?: string; page?: number; limit?: number }) {
+export async function getProjectSubmissions(
+  projectId: string,
+  params?: {
+    submissionType?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+  },
+) {
   try {
     const query = new URLSearchParams();
-    if (params?.submissionType) query.append("submissionType", params.submissionType);
+    if (params?.submissionType)
+      query.append("submissionType", params.submissionType);
     if (params?.status) query.append("status", params.status);
     if (params?.page) query.append("page", String(params.page));
     if (params?.limit) query.append("limit", String(params.limit));
 
-    const { data } = await api.get<ApiDataResponse<PlanningSubmission[]> | PlanningSubmission[]>(
-      `${sprint4Endpoints.planning.projectSubmissions(projectId)}?${query.toString()}`
+    const { data } = await api.get<
+      ApiDataResponse<PlanningSubmission[]> | PlanningSubmission[]
+    >(
+      `${sprint4Endpoints.planning.projectSubmissions(projectId)}?${query.toString()}`,
     );
     return dataOrArray<PlanningSubmission>(data);
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not load planning submissions"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not load planning submissions"),
+    );
   }
 }
 
-export async function getSubmissionDetail(submissionId: string): Promise<PlanningSubmission> {
+export async function getSubmissionDetail(
+  submissionId: string,
+): Promise<PlanningSubmission> {
   try {
     const { data } = await api.get<ApiDataResponse<PlanningSubmission>>(
-      sprint4Endpoints.planning.submissionDetail(submissionId)
+      sprint4Endpoints.planning.submissionDetail(submissionId),
     );
     return data.data;
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not load submission detail"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not load submission detail"),
+    );
   }
 }
 
@@ -336,12 +391,12 @@ export async function reviewSubmission(
     adminNotes?: string;
     aiOverride?: boolean;
     aiOverrideReason?: string;
-  }
+  },
 ) {
   try {
     const { data } = await api.patch<ApiDataResponse<ReviewSubmissionResult>>(
       sprint4Endpoints.planning.reviewSubmission(submissionId),
-      payload
+      payload,
     );
     return data.data;
   } catch (error) {
@@ -351,43 +406,65 @@ export async function reviewSubmission(
 
 export async function retryPlanningEvaluation(submissionId: string) {
   try {
-    const { data } = await api.post<ApiDataResponse<{
-      status: string;
-      submissionId: string;
-      agentJobId?: string | null;
-      error?: string;
-    }>>(sprint4Endpoints.planning.retrySubmissionEvaluation(submissionId));
+    const { data } = await api.post<
+      ApiDataResponse<{
+        status: string;
+        submissionId: string;
+        agentJobId?: string | null;
+        error?: string;
+      }>
+    >(sprint4Endpoints.planning.retrySubmissionEvaluation(submissionId));
     return data.data;
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not retry planning evaluation"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not retry planning evaluation"),
+    );
   }
 }
 
 export async function generateProjectPlan(
   projectId: string,
-  payload: { architectureSubmissionId: string; uiuxSubmissionId: string; mode?: "async" | "sync"; notes?: string }
+  payload: {
+    architectureSubmissionId: string;
+    uiuxSubmissionId: string;
+    mode?: "async" | "sync";
+    notes?: string;
+  },
 ) {
   try {
     const { data } = await api.post<ApiDataResponse<ReviewProjectPlanResult>>(
       sprint4Endpoints.planning.generatePlan(projectId),
-      payload
+      payload,
     );
     return data.data;
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not generate project plan"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not generate project plan"),
+    );
   }
 }
 
-export async function getProjectPlans(projectId: string, params?: { status?: string; isCurrent?: string | boolean; page?: number; limit?: number }) {
+export async function getProjectPlans(
+  projectId: string,
+  params?: {
+    status?: string;
+    isCurrent?: string | boolean;
+    page?: number;
+    limit?: number;
+  },
+) {
   try {
     const query = new URLSearchParams();
     if (params?.status) query.append("status", params.status);
-    if (params?.isCurrent !== undefined) query.append("isCurrent", String(params.isCurrent));
+    if (params?.isCurrent !== undefined)
+      query.append("isCurrent", String(params.isCurrent));
     if (params?.page) query.append("page", String(params.page));
     if (params?.limit) query.append("limit", String(params.limit));
 
-    const { data } = await api.get<ApiDataResponse<ProjectPlan[]> | ProjectPlan[]>(
-      `${sprint4Endpoints.planning.projectPlans(projectId)}?${query.toString()}`
+    const { data } = await api.get<
+      ApiDataResponse<ProjectPlan[]> | ProjectPlan[]
+    >(
+      `${sprint4Endpoints.planning.projectPlans(projectId)}?${query.toString()}`,
     );
     return dataOrArray<ProjectPlan>(data);
   } catch (error) {
@@ -395,25 +472,33 @@ export async function getProjectPlans(projectId: string, params?: { status?: str
   }
 }
 
-export async function getProjectPlanDetail(planId: string): Promise<ProjectPlan> {
+export async function getProjectPlanDetail(
+  planId: string,
+): Promise<ProjectPlan> {
   try {
     const { data } = await api.get<ApiDataResponse<ProjectPlan>>(
-      sprint4Endpoints.planning.planDetail(planId)
+      sprint4Endpoints.planning.planDetail(planId),
     );
     return data.data;
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not load project plan detail"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not load project plan detail"),
+    );
   }
 }
 
 export async function reviewProjectPlan(
   planId: string,
-  payload: { status: "approved" | "changes_requested" | "rejected"; adminNotes?: string; materialize?: boolean }
+  payload: {
+    status: "approved" | "changes_requested" | "rejected";
+    adminNotes?: string;
+    materialize?: boolean;
+  },
 ) {
   try {
     const { data } = await api.patch<ApiDataResponse<ReviewProjectPlanResult>>(
       sprint4Endpoints.planning.reviewPlan(planId),
-      payload
+      payload,
     );
     return data.data;
   } catch (error) {
@@ -423,23 +508,25 @@ export async function reviewProjectPlan(
 
 export async function materializeProjectPlan(
   planId: string,
-  payload: { replaceExisting?: boolean } = {}
+  payload: { replaceExisting?: boolean } = {},
 ) {
   try {
     const { data } = await api.post<ApiDataResponse<ReviewProjectPlanResult>>(
       sprint4Endpoints.planning.materializePlan(planId),
-      payload
+      payload,
     );
     return data.data;
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not materialize project plan"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not materialize project plan"),
+    );
   }
 }
 
 export async function getMilestones(projectId: string) {
   try {
     const { data } = await api.get<ApiDataResponse<ProjectMilestone[]>>(
-      sprint4Endpoints.planning.milestones(projectId)
+      sprint4Endpoints.planning.milestones(projectId),
     );
     return Array.isArray(data.data) ? data.data : [];
   } catch (error) {
@@ -447,18 +534,31 @@ export async function getMilestones(projectId: string) {
   }
 }
 
-export async function getTasks(projectId: string, params?: { milestoneId?: string; status?: string; assignedFreelancerProfileId?: string; page?: number; limit?: number }) {
+export async function getTasks(
+  projectId: string,
+  params?: {
+    milestoneId?: string;
+    status?: string;
+    assignedFreelancerProfileId?: string;
+    page?: number;
+    limit?: number;
+  },
+) {
   try {
     const query = new URLSearchParams();
     if (params?.milestoneId) query.append("milestoneId", params.milestoneId);
     if (params?.status) query.append("status", params.status);
-    if (params?.assignedFreelancerProfileId) query.append("assignedFreelancerProfileId", params.assignedFreelancerProfileId);
+    if (params?.assignedFreelancerProfileId)
+      query.append(
+        "assignedFreelancerProfileId",
+        params.assignedFreelancerProfileId,
+      );
     if (params?.page) query.append("page", String(params.page));
     if (params?.limit) query.append("limit", String(params.limit));
 
-    const { data } = await api.get<ApiDataResponse<ProjectTask[] | { tasks: ProjectTask[] }>>(
-      `${sprint4Endpoints.planning.tasks(projectId)}?${query.toString()}`
-    );
+    const { data } = await api.get<
+      ApiDataResponse<ProjectTask[] | { tasks: ProjectTask[] }>
+    >(`${sprint4Endpoints.planning.tasks(projectId)}?${query.toString()}`);
     if (Array.isArray(data.data)) return data.data;
     return Array.isArray(data.data.tasks) ? data.data.tasks : [];
   } catch (error) {
@@ -466,11 +566,14 @@ export async function getTasks(projectId: string, params?: { milestoneId?: strin
   }
 }
 
-export async function updateTask(taskId: string, payload: { status?: string; notes?: string }) {
+export async function updateTask(
+  taskId: string,
+  payload: { status?: string; notes?: string },
+) {
   try {
     const { data } = await api.patch<ApiDataResponse<ProjectTask>>(
       sprint4Endpoints.planning.updateTask(taskId),
-      payload
+      payload,
     );
     return data.data;
   } catch (error) {
