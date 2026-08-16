@@ -1,6 +1,10 @@
 import axios from "axios";
 import { API_ENDPOINTS, api, getApiErrorMessage } from "@/lib/api";
-import type { CreateProjectInput, Project, ProjectStatus } from "@/types/project";
+import type {
+  CreateProjectInput,
+  Project,
+  ProjectStatus,
+} from "@/types/project";
 
 interface ApiDataResponse<T> {
   status: string;
@@ -79,7 +83,9 @@ export async function getProject(id: string): Promise<Project | null> {
   }
 }
 
-export async function createProject(input: CreateProjectInput): Promise<Project> {
+export async function createProject(
+  input: CreateProjectInput,
+): Promise<Project> {
   try {
     const { data } = await api.post<ApiDataResponse<BackendProject>>(
       API_ENDPOINTS.projects.base,
@@ -88,6 +94,21 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
     return toProject(data.data);
   } catch (error) {
     throw new Error(getApiErrorMessage(error, "Could not create project"));
+  }
+}
+
+export async function updateProject(
+  id: string,
+  input: Partial<CreateProjectInput>,
+): Promise<Project> {
+  try {
+    const { data } = await api.patch<ApiDataResponse<BackendProject>>(
+      API_ENDPOINTS.projects.detail(id),
+      input,
+    );
+    return toProject(data.data);
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, "Could not update project"));
   }
 }
 

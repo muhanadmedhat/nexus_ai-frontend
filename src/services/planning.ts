@@ -169,6 +169,17 @@ export interface ProjectPlan {
   projectSpec?: JsonObject | null;
   teamPlan: JsonObject;
   riskRegister: JsonObject[];
+  budgetAllocation?: {
+    version: number;
+    totalAmount: string | number;
+    currency: string;
+    complexity: string;
+    planning: {
+      architect: { amount: string | number; percentage: number };
+      ui_ux: { amount: string | number; percentage: number };
+    };
+    implementation: { amount: string | number; percentage: number };
+  } | null;
   adminNotes: string | null;
   approvedBy: string | null;
   approvedAt: string | null;
@@ -598,9 +609,7 @@ export async function getMyFreelancerTasks(params?: {
 
       const { data } = await api.get<
         ApiDataResponse<ProjectTask[]> & { total?: number }
-      >(
-        `${sprint4Endpoints.planning.freelancerTasks}?${query.toString()}`,
-      );
+      >(`${sprint4Endpoints.planning.freelancerTasks}?${query.toString()}`);
       const batch = Array.isArray(data.data) ? data.data : [];
       const total = typeof data.total === "number" ? data.total : null;
       tasks.push(...batch);

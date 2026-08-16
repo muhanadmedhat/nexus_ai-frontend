@@ -111,6 +111,30 @@ export interface ProjectPaymentMilestoneSummary {
   dueAt: string | null;
 }
 
+export interface ProjectBudgetAllocation {
+  version: number;
+  strategy: string;
+  totalAmount: string | number;
+  currency: string;
+  complexity: "trivial" | "standard" | "complex";
+  planning: {
+    architect: ProjectBudgetRoleAllocation;
+    ui_ux: ProjectBudgetRoleAllocation;
+  };
+  implementation: {
+    percentage: number;
+    amount: string | number;
+  };
+  generatedAt: string;
+}
+
+export interface ProjectBudgetRoleAllocation {
+  percentage: number;
+  amount: string | number;
+  estimatedHours: number;
+  maxHourlyRate: string | number;
+}
+
 export interface ProjectPaymentSummary {
   project: {
     id: string;
@@ -130,6 +154,7 @@ export interface ProjectPaymentSummary {
     notes: string | null;
     isOutOfBudget: boolean;
   };
+  budgetAllocation: ProjectBudgetAllocation | null;
   totals: {
     paidAmount: number;
     pendingAmount: number;

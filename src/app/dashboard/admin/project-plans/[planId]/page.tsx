@@ -36,6 +36,7 @@ type PlanTask = {
   roleKey?: string | null;
   budgetAmount?: number | string | null;
   currency?: string | null;
+  estimatedHours?: number | string | null;
 };
 
 type PlanDetail = Omit<ProjectPlan, "milestones" | "tasks" | "dependencies"> & {
@@ -194,6 +195,43 @@ export default function AdminProjectPlanDetail() {
               </div>
             </section>
 
+            {plan.budgetAllocation && (
+              <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
+                <h4 className="font-headline text-lg font-semibold text-on-surface">
+                  Compensation envelope
+                </h4>
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  The generated tasks share only the implementation pool; UI/UX
+                  and architecture compensation remain reserved separately.
+                </p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  {[
+                    ["UI/UX", plan.budgetAllocation.planning.ui_ux],
+                    ["Architecture", plan.budgetAllocation.planning.architect],
+                    ["Implementation", plan.budgetAllocation.implementation],
+                  ].map(([label, allocation]) => {
+                    const item = allocation as {
+                      amount: string | number;
+                      percentage: number;
+                    };
+                    return (
+                      <div
+                        key={String(label)}
+                        className="rounded-lg bg-surface-container-low p-4"
+                      >
+                        <p className="text-xs text-on-surface-variant">
+                          {String(label)} · {item.percentage}%
+                        </p>
+                        <p className="mt-1 text-xl font-semibold text-on-surface">
+                          {item.amount} {plan.budgetAllocation?.currency}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
             <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
               <h4 className="font-headline text-lg font-semibold text-on-surface">
                 Generated milestones
@@ -248,6 +286,9 @@ export default function AdminProjectPlanDetail() {
                         {task.budgetAmount != null && task.currency
                           ? ` · ${task.budgetAmount} ${task.currency} allocated`
                           : " · compensation missing"}
+                        {task.estimatedHours
+                          ? ` · ${task.estimatedHours}h`
+                          : ""}
                       </span>
                     </div>
                   </div>

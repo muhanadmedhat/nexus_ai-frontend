@@ -72,6 +72,10 @@ export interface RoleAssignment {
   roleBriefGeneratedAt?: string | null;
   roleBriefError?: string | null;
   hourlyRateSnapshot?: string | number | null;
+  allocatedAmount?: string | number | null;
+  budgetAmount?: string | number | null;
+  currency?: string | null;
+  estimatedHours?: number | null;
   availabilityHoursSnapshot?: number | null;
 }
 

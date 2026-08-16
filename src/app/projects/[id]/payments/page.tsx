@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -25,6 +26,8 @@ import {
   type ProjectPaymentSummary,
 } from "@/services/payments";
 import { formatBudget, formatDate, formatMoney } from "@/utils/format";
+import { updateProject } from "@/services/projects";
+import { confirmBrief } from "@/services/brief";
 
 export default function ProjectPaymentsPage() {
   const { id } = useParams<{ id: string }>();
@@ -36,6 +39,9 @@ export default function ProjectPaymentsPage() {
   const [summary, setSummary] = useState<ProjectPaymentSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
+  const [updatingBudget, setUpdatingBudget] = useState(false);
+  const [budgetMin, setBudgetMin] = useState("");
+  const [budgetMax, setBudgetMax] = useState("");
 
   const loadSummary = (syncSessionId?: string | null) => {
     if (!id || user?.role !== "customer") return;
@@ -47,6 +53,8 @@ export default function ProjectPaymentsPage() {
     request
       .then((nextSummary) => {
         setSummary(nextSummary);
+        setBudgetMin(String(nextSummary.project.budgetMin ?? ""));
+        setBudgetMax(String(nextSummary.project.budgetMax ?? ""));
         if (syncSessionId) {
           toast.success(
             "Escrow funded",
@@ -63,6 +71,42 @@ export default function ProjectPaymentsPage() {
         setSummary(null);
       })
       .finally(() => setLoading(false));
+  };
+
+  const handleBudgetUpdate = async () => {
+    if (!id || !summary) return;
+    const nextMin = Number(budgetMin);
+    const nextMax = Number(budgetMax);
+    if (
+      !Number.isFinite(nextMin) ||
+      !Number.isFinite(nextMax) ||
+      nextMin < 0 ||
+      nextMax <= 0 ||
+      nextMin > nextMax
+    ) {
+      toast.error(
+        "Invalid budget",
+        "Enter a positive maximum that is at least the minimum.",
+      );
+      return;
+    }
+    setUpdatingBudget(true);
+    try {
+      await updateProject(id, { budgetMin: nextMin, budgetMax: nextMax });
+      await confirmBrief(id);
+      toast.success(
+        "Budget recalculated",
+        "The quote and compensation split now use the updated range.",
+      );
+      loadSummary();
+    } catch (error) {
+      toast.error(
+        "Could not update budget",
+        error instanceof Error ? error.message : "Try again.",
+      );
+    } finally {
+      setUpdatingBudget(false);
+    }
   };
 
   useEffect(() => {
@@ -181,6 +225,102 @@ export default function ProjectPaymentsPage() {
               </div>
             </div>
           </section>
+
+          {summary.budgetAllocation && (
+            <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 card-shadow">
+              <h3 className="font-headline text-lg font-semibold text-on-surface">
+                How the project price is allocated
+              </h3>
+              <p className="mt-1 text-sm text-on-surface-variant">
+                Reserved before matching so every freelancer and development
+                task has covered compensation. Task amounts are refined by
+                effort and complexity when the Scrum Master plan is generated.
+              </p>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                {[
+                  {
+                    label: "UI/UX planning",
+                    allocation: summary.budgetAllocation.planning.ui_ux,
+                  },
+                  {
+                    label: "Architecture planning",
+                    allocation: summary.budgetAllocation.planning.architect,
+                  },
+                  {
+                    label: "Implementation tasks",
+                    allocation: summary.budgetAllocation.implementation,
+                  },
+                ].map(({ label, allocation }) => (
+                  <div
+                    key={label}
+                    className="rounded-lg bg-surface-container-low p-4"
+                  >
+                    <p className="text-xs uppercase tracking-wide text-on-surface-variant">
+                      {label} · {allocation.percentage}%
+                    </p>
+                    <p className="mt-1 text-xl font-semibold text-on-surface">
+                      {formatMoney(
+                        Number(allocation.amount),
+                        summary.budgetAllocation?.currency,
+                      )}
+                    </p>
+                    {"maxHourlyRate" in allocation &&
+                      "estimatedHours" in allocation && (
+                        <p className="mt-1 text-xs text-on-surface-variant">
+                          Covers {Number(allocation.estimatedHours)} estimated
+                          hours up to{" "}
+                          {formatMoney(
+                            Number(allocation.maxHourlyRate),
+                            summary.budgetAllocation?.currency,
+                          )}
+                          /hour
+                        </p>
+                      )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {summary.totals.paidAmount <= 0 &&
+            summary.totals.pendingAmount <= 0 && (
+              <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 card-shadow">
+                <h3 className="font-headline text-lg font-semibold text-on-surface">
+                  Need to increase the budget?
+                </h3>
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  Update the customer range before paying. Nexus will
+                  recalculate the quote, role shares, task pool, and affordable
+                  rate ceilings.
+                </p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                  <Input
+                    label={`Minimum (${summary.project.currency})`}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={budgetMin}
+                    onChange={(event) => setBudgetMin(event.target.value)}
+                  />
+                  <Input
+                    label={`Maximum (${summary.project.currency})`}
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={budgetMax}
+                    onChange={(event) => setBudgetMax(event.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    loading={updatingBudget}
+                    onClick={handleBudgetUpdate}
+                  >
+                    Recalculate
+                  </Button>
+                </div>
+              </section>
+            )}
 
           <section className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <Metric

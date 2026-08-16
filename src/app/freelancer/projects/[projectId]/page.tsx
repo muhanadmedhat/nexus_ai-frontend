@@ -589,12 +589,25 @@ export default function FreelancerProjectDetailPage() {
                         Planning pay
                       </span>
                       <span className="font-semibold text-on-surface">
-                        {assignment.hourlyRateSnapshot != null &&
-                        detail.project.currency
-                          ? `${formatMoney(toNumber(assignment.hourlyRateSnapshot), detail.project.currency)} / hour`
+                        {assignment.allocatedAmount != null &&
+                        (assignment.currency || detail.project.currency)
+                          ? formatMoney(
+                              toNumber(assignment.allocatedAmount),
+                              assignment.currency || detail.project.currency,
+                            )
                           : "Not allocated"}
                       </span>
                     </div>
+                    {assignment.estimatedHours != null && (
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-on-surface-variant">
+                          Estimated effort
+                        </span>
+                        <span className="font-semibold text-on-surface">
+                          {assignment.estimatedHours} hours
+                        </span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-on-surface-variant">Deadline</span>
                       <span className="font-semibold text-on-surface">
