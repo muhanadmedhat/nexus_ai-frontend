@@ -124,6 +124,7 @@ export const sprint4Endpoints = {
     materializePlan: (planId: string) => `/project-plans/${planId}/materialize`,
     milestones: (projectId: string) => `/projects/${projectId}/milestones`,
     tasks: (projectId: string) => `/projects/${projectId}/tasks`,
+    freelancerTasks: "/freelancer/tasks",
     updateTask: (taskId: string) => `/project-tasks/${taskId}`,
   },
   adminSprint4: {

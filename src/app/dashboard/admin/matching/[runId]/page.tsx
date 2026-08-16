@@ -20,6 +20,7 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useToast } from "@/components/ui/toast";
+import { getAgentJobDetail } from "@/services/admin";
 import {
   getProjectMatchingRuns,
   getProjectRoleAssignments,
@@ -212,6 +213,9 @@ export default function AdminMatchingDetail() {
   const [activeStep, setActiveStep] = useState<WorkflowStep>("architect");
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [planGenerationJobId, setPlanGenerationJobId] = useState<string | null>(
+    null,
+  );
 
   const loadProjectFlow = useCallback(async () => {
     if (!runId) return;
@@ -322,6 +326,50 @@ export default function AdminMatchingDetail() {
 
     return () => window.clearTimeout(timeoutId);
   }, [loadProjectFlow]);
+
+  useEffect(() => {
+    if (!planGenerationJobId || !initialRun?.projectId) return;
+    let cancelled = false;
+    let timeoutId: number | undefined;
+
+    const poll = async () => {
+      try {
+        const job = await getAgentJobDetail(planGenerationJobId);
+        if (cancelled) return;
+
+        if (job.status === "completed") {
+          const generatedPlans = await getProjectPlans(initialRun.projectId, {
+            limit: 100,
+          });
+          if (cancelled) return;
+          setPlans(generatedPlans);
+          setPlanGenerationJobId(null);
+          toast.success(
+            "Scrum plan ready",
+            "The generated plan is ready for admin review.",
+          );
+          return;
+        }
+        if (job.status === "failed") {
+          setPlanGenerationJobId(null);
+          toast.error(
+            "Scrum Master failed",
+            job.error || "The plan could not be generated after retrying.",
+          );
+          return;
+        }
+      } catch {
+        // A transient polling failure should not cancel the queued job.
+      }
+      if (!cancelled) timeoutId = window.setTimeout(poll, 4_000);
+    };
+
+    timeoutId = window.setTimeout(poll, 1_000);
+    return () => {
+      cancelled = true;
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+    };
+  }, [initialRun?.projectId, planGenerationJobId, toast]);
 
   const projectId = initialRun?.projectId;
   const projectTitle =
@@ -462,12 +510,20 @@ export default function AdminMatchingDetail() {
     if (!projectId || !architectureSubmission || !uiuxSubmission) return;
     setActionLoading("generate-plan");
     try {
-      await generateProjectPlan(projectId, {
+      const result = await generateProjectPlan(projectId, {
         architectureSubmissionId: architectureSubmission.id,
         uiuxSubmissionId: uiuxSubmission.id,
         mode: "async",
       });
-      toast.success("Scrum Master queued", "A project plan will appear here once generated.");
+      const agentJobId =
+        typeof result.agentJobId === "string" ? result.agentJobId : null;
+      if (agentJobId) setPlanGenerationJobId(agentJobId);
+      toast.success(
+        agentJobId ? "Scrum Master queued" : "Scrum plan is up to date",
+        agentJobId
+          ? "Generation is running in the background. This page will update automatically."
+          : "A plan already exists for the approved deliverables.",
+      );
       await loadProjectFlow();
     } catch (error) {
       toast.error(
@@ -609,7 +665,10 @@ export default function AdminMatchingDetail() {
               plans={plans}
               latestPlan={latestPlan}
               onGenerate={handleGeneratePlan}
-              generating={actionLoading === "generate-plan"}
+              generating={
+                actionLoading === "generate-plan" ||
+                Boolean(planGenerationJobId)
+              }
             />
           ) : null}
 

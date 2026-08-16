@@ -213,6 +213,17 @@ export interface ProjectTask {
     ownedPaths?: string[];
     integrationChecks?: string[];
   } | null;
+  project?: {
+    id: string;
+    title: string;
+    status: string;
+    currency: string;
+  } | null;
+  milestone?: {
+    id: string;
+    title: string;
+    status: string;
+  } | null;
 }
 
 export interface ReviewSubmissionResult {
@@ -566,6 +577,47 @@ export async function getTasks(
     return Array.isArray(data.data.tasks) ? data.data.tasks : [];
   } catch (error) {
     throw new Error(getApiErrorMessage(error, "Could not load tasks"));
+  }
+}
+
+export async function getMyFreelancerTasks(params?: {
+  status?: string;
+  page?: number;
+  limit?: number;
+}) {
+  try {
+    const limit = Math.min(100, Math.max(1, params?.limit ?? 100));
+    let page = params?.page ?? 1;
+    const tasks: ProjectTask[] = [];
+
+    do {
+      const query = new URLSearchParams();
+      if (params?.status) query.append("status", params.status);
+      query.append("page", String(page));
+      query.append("limit", String(limit));
+
+      const { data } = await api.get<
+        ApiDataResponse<ProjectTask[]> & { total?: number }
+      >(
+        `${sprint4Endpoints.planning.freelancerTasks}?${query.toString()}`,
+      );
+      const batch = Array.isArray(data.data) ? data.data : [];
+      const total = typeof data.total === "number" ? data.total : null;
+      tasks.push(...batch);
+
+      if (
+        params?.page ||
+        batch.length < limit ||
+        (total !== null && tasks.length >= total)
+      ) {
+        break;
+      }
+      page += 1;
+    } while (true);
+
+    return tasks;
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, "Could not load assigned tasks"));
   }
 }
 

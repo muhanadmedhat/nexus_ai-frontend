@@ -266,6 +266,17 @@ export interface DeliveryTask extends ProjectTask {
   sourceCandidateId?: string | null;
   assignedBy?: string | null;
   assignedAt?: string | null; // ISO date
+  project?: {
+    id: string;
+    title: string;
+    status: string;
+    currency: string;
+  } | null;
+  milestone?: {
+    id: string;
+    title: string;
+    status: string;
+  } | null;
 }
 
 // Sprint 5 releases are ledger-only; live Connect transfers are Sprint 6.
