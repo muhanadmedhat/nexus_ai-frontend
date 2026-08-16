@@ -79,7 +79,9 @@ function FreelancerEvaluation({ run }: { run: EvaluationRun }) {
                 <span className="font-medium text-on-surface">
                   {item.criterion}
                 </span>
-                <StatusBadge status={item.met ? "met" : "unmet"} />
+                <StatusBadge
+                  status={item.status ?? (item.met ? "met" : "unmet")}
+                />
               </div>
               {item.evidence && (
                 <p className="mt-1 text-xs leading-5 text-on-surface-variant">

@@ -160,7 +160,10 @@ export interface PaymentReleaseRequest {
 }
 
 export interface EvaluationRubricItem {
+  key?: string;
   criterion: string;
+  category?: string;
+  status?: "met" | "not_applicable" | "unmet";
   met: boolean;
   evidence: string;
 }
@@ -168,7 +171,9 @@ export interface EvaluationRubricItem {
 export interface EvaluationAcceptanceCoverage {
   total: number;
   met: number;
+  notApplicable?: number;
   unmet: number;
+  pending?: number;
   items: EvaluationRubricItem[];
 }
 

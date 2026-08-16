@@ -7,7 +7,10 @@ export type EvaluationRecommendation =
   "approve" | "changes_requested" | "reject" | "manual_review";
 
 export interface EvaluationRubricItem {
+  key?: string;
   criterion: string;
+  category?: string;
+  status?: "met" | "not_applicable" | "unmet";
   met: boolean;
   evidence: string;
 }
@@ -30,7 +33,9 @@ export interface EvaluationRun {
 export interface EvaluationAcceptanceCoverage {
   total: number;
   met: number;
+  notApplicable?: number;
   unmet: number;
+  pending?: number;
   items: EvaluationRubricItem[];
 }
 

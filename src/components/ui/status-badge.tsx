@@ -43,6 +43,9 @@ const STYLES: Record<string, string> = {
   requires_payment: "bg-secondary-container/20 text-secondary",
   processing: "bg-secondary-container/20 text-secondary",
   succeeded: "bg-primary-container/15 text-primary-container",
+  met: "bg-primary-container/15 text-primary-container",
+  unmet: "bg-error/10 text-error",
+  not_applicable: "bg-surface-container-high text-on-surface-variant",
 
   // Sprint 5 delivery — task statuses
   todo: "bg-surface-container-high text-on-surface-variant",

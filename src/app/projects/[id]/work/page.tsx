@@ -70,8 +70,17 @@ function EvaluationSummary({ detail }: { detail: SubmissionDetail }) {
 
       {run.acceptanceCoverage && (
         <p className="mt-2 text-xs text-on-surface-variant">
-          Acceptance criteria: {run.acceptanceCoverage.met}/
-          {run.acceptanceCoverage.total} met
+          Acceptance criteria: {run.acceptanceCoverage.met} met
+          {(run.acceptanceCoverage.notApplicable ?? 0) > 0
+            ? ` · ${run.acceptanceCoverage.notApplicable} N/A`
+            : ""}
+          {run.acceptanceCoverage.unmet > 0
+            ? ` · ${run.acceptanceCoverage.unmet} unmet`
+            : ""}
+          {(run.acceptanceCoverage.pending ?? 0) > 0
+            ? ` · ${run.acceptanceCoverage.pending} pending`
+            : ""}
+          {` · ${run.acceptanceCoverage.total} total`}
         </p>
       )}
 
@@ -86,7 +95,9 @@ function EvaluationSummary({ detail }: { detail: SubmissionDetail }) {
                 <span className="min-w-0 font-medium text-on-surface-variant">
                   {item.criterion}
                 </span>
-                <StatusBadge status={item.met ? "met" : "unmet"} />
+                <StatusBadge
+                  status={item.status ?? (item.met ? "met" : "unmet")}
+                />
               </div>
               {item.evidence && (
                 <p className="mt-1 text-xs leading-5 text-on-surface-variant">

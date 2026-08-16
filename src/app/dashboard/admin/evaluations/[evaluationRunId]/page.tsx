@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, CheckCircle2, RefreshCw, XCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  MinusCircle,
+  RefreshCw,
+  XCircle,
+} from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -120,8 +126,17 @@ export default function AdminEvaluationDetail() {
             {run.acceptanceCoverage && (
               <section className="mt-5">
                 <h4 className="font-semibold text-on-surface">
-                  Acceptance criteria ({run.acceptanceCoverage.met}/
-                  {run.acceptanceCoverage.total} met)
+                  Acceptance criteria ({run.acceptanceCoverage.met} met
+                  {(run.acceptanceCoverage.notApplicable ?? 0) > 0
+                    ? ` · ${run.acceptanceCoverage.notApplicable} N/A`
+                    : ""}
+                  {run.acceptanceCoverage.unmet > 0
+                    ? ` · ${run.acceptanceCoverage.unmet} unmet`
+                    : ""}
+                  {(run.acceptanceCoverage.pending ?? 0) > 0
+                    ? ` · ${run.acceptanceCoverage.pending} pending`
+                    : ""}
+                  {` · ${run.acceptanceCoverage.total} total`})
                 </h4>
                 <ul className="mt-3 space-y-2">
                   {rubric.map((item, index) => (
@@ -130,7 +145,12 @@ export default function AdminEvaluationDetail() {
                       className="rounded-lg border border-outline-variant/30 bg-surface-container-low p-3"
                     >
                       <div className="flex items-start gap-2">
-                        {item.met ? (
+                        {item.status === "not_applicable" ? (
+                          <MinusCircle
+                            size={18}
+                            className="mt-0.5 shrink-0 text-on-surface-variant"
+                          />
+                        ) : item.met ? (
                           <CheckCircle2
                             size={18}
                             className="mt-0.5 shrink-0 text-primary-container"
