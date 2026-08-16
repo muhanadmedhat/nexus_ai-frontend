@@ -202,6 +202,9 @@ export interface ProjectTask {
   roleKey?: string | null;
   assignedFreelancerProfileId?: string | null;
   assignmentId?: string | null;
+  /** Exact share allocated from the task's milestone budget. */
+  budgetAmount?: string | number | null;
+  currency?: string | null;
   startsAt?: string | null;
   dueAt?: string | null;
   acceptanceCriteria?: unknown;

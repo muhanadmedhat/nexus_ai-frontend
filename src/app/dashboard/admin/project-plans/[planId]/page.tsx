@@ -3,12 +3,23 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, CheckCircle2, ClipboardCheck, MessageSquareWarning, XCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  ClipboardCheck,
+  MessageSquareWarning,
+  XCircle,
+} from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useToast } from "@/components/ui/toast";
-import { getProjectPlanDetail, materializeProjectPlan, reviewProjectPlan, type ProjectPlan } from "@/services/planning";
+import {
+  getProjectPlanDetail,
+  materializeProjectPlan,
+  reviewProjectPlan,
+  type ProjectPlan,
+} from "@/services/planning";
 
 type PlanMilestone = {
   clientKey?: string | null;
@@ -23,6 +34,8 @@ type PlanTask = {
   key?: string | null;
   title?: string | null;
   roleKey?: string | null;
+  budgetAmount?: number | string | null;
+  currency?: string | null;
 };
 
 type PlanDetail = Omit<ProjectPlan, "milestones" | "tasks" | "dependencies"> & {
@@ -47,7 +60,10 @@ export default function AdminProjectPlanDetail() {
         setNotes(nextPlan.adminNotes || "");
       })
       .catch((error) => {
-        const message = error instanceof Error ? error.message : "Could not load project plan";
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Could not load project plan";
         toast.error("Could not load project plan", message);
       })
       .finally(() => setLoading(false));
@@ -57,7 +73,10 @@ export default function AdminProjectPlanDetail() {
     void load();
   }, [load]);
 
-  async function review(status: "approved" | "changes_requested" | "rejected", materialize = false) {
+  async function review(
+    status: "approved" | "changes_requested" | "rejected",
+    materialize = false,
+  ) {
     if (!planId) return;
     const key = materialize ? "approved_materialize" : status;
     setActionLoading(key);
@@ -69,7 +88,9 @@ export default function AdminProjectPlanDetail() {
       });
       const matching = result.materialization?.matchingDispatch;
       toast.success(
-        materialize ? "Plan materialized and matching started" : "Plan reviewed",
+        materialize
+          ? "Plan materialized and matching started"
+          : "Plan reviewed",
         materialize
           ? matching?.triggered
             ? `${matching.runs?.length ?? 0} task matching runs were created. Review the ranked candidates before assigning freelancers.`
@@ -78,7 +99,10 @@ export default function AdminProjectPlanDetail() {
       );
       await load();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Could not review project plan";
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Could not review project plan";
       toast.error("Review failed", message);
     } finally {
       setActionLoading(null);
@@ -89,7 +113,9 @@ export default function AdminProjectPlanDetail() {
     if (!planId) return;
     setActionLoading("materialize");
     try {
-      const result = await materializeProjectPlan(planId, { replaceExisting: false });
+      const result = await materializeProjectPlan(planId, {
+        replaceExisting: false,
+      });
       toast.success(
         "Plan materialized",
         result.matchingDispatch?.triggered
@@ -98,7 +124,10 @@ export default function AdminProjectPlanDetail() {
       );
       await load();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Could not materialize project plan";
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Could not materialize project plan";
       toast.error("Materialization failed", message);
     } finally {
       setActionLoading(null);
@@ -106,20 +135,37 @@ export default function AdminProjectPlanDetail() {
   }
 
   return (
-    <DashboardShell role="admin" title="Scrum Plan Review" subtitle="Approve AI-generated milestones and tasks before implementation starts.">
-      <Link href="/dashboard/admin/project-plans" className="mb-4 inline-flex items-center gap-1.5 text-sm text-on-surface-variant hover:text-primary">
+    <DashboardShell
+      role="admin"
+      title="Scrum Plan Review"
+      subtitle="Approve AI-generated milestones and tasks before implementation starts."
+    >
+      <Link
+        href="/dashboard/admin/project-plans"
+        className="mb-4 inline-flex items-center gap-1.5 text-sm text-on-surface-variant hover:text-primary"
+      >
         <ArrowLeft size={16} /> Back to queue
       </Link>
 
-      {loading ? <p>Loading...</p> : !plan ? <p>Plan not found.</p> : (
+      {loading ? (
+        <p>Loading...</p>
+      ) : !plan ? (
+        <p>Plan not found.</p>
+      ) : (
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
           <div className="space-y-6">
             <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-primary">Project plan v{plan.version}</p>
-                  <h3 className="mt-2 font-headline text-xl font-semibold text-on-surface">Plan overview</h3>
-                  <p className="mt-2 max-w-4xl text-sm leading-6 text-on-surface-variant">{plan.summary || "No summary provided."}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+                    Project plan v{plan.version}
+                  </p>
+                  <h3 className="mt-2 font-headline text-xl font-semibold text-on-surface">
+                    Plan overview
+                  </h3>
+                  <p className="mt-2 max-w-4xl text-sm leading-6 text-on-surface-variant">
+                    {plan.summary || "No summary provided."}
+                  </p>
                 </div>
                 <StatusBadge status={plan.status} />
               </div>
@@ -127,45 +173,82 @@ export default function AdminProjectPlanDetail() {
               <div className="mt-5 grid gap-3 sm:grid-cols-3">
                 <div className="rounded-lg bg-surface-container-low p-4">
                   <p className="text-xs text-on-surface-variant">Milestones</p>
-                  <p className="mt-1 text-2xl font-semibold text-on-surface">{plan.milestones?.length || 0}</p>
+                  <p className="mt-1 text-2xl font-semibold text-on-surface">
+                    {plan.milestones?.length || 0}
+                  </p>
                 </div>
                 <div className="rounded-lg bg-surface-container-low p-4">
                   <p className="text-xs text-on-surface-variant">Tasks</p>
-                  <p className="mt-1 text-2xl font-semibold text-on-surface">{plan.tasks?.length || 0}</p>
+                  <p className="mt-1 text-2xl font-semibold text-on-surface">
+                    {plan.tasks?.length || 0}
+                  </p>
                 </div>
                 <div className="rounded-lg bg-surface-container-low p-4">
-                  <p className="text-xs text-on-surface-variant">Dependencies</p>
-                  <p className="mt-1 text-2xl font-semibold text-on-surface">{plan.dependencies?.length || 0}</p>
+                  <p className="text-xs text-on-surface-variant">
+                    Dependencies
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold text-on-surface">
+                    {plan.dependencies?.length || 0}
+                  </p>
                 </div>
               </div>
             </section>
 
             <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
-              <h4 className="font-headline text-lg font-semibold text-on-surface">Generated milestones</h4>
+              <h4 className="font-headline text-lg font-semibold text-on-surface">
+                Generated milestones
+              </h4>
               <div className="mt-4 grid gap-3">
                 {plan.milestones?.map((m, i) => (
-                  <div key={m.clientKey || i} className="rounded-lg border border-outline-variant/30 bg-surface-container-low p-4">
+                  <div
+                    key={m.clientKey || i}
+                    className="rounded-lg border border-outline-variant/30 bg-surface-container-low p-4"
+                  >
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-wider text-primary">{m.clientKey || `M${i + 1}`}</p>
-                        <h5 className="mt-1 font-semibold text-on-surface">{m.title}</h5>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+                          {m.clientKey || `M${i + 1}`}
+                        </p>
+                        <h5 className="mt-1 font-semibold text-on-surface">
+                          {m.title}
+                        </h5>
                       </div>
-                      <span className="text-sm font-semibold text-on-surface">{m.budgetAmount ? `${m.budgetAmount} ${m.currency || ""}` : "Budget TBD"}</span>
+                      <span className="text-sm font-semibold text-on-surface">
+                        {m.budgetAmount
+                          ? `${m.budgetAmount} ${m.currency || ""}`
+                          : "Budget TBD"}
+                      </span>
                     </div>
-                    {m.description && <p className="mt-2 text-sm text-on-surface-variant">{m.description}</p>}
+                    {m.description && (
+                      <p className="mt-2 text-sm text-on-surface-variant">
+                        {m.description}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
             </section>
 
             <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
-              <h4 className="font-headline text-lg font-semibold text-on-surface">Task sample</h4>
+              <h4 className="font-headline text-lg font-semibold text-on-surface">
+                Task sample
+              </h4>
               <div className="mt-4 grid gap-2">
                 {plan.tasks?.slice(0, 12).map((task, i) => (
-                  <div key={task.clientKey || task.key || i} className="rounded-lg bg-surface-container-low px-4 py-3 text-sm">
+                  <div
+                    key={task.clientKey || task.key || i}
+                    className="rounded-lg bg-surface-container-low px-4 py-3 text-sm"
+                  >
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                      <span className="font-medium text-on-surface">{task.title}</span>
-                      <span className="text-xs text-on-surface-variant">{task.roleKey?.replace("_", " ") || "Unassigned"}</span>
+                      <span className="font-medium text-on-surface">
+                        {task.title}
+                      </span>
+                      <span className="text-right text-xs text-on-surface-variant">
+                        {task.roleKey?.replace("_", " ") || "Unassigned"}
+                        {task.budgetAmount != null && task.currency
+                          ? ` · ${task.budgetAmount} ${task.currency} allocated`
+                          : " · compensation missing"}
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -174,10 +257,21 @@ export default function AdminProjectPlanDetail() {
           </div>
 
           <aside className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 card-shadow xl:sticky xl:top-24 xl:self-start">
-            <h4 className="font-headline text-lg font-semibold text-on-surface">Admin decision</h4>
-            <p className="mt-1 text-sm text-on-surface-variant">Approving and materializing creates the tasks and automatically starts AI freelancer matching. You still approve each final assignment.</p>
+            <h4 className="font-headline text-lg font-semibold text-on-surface">
+              Admin decision
+            </h4>
+            <p className="mt-1 text-sm text-on-surface-variant">
+              Approving and materializing creates the tasks and automatically
+              starts AI freelancer matching. You still approve each final
+              assignment.
+            </p>
 
-            <label className="mt-5 block text-sm font-medium text-on-surface" htmlFor="plan-notes">Admin notes</label>
+            <label
+              className="mt-5 block text-sm font-medium text-on-surface"
+              htmlFor="plan-notes"
+            >
+              Admin notes
+            </label>
             <textarea
               id="plan-notes"
               value={notes}
@@ -188,18 +282,37 @@ export default function AdminProjectPlanDetail() {
             />
 
             <div className="mt-5 grid gap-2">
-              <Button type="button" loading={actionLoading === "approved_materialize"} onClick={() => review("approved", true)}>
+              <Button
+                type="button"
+                loading={actionLoading === "approved_materialize"}
+                onClick={() => review("approved", true)}
+              >
                 <ClipboardCheck size={16} /> Approve and materialize
               </Button>
-              <Button type="button" variant="outline" loading={actionLoading === "approved"} onClick={() => review("approved")}>
+              <Button
+                type="button"
+                variant="outline"
+                loading={actionLoading === "approved"}
+                onClick={() => review("approved")}
+              >
                 <CheckCircle2 size={16} /> Approve only
               </Button>
               {plan.status === "approved" && (
-                <Button type="button" variant="outline" loading={actionLoading === "materialize"} onClick={materializeApproved}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  loading={actionLoading === "materialize"}
+                  onClick={materializeApproved}
+                >
                   <ClipboardCheck size={16} /> Materialize approved plan
                 </Button>
               )}
-              <Button type="button" variant="outline" loading={actionLoading === "changes_requested"} onClick={() => review("changes_requested")}>
+              <Button
+                type="button"
+                variant="outline"
+                loading={actionLoading === "changes_requested"}
+                onClick={() => review("changes_requested")}
+              >
                 <MessageSquareWarning size={16} /> Request changes
               </Button>
               <Button

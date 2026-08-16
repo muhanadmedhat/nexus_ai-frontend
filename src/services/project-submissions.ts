@@ -18,6 +18,7 @@ import type {
   SubmissionStatus,
   SubmissionType,
   RequestedChanges,
+  DeliveryTask,
 } from "@/types/delivery";
 
 /**
@@ -94,6 +95,7 @@ export interface ReviewSubmissionPayload {
 }
 
 export interface SubmissionDetail extends ProjectSubmission {
+  task?: DeliveryTask | null;
   latestEvaluationRun?: EvaluationRun | null;
   evaluationRun?: EvaluationRun | null;
   reviews?: ProjectSubmissionReview[];
@@ -103,6 +105,7 @@ export interface SubmissionDetail extends ProjectSubmission {
 
 interface SubmissionDetailResponse {
   submission: ProjectSubmission;
+  task?: DeliveryTask | null;
   latestEvaluationRun?: EvaluationRun | null;
   reviews?: ProjectSubmissionReview[];
   openRevisionRequests?: ProjectRevisionRequest[];
@@ -214,6 +217,7 @@ export async function getDeliverySubmission(
     if ("submission" in detail) {
       return {
         ...detail.submission,
+        task: detail.task ?? null,
         latestEvaluationRun: detail.latestEvaluationRun ?? null,
         reviews: detail.reviews ?? [],
         openRevisionRequests: detail.openRevisionRequests ?? [],

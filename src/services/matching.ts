@@ -71,6 +71,8 @@ export interface RoleAssignment {
   roleBriefStatus?: string | null;
   roleBriefGeneratedAt?: string | null;
   roleBriefError?: string | null;
+  hourlyRateSnapshot?: string | number | null;
+  availabilityHoursSnapshot?: number | null;
 }
 
 export interface RoleBrief {
@@ -91,7 +93,10 @@ export interface RoleBrief {
 export interface ReviewMatchingRunResult {
   runId: string;
   status: string;
-  assignment: Pick<RoleAssignment, "id" | "projectId" | "phase" | "roleKey" | "status" | "freelancerProfileId"> | null;
+  assignment: Pick<
+    RoleAssignment,
+    "id" | "projectId" | "phase" | "roleKey" | "status" | "freelancerProfileId"
+  > | null;
 }
 
 export interface ProjectTeam {
@@ -106,8 +111,7 @@ export interface FreelancerAssignedProject {
   phase: string;
   roleKey: string;
   status: string;
-  budgetMin: number | null;
-  budgetMax: number | null;
+  allocatedAmount: number | null;
   currency: string | null;
   deadline: string | null;
   briefSummary: string | null;
@@ -123,8 +127,6 @@ export interface FreelancerProjectAssignmentDetail {
     description: string | null;
     status: string;
     planningStatus: string;
-    budgetMin: number | null;
-    budgetMax: number | null;
     currency: string | null;
     deadline: string | null;
     isDeadlineFlexible: boolean;
@@ -140,6 +142,10 @@ export interface FreelancerProjectAssignmentDetail {
     constraintsPreferences: string | null;
   };
   assignments: RoleAssignment[];
+  implementationCompensation: {
+    allocatedAmount: number | null;
+    currency: string | null;
+  };
 }
 
 export interface PaginatedRoleAssignments {
@@ -161,26 +167,38 @@ interface MatchingRunListData {
 
 export async function startPlanningRoles(
   projectId: string,
-  payload: { roles?: string[]; filters?: JsonObject; mode?: "sync" | "async" } = {}
+  payload: {
+    roles?: string[];
+    filters?: JsonObject;
+    mode?: "sync" | "async";
+  } = {},
 ) {
   try {
     const { data } = await api.post<ApiDataResponse<unknown>>(
       sprint4Endpoints.matching.startPlanningRoles(projectId),
-      payload
+      payload,
     );
     return data.data;
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not start planning roles matching"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not start planning roles matching"),
+    );
   }
 }
 
-export async function getProjectMatchingRuns(projectId: string): Promise<MatchingRun[]> {
+export async function getProjectMatchingRuns(
+  projectId: string,
+): Promise<MatchingRun[]> {
   try {
-    const { data } = await api.get<ApiDataResponse<MatchingRun[] | MatchingRunListData>>(
-      sprint4Endpoints.matching.projectRuns(projectId)
-    );
+    const { data } = await api.get<
+      ApiDataResponse<MatchingRun[] | MatchingRunListData>
+    >(sprint4Endpoints.matching.projectRuns(projectId));
     const payload = data.data;
-    return Array.isArray(payload) ? payload : Array.isArray(payload.runs) ? payload.runs : [];
+    return Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload.runs)
+        ? payload.runs
+        : [];
   } catch (error) {
     throw new Error(getApiErrorMessage(error, "Could not load matching runs"));
   }
@@ -189,7 +207,7 @@ export async function getProjectMatchingRuns(projectId: string): Promise<Matchin
 export async function getRunDetail(runId: string): Promise<RunDetail> {
   try {
     const { data } = await api.get<ApiDataResponse<RunDetail>>(
-      sprint4Endpoints.matching.runDetail(runId)
+      sprint4Endpoints.matching.runDetail(runId),
     );
     return data.data;
   } catch (error) {
@@ -199,27 +217,34 @@ export async function getRunDetail(runId: string): Promise<RunDetail> {
 
 export async function updateCandidateStatus(
   candidateId: string,
-  payload: { status: "shortlisted" | "selected" | "rejected"; reason?: string }
+  payload: { status: "shortlisted" | "selected" | "rejected"; reason?: string },
 ) {
   try {
     const { data } = await api.patch<ApiDataResponse<MatchingCandidate>>(
       sprint4Endpoints.matching.candidateStatus(candidateId),
-      payload
+      payload,
     );
     return data.data;
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not update candidate status"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not update candidate status"),
+    );
   }
 }
 
 export async function reviewMatchingRun(
   runId: string,
-  payload: { decision: "approved" | "rejected" | "rerun_required"; selectedCandidateId?: string; createAssignment?: boolean; notes?: string }
+  payload: {
+    decision: "approved" | "rejected" | "rerun_required";
+    selectedCandidateId?: string;
+    createAssignment?: boolean;
+    notes?: string;
+  },
 ) {
   try {
     const { data } = await api.post<ApiDataResponse<ReviewMatchingRunResult>>(
       sprint4Endpoints.matching.reviewRun(runId),
-      payload
+      payload,
     );
     return data.data;
   } catch (error) {
@@ -229,49 +254,73 @@ export async function reviewMatchingRun(
 
 export async function createRoleAssignment(
   projectId: string,
-  payload: { phase: "planning"; roleKey: "architect" | "ui_ux"; candidateId?: string; freelancerProfileId?: string; notes?: string; decisionReason?: string }
+  payload: {
+    phase: "planning";
+    roleKey: "architect" | "ui_ux";
+    candidateId?: string;
+    freelancerProfileId?: string;
+    notes?: string;
+    decisionReason?: string;
+  },
 ) {
   try {
     const { data } = await api.post<ApiDataResponse<RoleAssignment>>(
       sprint4Endpoints.roleAssignments.create(projectId),
-      payload
+      payload,
     );
     return data.data;
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not create role assignment"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not create role assignment"),
+    );
   }
 }
 
-export async function getProjectRoleAssignments(projectId: string): Promise<RoleAssignment[]> {
+export async function getProjectRoleAssignments(
+  projectId: string,
+): Promise<RoleAssignment[]> {
   try {
     const { data } = await api.get<ApiDataResponse<RoleAssignment[]>>(
-      sprint4Endpoints.roleAssignments.projectList(projectId)
+      sprint4Endpoints.roleAssignments.projectList(projectId),
     );
     return Array.isArray(data.data) ? data.data : [];
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not load role assignments"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not load role assignments"),
+    );
   }
 }
 
 export async function updateRoleAssignmentStatus(
   assignmentId: string,
-  payload: { status: "accepted" | "declined" | "in_progress" | "completed" | "cancelled" | "replaced"; notes?: string }
+  payload: {
+    status:
+      | "accepted"
+      | "declined"
+      | "in_progress"
+      | "completed"
+      | "cancelled"
+      | "replaced";
+    notes?: string;
+  },
 ) {
   try {
     const { data } = await api.patch<ApiDataResponse<RoleAssignment>>(
       sprint4Endpoints.roleAssignments.updateStatus(assignmentId),
-      payload
+      payload,
     );
     return data.data;
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not update assignment status"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not update assignment status"),
+    );
   }
 }
 
 export async function getProjectTeam(projectId: string) {
   try {
     const { data } = await api.get<ApiDataResponse<ProjectTeam>>(
-      sprint4Endpoints.roleAssignments.projectTeam(projectId)
+      sprint4Endpoints.roleAssignments.projectTeam(projectId),
     );
     return data.data;
   } catch (error) {
@@ -279,7 +328,12 @@ export async function getProjectTeam(projectId: string) {
   }
 }
 
-export async function getFreelancerAssignedProjects(params?: { phase?: string; status?: string; page?: number; limit?: number }) {
+export async function getFreelancerAssignedProjects(params?: {
+  phase?: string;
+  status?: string;
+  page?: number;
+  limit?: number;
+}) {
   try {
     const query = new URLSearchParams();
     if (params?.phase) query.append("phase", params.phase);
@@ -288,21 +342,25 @@ export async function getFreelancerAssignedProjects(params?: { phase?: string; s
     if (params?.limit) query.append("limit", String(params.limit));
 
     const { data } = await api.get<PaginatedRoleAssignments>(
-      `${sprint4Endpoints.roleAssignments.freelancerAssigned}?${query.toString()}`
+      `${sprint4Endpoints.roleAssignments.freelancerAssigned}?${query.toString()}`,
     );
     return data;
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not load assigned projects"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not load assigned projects"),
+    );
   }
 }
 
 export async function getFreelancerProjectAssignment(projectId: string) {
   try {
-    const { data } = await api.get<ApiDataResponse<FreelancerProjectAssignmentDetail>>(
-      sprint4Endpoints.roleAssignments.freelancerProjectAssignment(projectId)
-    );
+    const { data } = await api.get<
+      ApiDataResponse<FreelancerProjectAssignmentDetail>
+    >(sprint4Endpoints.roleAssignments.freelancerProjectAssignment(projectId));
     return data.data;
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not load project assignment"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not load project assignment"),
+    );
   }
 }

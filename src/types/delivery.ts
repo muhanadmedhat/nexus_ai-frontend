@@ -239,6 +239,9 @@ export interface DeliveryTask extends ProjectTask {
   dependencies?: TaskDependency[] | null;
   /** Postgres numeric — arrives as a string such as "24.00". */
   estimatedHours?: string | number | null;
+  /** Exact compensation allocated to this task from its milestone. */
+  budgetAmount?: string | number | null;
+  currency?: string | null;
   priority?: string | null;
   requiredSkills?: string[] | null;
   startsAt?: string | null;

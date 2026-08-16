@@ -3,7 +3,7 @@
 import { clsx } from "clsx";
 import { Lock } from "lucide-react";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { formatDate } from "@/utils/format";
+import { formatDate, formatMoney } from "@/utils/format";
 import type { DeliveryTask } from "@/types/delivery";
 import { getTaskDependencyState, indexTasksById, toNumber } from "./helpers";
 
@@ -42,15 +42,24 @@ export function TaskCard({
       </div>
 
       {task.description && (
-        <p className="mt-2 line-clamp-2 text-sm text-on-surface-variant">{task.description}</p>
+        <p className="mt-2 line-clamp-2 text-sm text-on-surface-variant">
+          {task.description}
+        </p>
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-on-surface-variant">
         {assigneeLabel !== undefined && (
-          <span>{assigneeLabel ? `Assigned to ${assigneeLabel}` : "Unassigned"}</span>
+          <span>
+            {assigneeLabel ? `Assigned to ${assigneeLabel}` : "Unassigned"}
+          </span>
         )}
         {toNumber(task.estimatedHours) !== null && (
           <span>{toNumber(task.estimatedHours)}h estimated</span>
+        )}
+        {toNumber(task.budgetAmount) !== null && task.currency && (
+          <span>
+            {formatMoney(toNumber(task.budgetAmount), task.currency)} allocated
+          </span>
         )}
         {task.assignedAt && <span>Assigned {formatDate(task.assignedAt)}</span>}
       </div>
@@ -71,7 +80,8 @@ export function TaskCard({
   const shared = clsx(
     "block w-full rounded-xl border bg-surface-container-lowest p-4 text-left transition-colors",
     selected ? "border-primary-container" : "border-outline-variant/30",
-    interactive && "hover:bg-surface-container-low focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
+    interactive &&
+      "hover:bg-surface-container-low focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
     className,
   );
 
@@ -122,7 +132,11 @@ export function TaskList({
   const tasksById = indexTasksById(allTasks ?? tasks);
 
   if (!tasks.length) {
-    return <p className={clsx("text-sm text-on-surface-variant", className)}>{emptyLabel}</p>;
+    return (
+      <p className={clsx("text-sm text-on-surface-variant", className)}>
+        {emptyLabel}
+      </p>
+    );
   }
 
   return (

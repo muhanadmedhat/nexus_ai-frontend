@@ -36,6 +36,20 @@ export interface FreelancerAccountStatus {
   stripePayoutsEnabled: boolean;
   stripeRequirementsDue: unknown;
   stripeOnboardedAt: string | null;
+  earnings: FreelancerEarnings;
+}
+
+export interface FreelancerEarningsCurrency {
+  currency: string;
+  allocatedAmount: number;
+  approvedAmount: number;
+  pendingReleaseAmount: number;
+  releasedAmount: number;
+}
+
+export interface FreelancerEarnings {
+  currencies: FreelancerEarningsCurrency[];
+  updatedAt: string;
 }
 
 interface BackendFreelancerAccountStatus {
@@ -45,6 +59,16 @@ interface BackendFreelancerAccountStatus {
   payoutsEnabled: boolean;
   requirementsDue: unknown;
   onboardedAt: string | null;
+  earnings?: {
+    currencies?: Array<{
+      currency: string;
+      allocatedAmount: string | number;
+      approvedAmount: string | number;
+      pendingReleaseAmount: string | number;
+      releasedAmount: string | number;
+    }>;
+    updatedAt?: string;
+  };
 }
 
 export interface EscrowIntentResult {
@@ -230,6 +254,16 @@ export async function getFreelancerAccount() {
       stripePayoutsEnabled: data.data.payoutsEnabled,
       stripeRequirementsDue: data.data.requirementsDue,
       stripeOnboardedAt: data.data.onboardedAt,
+      earnings: {
+        currencies: (data.data.earnings?.currencies ?? []).map((item) => ({
+          currency: item.currency,
+          allocatedAmount: toNumber(item.allocatedAmount) ?? 0,
+          approvedAmount: toNumber(item.approvedAmount) ?? 0,
+          pendingReleaseAmount: toNumber(item.pendingReleaseAmount) ?? 0,
+          releasedAmount: toNumber(item.releasedAmount) ?? 0,
+        })),
+        updatedAt: data.data.earnings?.updatedAt ?? new Date().toISOString(),
+      },
     };
   } catch (error) {
     throw new Error(

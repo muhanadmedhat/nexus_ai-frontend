@@ -4,8 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Briefcase, ArrowRight } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
-import { getFreelancerAssignedProjects, type FreelancerAssignedProject } from "@/services/matching";
+import {
+  getFreelancerAssignedProjects,
+  type FreelancerAssignedProject,
+} from "@/services/matching";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { formatMoney } from "@/utils/format";
 
 export default function FreelancerProjectsPage() {
   const [projects, setProjects] = useState<FreelancerAssignedProject[]>([]);
@@ -14,33 +18,50 @@ export default function FreelancerProjectsPage() {
   useEffect(() => {
     // No phase filter: Sprint 5 assigns freelancers to implementation work, and
     // filtering to "planning" hid every implementation assignment.
-    getFreelancerAssignedProjects({ status: "assigned,accepted,in_progress" })
+    getFreelancerAssignedProjects({
+      status: "assigned,accepted,in_progress,completed",
+    })
       .then((res) => setProjects(Array.isArray(res.data) ? res.data : []))
       .catch((err) => console.error(err))
       .finally(() => setLoading(false));
   }, []);
 
   return (
-    <DashboardShell role="freelancer" title="My Projects" subtitle="Projects where you are actively assigned.">
+    <DashboardShell
+      role="freelancer"
+      title="My Projects"
+      subtitle="Projects where you are actively assigned."
+    >
       {loading ? (
         <p className="text-sm">Loading...</p>
       ) : projects.length === 0 ? (
         <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-12 text-center card-shadow">
           <Briefcase className="mx-auto mb-4 text-outline" size={48} />
-          <h3 className="font-headline text-lg font-semibold text-on-surface">No active assignments</h3>
-          <p className="mt-1 text-sm text-on-surface-variant">You have no pending or active project assignments matched to your profile.</p>
+          <h3 className="font-headline text-lg font-semibold text-on-surface">
+            No active assignments
+          </h3>
+          <p className="mt-1 text-sm text-on-surface-variant">
+            You have no pending or active project assignments matched to your
+            profile.
+          </p>
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {projects.map((assignment) => (
-            <div key={assignment.assignmentId} className="flex flex-col justify-between rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
+            <div
+              key={assignment.assignmentId}
+              className="flex flex-col justify-between rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow"
+            >
               <div>
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-semibold text-lg text-on-surface">{assignment.projectTitle}</h3>
+                  <h3 className="font-semibold text-lg text-on-surface">
+                    {assignment.projectTitle}
+                  </h3>
                   <StatusBadge status={assignment.status} />
                 </div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-primary mb-2">
-                  {assignment.roleKey?.replace("_", " ")} Phase: {assignment.phase}
+                  {assignment.roleKey?.replace("_", " ")} Phase:{" "}
+                  {assignment.phase}
                 </p>
                 <p className="text-sm text-on-surface-variant line-clamp-2">
                   {assignment.roleBriefSummary ||
@@ -48,7 +69,13 @@ export default function FreelancerProjectsPage() {
                     "Your role brief is being prepared."}
                 </p>
                 <div className="mt-3 flex gap-4 text-xs text-on-surface-variant">
-                  <span>Budget: {assignment.budgetMin} - {assignment.budgetMax} {assignment.currency}</span>
+                  <span>
+                    {assignment.allocatedAmount != null && assignment.currency
+                      ? `Your allocation: ${formatMoney(assignment.allocatedAmount, assignment.currency)}`
+                      : assignment.phase === "planning"
+                        ? "Planning compensation: not allocated"
+                        : "Task compensation: not allocated"}
+                  </span>
                 </div>
               </div>
               <div className="mt-6 flex items-center justify-end">
