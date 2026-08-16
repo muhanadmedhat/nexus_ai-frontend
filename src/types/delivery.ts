@@ -20,25 +20,13 @@ export type RevisionStatus = "open" | "in_progress" | "resolved" | "cancelled";
 export type RevisionPriority = "low" | "medium" | "high" | "urgent";
 
 export type ReleaseRequestStatus =
-  | "pending"
-  | "approved"
-  | "rejected"
-  | "released"
-  | "cancelled"
-  | "failed";
+  "pending" | "approved" | "rejected" | "released" | "cancelled" | "failed";
 
 export type EvaluationRunStatus =
-  | "queued"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled";
+  "queued" | "running" | "completed" | "failed" | "cancelled" | "superseded";
 
 export type EvaluationRecommendation =
-  | "approve"
-  | "changes_requested"
-  | "reject"
-  | "manual_review";
+  "approve" | "changes_requested" | "reject" | "manual_review";
 
 export type ReviewDecision =
   | "commented"
@@ -59,11 +47,7 @@ export type DeliveryTaskStatus =
   | "cancelled";
 
 export type SubmissionType =
-  | "pull_request"
-  | "repository"
-  | "file"
-  | "figma"
-  | "text";
+  "pull_request" | "repository" | "file" | "figma" | "text";
 
 export interface SubmissionContent {
   notes?: string;
@@ -194,7 +178,10 @@ export interface EvaluationFindings {
   requiresHumanReview?: boolean;
   revisionNotes?: string;
   rubric?: EvaluationRubricItem[];
+  findings?: string[];
+  risks?: string[];
   source?: string;
+  auditBundle?: Record<string, unknown>;
 }
 
 // Read-only here. Ebrahim owns evaluations.ts and the review screens; these
@@ -216,6 +203,9 @@ export interface EvaluationRun {
   riskFlags: string[] | null;
   modelName: string | null;
   promptVersion: string | null;
+  trigger?: string | null;
+  evaluatedCommitSha?: string | null;
+  evidenceBundle?: Record<string, unknown> | null;
   error: string | null;
   startedAt: string | null; // ISO date
   completedAt: string | null; // ISO date

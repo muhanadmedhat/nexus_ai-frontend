@@ -80,31 +80,44 @@ export const API_ENDPOINTS = {
 
 export const sprint4Endpoints = {
   matching: {
-    startPlanningRoles: (projectId: string) => `/projects/${projectId}/matching/planning-roles`,
+    startPlanningRoles: (projectId: string) =>
+      `/projects/${projectId}/matching/planning-roles`,
     projectRuns: (projectId: string) => `/projects/${projectId}/matching/runs`,
     runDetail: (runId: string) => `/matching/runs/${runId}`,
-    candidateStatus: (candidateId: string) => `/matching/candidates/${candidateId}/status`,
+    candidateStatus: (candidateId: string) =>
+      `/matching/candidates/${candidateId}/status`,
     reviewRun: (runId: string) => `/matching/runs/${runId}/review`,
   },
   roleAssignments: {
     create: (projectId: string) => `/projects/${projectId}/role-assignments`,
-    projectList: (projectId: string) => `/projects/${projectId}/role-assignments`,
-    updateStatus: (assignmentId: string) => `/project-role-assignments/${assignmentId}/status`,
+    projectList: (projectId: string) =>
+      `/projects/${projectId}/role-assignments`,
+    updateStatus: (assignmentId: string) =>
+      `/project-role-assignments/${assignmentId}/status`,
     projectTeam: (projectId: string) => `/projects/${projectId}/team`,
     freelancerAssigned: "/freelancer/projects/assigned",
-    freelancerProjectAssignment: (projectId: string) => `/freelancer/projects/${projectId}/assignment`,
+    freelancerProjectAssignment: (projectId: string) =>
+      `/freelancer/projects/${projectId}/assignment`,
   },
   planning: {
-    createSubmission: (projectId: string) => `/projects/${projectId}/planning-submissions`,
-    uploadArtifact: (projectId: string) => `/projects/${projectId}/planning-artifacts`,
-    projectSubmissions: (projectId: string) => `/projects/${projectId}/planning-submissions`,
-    requirements: (projectId: string, submissionType: "architecture" | "ui_ux") =>
-      `/projects/${projectId}/planning-requirements/${submissionType}`,
-    submissionDetail: (submissionId: string) => `/planning-submissions/${submissionId}`,
-    reviewSubmission: (submissionId: string) => `/planning-submissions/${submissionId}/review`,
+    createSubmission: (projectId: string) =>
+      `/projects/${projectId}/planning-submissions`,
+    uploadArtifact: (projectId: string) =>
+      `/projects/${projectId}/planning-artifacts`,
+    projectSubmissions: (projectId: string) =>
+      `/projects/${projectId}/planning-submissions`,
+    requirements: (
+      projectId: string,
+      submissionType: "architecture" | "ui_ux",
+    ) => `/projects/${projectId}/planning-requirements/${submissionType}`,
+    submissionDetail: (submissionId: string) =>
+      `/planning-submissions/${submissionId}`,
+    reviewSubmission: (submissionId: string) =>
+      `/planning-submissions/${submissionId}/review`,
     retrySubmissionEvaluation: (submissionId: string) =>
       `/planning-submissions/${submissionId}/evaluation/retry`,
-    generatePlan: (projectId: string) => `/projects/${projectId}/plans/generate`,
+    generatePlan: (projectId: string) =>
+      `/projects/${projectId}/plans/generate`,
     projectPlans: (projectId: string) => `/projects/${projectId}/plans`,
     planDetail: (planId: string) => `/project-plans/${planId}`,
     reviewPlan: (planId: string) => `/project-plans/${planId}/review`,
@@ -125,26 +138,36 @@ export const sprint4Endpoints = {
     freelancerOnboardingLink: "/payments/freelancer/onboarding-link",
     freelancerDashboardLink: "/payments/freelancer/dashboard-link",
     freelancerAccount: "/payments/freelancer/account",
-    escrowIntent: (projectId: string) => `/projects/${projectId}/payments/escrow-intent`,
-    checkoutSession: (projectId: string) => `/projects/${projectId}/payments/checkout-session`,
+    escrowIntent: (projectId: string) =>
+      `/projects/${projectId}/payments/escrow-intent`,
+    checkoutSession: (projectId: string) =>
+      `/projects/${projectId}/payments/checkout-session`,
     syncCheckoutSession: (projectId: string, sessionId: string) =>
       `/projects/${projectId}/payments/checkout-session/${sessionId}/sync`,
-    projectSummary: (projectId: string) => `/projects/${projectId}/payments/summary`,
+    projectSummary: (projectId: string) =>
+      `/projects/${projectId}/payments/summary`,
     projectPayments: (projectId: string) => `/projects/${projectId}/payments`,
-    release: (projectId: string, paymentId: string) => `/projects/${projectId}/payments/${paymentId}/release`,
+    release: (projectId: string, paymentId: string) =>
+      `/projects/${projectId}/payments/${paymentId}/release`,
   },
 };
 
 export const deliveryEndpoints = {
   repositories: {
     create: (projectId: string) => `/projects/${projectId}/repository`,
-    projectRepository: (projectId: string) => `/projects/${projectId}/repository`,
-    syncCollaborators: (projectId: string) => `/projects/${projectId}/repository/collaborators/sync`,
-    resendInvite: (collaboratorId: string) => `/repository-collaborators/${collaboratorId}/resend-invite`,
+    projectRepository: (projectId: string) =>
+      `/projects/${projectId}/repository`,
+    syncCollaborators: (projectId: string) =>
+      `/projects/${projectId}/repository/collaborators/sync`,
+    syncEvaluationWebhook: (projectId: string) =>
+      `/projects/${projectId}/repository/evaluation-webhook/sync`,
+    resendInvite: (collaboratorId: string) =>
+      `/repository-collaborators/${collaboratorId}/resend-invite`,
     adminList: "/admin/repositories",
   },
   implementationMatching: {
-    startTasks: (projectId: string) => `/projects/${projectId}/matching/implementation-tasks`,
+    startTasks: (projectId: string) =>
+      `/projects/${projectId}/matching/implementation-tasks`,
     assignTask: (taskId: string) => `/project-tasks/${taskId}/assignment`,
   },
   submissions: {
@@ -152,28 +175,38 @@ export const deliveryEndpoints = {
     projectList: (projectId: string) => `/projects/${projectId}/submissions`,
     detail: (submissionId: string) => `/project-submissions/${submissionId}`,
     update: (submissionId: string) => `/project-submissions/${submissionId}`,
-    submit: (submissionId: string) => `/project-submissions/${submissionId}/submit`,
-    review: (submissionId: string) => `/project-submissions/${submissionId}/review`,
+    submit: (submissionId: string) =>
+      `/project-submissions/${submissionId}/submit`,
+    review: (submissionId: string) =>
+      `/project-submissions/${submissionId}/review`,
     freelancerList: "/freelancer/submissions",
     adminList: "/admin/submissions",
   },
   revisions: {
     create: (projectId: string) => `/projects/${projectId}/revision-requests`,
-    projectList: (projectId: string) => `/projects/${projectId}/revision-requests`,
-    updateStatus: (revisionRequestId: string) => `/revision-requests/${revisionRequestId}/status`,
+    projectList: (projectId: string) =>
+      `/projects/${projectId}/revision-requests`,
+    updateStatus: (revisionRequestId: string) =>
+      `/revision-requests/${revisionRequestId}/status`,
   },
   evaluations: {
-    create: (submissionId: string) => `/project-submissions/${submissionId}/evaluations`,
-    submissionList: (submissionId: string) => `/project-submissions/${submissionId}/evaluations`,
+    create: (submissionId: string) =>
+      `/project-submissions/${submissionId}/evaluations`,
+    submissionList: (submissionId: string) =>
+      `/project-submissions/${submissionId}/evaluations`,
     detail: (evaluationRunId: string) => `/evaluation-runs/${evaluationRunId}`,
-    retry: (evaluationRunId: string) => `/evaluation-runs/${evaluationRunId}/retry`,
+    retry: (evaluationRunId: string) =>
+      `/evaluation-runs/${evaluationRunId}/retry`,
     adminList: "/admin/evaluations",
   },
   releaseRequests: {
-    create: (projectId: string) => `/projects/${projectId}/payment-release-requests`,
-    projectList: (projectId: string) => `/projects/${projectId}/payment-release-requests`,
+    create: (projectId: string) =>
+      `/projects/${projectId}/payment-release-requests`,
+    projectList: (projectId: string) =>
+      `/projects/${projectId}/payment-release-requests`,
     adminList: "/admin/payment-release-requests",
-    review: (requestId: string) => `/payment-release-requests/${requestId}/review`,
+    review: (requestId: string) =>
+      `/payment-release-requests/${requestId}/review`,
   },
 };
 

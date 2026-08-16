@@ -16,7 +16,11 @@ import {
   TaskList,
 } from "@/components/delivery";
 import { toNumber } from "@/components/delivery/helpers";
-import { getMilestones, getTasks, type ProjectMilestone } from "@/services/planning";
+import {
+  getMilestones,
+  getTasks,
+  type ProjectMilestone,
+} from "@/services/planning";
 import { getProject } from "@/services/projects";
 import {
   getDeliverySubmission,
@@ -46,7 +50,9 @@ function EvaluationSummary({ detail }: { detail: SubmissionDetail }) {
   return (
     <div className="rounded-lg border border-outline-variant/30 bg-surface-container-low p-4">
       <div className="flex flex-wrap items-center gap-3">
-        <span className="text-sm font-semibold text-on-surface">Automated review</span>
+        <span className="text-sm font-semibold text-on-surface">
+          Automated review
+        </span>
         <StatusBadge status={run.status} />
         {score !== null && (
           <span className="text-sm font-semibold text-on-surface">
@@ -57,27 +63,61 @@ function EvaluationSummary({ detail }: { detail: SubmissionDetail }) {
       </div>
 
       {run.summary && (
-        <p className="mt-2 text-sm leading-6 text-on-surface-variant">{run.summary}</p>
+        <p className="mt-2 text-sm leading-6 text-on-surface-variant">
+          {run.summary}
+        </p>
       )}
 
       {run.acceptanceCoverage && (
         <p className="mt-2 text-xs text-on-surface-variant">
-          Acceptance criteria: {run.acceptanceCoverage.met}/{run.acceptanceCoverage.total} met
+          Acceptance criteria: {run.acceptanceCoverage.met}/
+          {run.acceptanceCoverage.total} met
         </p>
       )}
 
       {rubric.length > 0 && (
-        <ul className="mt-3 space-y-1.5">
+        <ul className="mt-3 space-y-2">
           {rubric.map((item) => (
             <li
               key={item.criterion}
-              className="flex flex-wrap items-center justify-between gap-2 text-sm"
+              className="rounded-md bg-surface-container-lowest p-3"
             >
-              <span className="min-w-0 text-on-surface-variant">{item.criterion}</span>
-              <StatusBadge status={item.met ? "met" : "unmet"} />
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <span className="min-w-0 font-medium text-on-surface-variant">
+                  {item.criterion}
+                </span>
+                <StatusBadge status={item.met ? "met" : "unmet"} />
+              </div>
+              {item.evidence && (
+                <p className="mt-1 text-xs leading-5 text-on-surface-variant">
+                  Evidence: {item.evidence}
+                </p>
+              )}
             </li>
           ))}
         </ul>
+      )}
+
+      {(run.findings?.findings?.length ?? 0) > 0 && (
+        <div className="mt-3 text-sm text-on-surface-variant">
+          <span className="font-medium text-on-surface">Findings</span>
+          <ul className="mt-1 list-disc space-y-1 pl-5">
+            {run.findings?.findings?.map((finding, index) => (
+              <li key={`${index}-${finding}`}>{finding}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {(run.findings?.risks?.length ?? 0) > 0 && (
+        <div className="mt-3 text-sm text-on-surface-variant">
+          <span className="font-medium text-on-surface">Risks</span>
+          <ul className="mt-1 list-disc space-y-1 pl-5">
+            {run.findings?.risks?.map((risk, index) => (
+              <li key={`${index}-${risk}`}>{risk}</li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {revisionNotes && (
@@ -105,9 +145,13 @@ export default function CustomerProjectWorkPage() {
   const [revisions, setRevisions] = useState<ProjectRevisionRequest[]>([]);
   const [releases, setReleases] = useState<PaymentReleaseRequest[]>([]);
 
-  const [openSubmission, setOpenSubmission] = useState<SubmissionDetail | null>(null);
+  const [openSubmission, setOpenSubmission] = useState<SubmissionDetail | null>(
+    null,
+  );
   const [detailLoading, setDetailLoading] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const [manualReviewAcknowledged, setManualReviewAcknowledged] =
+    useState(false);
   const [deciding, setDeciding] = useState<"approve" | "revise" | null>(null);
 
   useEffect(() => {
@@ -130,29 +174,45 @@ export default function CustomerProjectWorkPage() {
           revisionsResult,
           releasesResult,
         ]) => {
-          setProject(projectResult.status === "fulfilled" ? projectResult.value : null);
+          setProject(
+            projectResult.status === "fulfilled" ? projectResult.value : null,
+          );
           setMilestones(
-            milestonesResult.status === "fulfilled" ? milestonesResult.value : [],
+            milestonesResult.status === "fulfilled"
+              ? milestonesResult.value
+              : [],
           );
           setTasks(
-            tasksResult.status === "fulfilled" ? (tasksResult.value as DeliveryTask[]) : [],
+            tasksResult.status === "fulfilled"
+              ? (tasksResult.value as DeliveryTask[])
+              : [],
           );
           setSubmissions(
-            submissionsResult.status === "fulfilled" ? submissionsResult.value.items : [],
+            submissionsResult.status === "fulfilled"
+              ? submissionsResult.value.items
+              : [],
           );
           setRevisions(
-            revisionsResult.status === "fulfilled" ? revisionsResult.value.items : [],
+            revisionsResult.status === "fulfilled"
+              ? revisionsResult.value.items
+              : [],
           );
           setReleases(
-            releasesResult.status === "fulfilled" ? releasesResult.value.items : [],
+            releasesResult.status === "fulfilled"
+              ? releasesResult.value.items
+              : [],
           );
 
           const failures: string[] = [];
-          if (milestonesResult.status === "rejected") failures.push("milestones");
+          if (milestonesResult.status === "rejected")
+            failures.push("milestones");
           if (tasksResult.status === "rejected") failures.push("tasks");
-          if (submissionsResult.status === "rejected") failures.push("submissions");
-          if (revisionsResult.status === "rejected") failures.push("revision requests");
-          if (releasesResult.status === "rejected") failures.push("payment releases");
+          if (submissionsResult.status === "rejected")
+            failures.push("submissions");
+          if (revisionsResult.status === "rejected")
+            failures.push("revision requests");
+          if (releasesResult.status === "rejected")
+            failures.push("payment releases");
           setLoadErrors(failures);
         },
       )
@@ -164,6 +224,7 @@ export default function CustomerProjectWorkPage() {
     setLoadErrors([]);
     setOpenSubmission(null);
     setFeedback("");
+    setManualReviewAcknowledged(false);
     setReloadKey((key) => key + 1);
   }, []);
 
@@ -192,7 +253,10 @@ export default function CustomerProjectWorkPage() {
     const map = new Map<string, PaymentReleaseRequest[]>();
     for (const release of releases) {
       if (!release.milestoneId) continue;
-      map.set(release.milestoneId, [...(map.get(release.milestoneId) ?? []), release]);
+      map.set(release.milestoneId, [
+        ...(map.get(release.milestoneId) ?? []),
+        release,
+      ]);
     }
     return map;
   }, [releases]);
@@ -200,6 +264,7 @@ export default function CustomerProjectWorkPage() {
   const openDetail = (submissionId: string) => {
     setDetailLoading(true);
     setFeedback("");
+    setManualReviewAcknowledged(false);
     getDeliverySubmission(submissionId)
       .then((detail) => setOpenSubmission(detail))
       .catch((error) =>
@@ -214,8 +279,39 @@ export default function CustomerProjectWorkPage() {
   const decide = async (decision: "approved" | "changes_requested") => {
     if (!openSubmission) return;
     if (decision === "changes_requested" && !feedback.trim()) {
-      toast.error("Feedback required", "Tell the freelancer what needs to change.");
+      toast.error(
+        "Feedback required",
+        "Tell the freelancer what needs to change.",
+      );
       return;
+    }
+    const evaluation =
+      openSubmission.latestEvaluationRun ?? openSubmission.evaluationRun;
+    if (decision === "approved") {
+      if (evaluation?.status !== "completed") {
+        toast.error(
+          "Evaluation not complete",
+          "Approval is available only after the latest automated evaluation finishes.",
+        );
+        return;
+      }
+      if (evaluation.recommendation === "changes_requested") {
+        toast.error(
+          "Changes are required",
+          "This commit cannot be approved until the freelancer submits a passing revision.",
+        );
+        return;
+      }
+      if (
+        evaluation.recommendation === "manual_review" &&
+        (!manualReviewAcknowledged || feedback.trim().length < 20)
+      ) {
+        toast.error(
+          "Manual review evidence required",
+          "Confirm the manual review and describe what you inspected in at least 20 characters.",
+        );
+        return;
+      }
     }
 
     setDeciding(decision === "approved" ? "approve" : "revise");
@@ -224,6 +320,8 @@ export default function CustomerProjectWorkPage() {
         decision,
         feedback: feedback.trim() || undefined,
         createRevisionRequest: decision === "changes_requested",
+        manualReviewAcknowledged:
+          decision === "approved" && manualReviewAcknowledged,
       });
       toast.success(
         decision === "approved" ? "Submission approved" : "Revision requested",
@@ -243,7 +341,30 @@ export default function CustomerProjectWorkPage() {
   };
 
   const canDecide =
-    openSubmission?.status === "submitted" || openSubmission?.status === "under_review";
+    openSubmission?.status === "submitted" ||
+    openSubmission?.status === "under_review";
+  const latestEvaluation =
+    openSubmission?.latestEvaluationRun ??
+    openSubmission?.evaluationRun ??
+    null;
+  const evaluatedCommitMatches =
+    !openSubmission ||
+    !["pull_request", "repository"].includes(openSubmission.submissionType) ||
+    Boolean(
+      openSubmission.commitSha &&
+      latestEvaluation?.evaluatedCommitSha &&
+      openSubmission.commitSha.toLowerCase() ===
+        latestEvaluation.evaluatedCommitSha.toLowerCase(),
+    );
+  const approvalReady = Boolean(
+    latestEvaluation?.status === "completed" &&
+    evaluatedCommitMatches &&
+    ["approve", "manual_review"].includes(
+      latestEvaluation.recommendation ?? "",
+    ) &&
+    (latestEvaluation.recommendation !== "manual_review" ||
+      (manualReviewAcknowledged && feedback.trim().length >= 20)),
+  );
 
   return (
     <DashboardShell
@@ -296,7 +417,8 @@ export default function CustomerProjectWorkPage() {
                 milestones={milestones}
                 tasks={tasks}
                 renderExtra={(milestone) => {
-                  const milestoneReleases = releasesByMilestone.get(milestone.id) ?? [];
+                  const milestoneReleases =
+                    releasesByMilestone.get(milestone.id) ?? [];
                   const milestoneTasks = tasks.filter(
                     (task) => task.milestoneId === milestone.id,
                   );
@@ -305,11 +427,19 @@ export default function CustomerProjectWorkPage() {
                     <div className="space-y-3">
                       {milestoneReleases.length > 0 && (
                         <div className="flex flex-wrap items-center gap-2 text-sm">
-                          <span className="text-on-surface-variant">Escrow</span>
+                          <span className="text-on-surface-variant">
+                            Escrow
+                          </span>
                           {milestoneReleases.map((release) => (
-                            <span key={release.id} className="flex items-center gap-2">
+                            <span
+                              key={release.id}
+                              className="flex items-center gap-2"
+                            >
                               <span className="font-semibold text-on-surface">
-                                {formatMoney(toNumber(release.amount), release.currency)}
+                                {formatMoney(
+                                  toNumber(release.amount),
+                                  release.currency,
+                                )}
                               </span>
                               <StatusBadge status={release.status} />
                             </span>
@@ -322,7 +452,9 @@ export default function CustomerProjectWorkPage() {
                           tasks={milestoneTasks}
                           allTasks={tasks}
                           onSelect={(task) => {
-                            const submission = latestSubmissionByTask.get(task.id);
+                            const submission = latestSubmissionByTask.get(
+                              task.id,
+                            );
                             if (submission) openDetail(submission.id);
                           }}
                           selectedTaskId={openSubmission?.taskId ?? null}
@@ -393,15 +525,39 @@ export default function CustomerProjectWorkPage() {
                       rows={3}
                       value={feedback}
                       onChange={(event) => setFeedback(event.target.value)}
-                      placeholder="Required when requesting changes."
+                      placeholder="Required for revisions and manual-review approvals."
                       className="input-halo w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-4 py-3 text-on-surface outline-none transition-all placeholder:text-outline/50"
                     />
+                    {latestEvaluation?.recommendation === "manual_review" && (
+                      <label className="flex items-start gap-2 rounded-lg border border-outline-variant/40 bg-surface-container-low p-3 text-sm text-on-surface-variant">
+                        <input
+                          type="checkbox"
+                          checked={manualReviewAcknowledged}
+                          onChange={(event) =>
+                            setManualReviewAcknowledged(event.target.checked)
+                          }
+                          className="mt-0.5 h-4 w-4"
+                        />
+                        <span>
+                          I inspected the exact commit, diff, and available
+                          verification evidence. My feedback records the manual
+                          evidence used.
+                        </span>
+                      </label>
+                    )}
+                    {!approvalReady && (
+                      <p className="text-sm text-on-surface-variant">
+                        Approval is locked until the latest evaluation
+                        completes, matches this commit, and returns an approving
+                        or manual-review verdict.
+                      </p>
+                    )}
                     <div className="flex flex-wrap gap-3">
                       <Button
                         size="sm"
                         onClick={() => decide("approved")}
                         loading={deciding === "approve"}
-                        disabled={deciding !== null}
+                        disabled={deciding !== null || !approvalReady}
                       >
                         <CheckCircle size={15} />
                         Approve
@@ -420,15 +576,17 @@ export default function CustomerProjectWorkPage() {
                   </div>
                 ) : (
                   <p className="mt-5 text-sm text-on-surface-variant">
-                    This version is {openSubmission.status.replace(/_/g, " ")} and cannot be
-                    reviewed again.
+                    This version is {openSubmission.status.replace(/_/g, " ")}{" "}
+                    and cannot be reviewed again.
                   </p>
                 )}
               </section>
             )}
 
             {detailLoading && (
-              <p className="text-sm text-on-surface-variant">Loading submission...</p>
+              <p className="text-sm text-on-surface-variant">
+                Loading submission...
+              </p>
             )}
 
             {!milestones.length && !tasks.length && (
@@ -491,7 +649,9 @@ export default function CustomerProjectWorkPage() {
                   ))}
                 </ul>
               ) : (
-                <p className="mt-3 text-sm text-on-surface-variant">No open revisions.</p>
+                <p className="mt-3 text-sm text-on-surface-variant">
+                  No open revisions.
+                </p>
               )}
             </section>
 
@@ -507,7 +667,10 @@ export default function CustomerProjectWorkPage() {
                       className="flex items-center justify-between gap-3 text-sm"
                     >
                       <span className="font-semibold text-on-surface">
-                        {formatMoney(toNumber(release.amount), release.currency)}
+                        {formatMoney(
+                          toNumber(release.amount),
+                          release.currency,
+                        )}
                       </span>
                       <StatusBadge status={release.status} />
                     </li>

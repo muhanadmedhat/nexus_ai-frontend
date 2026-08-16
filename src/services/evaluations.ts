@@ -1,7 +1,7 @@
 import { api, deliveryEndpoints, getApiErrorMessage } from "@/lib/api";
 
 export type EvaluationRunStatus =
-  "queued" | "running" | "completed" | "failed" | "cancelled";
+  "queued" | "running" | "completed" | "failed" | "cancelled" | "superseded";
 
 export type EvaluationRecommendation =
   "approve" | "changes_requested" | "reject" | "manual_review";
@@ -39,6 +39,30 @@ export interface EvaluationRunDetail extends EvaluationRun {
   riskFlags: string[] | null;
   findings: Record<string, unknown> | null;
   startedAt: string | null;
+  trigger?: string | null;
+  evaluatedCommitSha?: string | null;
+  evidenceBundle?: {
+    executionMode?: string;
+    commitSha?: string | null;
+    snapshotVerified?: boolean;
+    verification?: {
+      complete?: boolean;
+      commandsAttempted?: number;
+      commandsFailed?: number;
+      coverage?: Record<string, boolean>;
+    } | null;
+    inspectionCoverage?: {
+      manifestFiles?: number;
+      changedFiles?: number;
+      inspectedFiles?: number;
+      changedFileCoverage?: number;
+      sourceChars?: number;
+    } | null;
+    githubChecks?: {
+      combinedStatus?: string | null;
+    } | null;
+    summaryMarkdown?: string | null;
+  } | null;
   // Admin-only provenance (undefined for customer/freelancer viewers).
   modelName?: string | null;
   promptVersion?: string | null;

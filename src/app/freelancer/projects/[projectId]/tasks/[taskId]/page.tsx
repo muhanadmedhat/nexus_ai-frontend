@@ -20,10 +20,15 @@ import {
   dependencyTaskIds,
   indexTasksById,
 } from "@/components/delivery/helpers";
-import { getMilestones, getTasks, type ProjectMilestone } from "@/services/planning";
+import {
+  getMilestones,
+  getTasks,
+  type ProjectMilestone,
+} from "@/services/planning";
 import { getMyFreelancerProfile } from "@/services/freelancers";
 import {
   createDeliverySubmission,
+  getDeliverySubmission,
   listDeliverySubmissions,
   submitDeliverySubmission,
   updateDeliverySubmission,
@@ -34,10 +39,65 @@ import { listRevisionRequests } from "@/services/revisions";
 import { formatDate } from "@/utils/format";
 import type {
   DeliveryTask,
+  EvaluationRun,
   ProjectRevisionRequest,
   ProjectSubmission,
   SubmissionType,
 } from "@/types/delivery";
+
+function FreelancerEvaluation({ run }: { run: EvaluationRun }) {
+  const rubric = run.acceptanceCoverage?.items ?? run.findings?.rubric ?? [];
+  const revisionNotes = run.findings?.revisionNotes?.trim();
+
+  return (
+    <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 card-shadow">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="font-headline text-base font-semibold text-on-surface">
+          Evaluation
+        </h3>
+        <StatusBadge status={run.status} />
+      </div>
+      {run.recommendation && (
+        <p className="mt-2 text-sm text-on-surface-variant">
+          Recommendation: {run.recommendation.replace(/_/g, " ")}
+          {run.score != null ? ` · ${run.score}/100` : ""}
+        </p>
+      )}
+      {run.summary && (
+        <p className="mt-2 text-sm leading-6 text-on-surface-variant">
+          {run.summary}
+        </p>
+      )}
+      {rubric.length > 0 && (
+        <ul className="mt-3 space-y-2">
+          {rubric.map((item, index) => (
+            <li
+              key={`${index}-${item.criterion}`}
+              className="rounded-lg bg-surface-container-low p-3 text-sm"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <span className="font-medium text-on-surface">
+                  {item.criterion}
+                </span>
+                <StatusBadge status={item.met ? "met" : "unmet"} />
+              </div>
+              {item.evidence && (
+                <p className="mt-1 text-xs leading-5 text-on-surface-variant">
+                  {item.evidence}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {revisionNotes && (
+        <p className="mt-3 rounded-lg bg-error/10 p-3 text-sm leading-6 text-error">
+          {revisionNotes}
+        </p>
+      )}
+    </section>
+  );
+}
 
 const SUBMISSION_TYPES: { value: SubmissionType; label: string }[] = [
   { value: "pull_request", label: "Pull request" },
@@ -89,7 +149,10 @@ function formFromSubmission(submission: ProjectSubmission): FormState {
     branchName: submission.branchName ?? "",
     pullRequestUrl: submission.pullRequestUrl ?? "",
     commitSha: submission.commitSha ?? "",
-    notes: typeof submission.content?.notes === "string" ? submission.content.notes : "",
+    notes:
+      typeof submission.content?.notes === "string"
+        ? submission.content.notes
+        : "",
     screenshots: (submission.fileUrls?.screenshots ?? []).join("\n"),
     attachments: (submission.fileUrls?.attachments ?? []).join("\n"),
   };
@@ -127,7 +190,10 @@ function Field({
 }
 
 export default function FreelancerTaskWorkPage() {
-  const { projectId, taskId } = useParams<{ projectId: string; taskId: string }>();
+  const { projectId, taskId } = useParams<{
+    projectId: string;
+    taskId: string;
+  }>();
   const toast = useToast();
 
   const [loading, setLoading] = useState(true);
@@ -139,6 +205,8 @@ export default function FreelancerTaskWorkPage() {
   const [milestones, setMilestones] = useState<ProjectMilestone[]>([]);
   const [submissions, setSubmissions] = useState<ProjectSubmission[]>([]);
   const [revisions, setRevisions] = useState<ProjectRevisionRequest[]>([]);
+  const [latestEvaluation, setLatestEvaluation] =
+    useState<EvaluationRun | null>(null);
 
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState<"draft" | "submit" | null>(null);
@@ -160,52 +228,74 @@ export default function FreelancerTaskWorkPage() {
           listRevisionRequests(projectId, { taskId }),
         ]);
       })
-      .then(([tasksResult, milestonesResult, submissionsResult, revisionsResult]) => {
-        setAllTasks(
-          tasksResult.status === "fulfilled" ? (tasksResult.value as DeliveryTask[]) : [],
-        );
-        setMilestones(
-          milestonesResult.status === "fulfilled" ? milestonesResult.value : [],
-        );
+      .then(
+        ([
+          tasksResult,
+          milestonesResult,
+          submissionsResult,
+          revisionsResult,
+        ]) => {
+          setAllTasks(
+            tasksResult.status === "fulfilled"
+              ? (tasksResult.value as DeliveryTask[])
+              : [],
+          );
+          setMilestones(
+            milestonesResult.status === "fulfilled"
+              ? milestonesResult.value
+              : [],
+          );
 
-        const items =
-          submissionsResult.status === "fulfilled" ? submissionsResult.value.items : [];
-        setSubmissions(items);
+          const items =
+            submissionsResult.status === "fulfilled"
+              ? submissionsResult.value.items
+              : [];
+          setSubmissions(items);
 
-        // Seed the form from an editable version, so a draft or a version sent
-        // back for changes is picked up where the freelancer left off.
-        const mine = items.filter(
-          (submission) =>
-            !currentProfileId || submission.freelancerProfileId === currentProfileId,
-        );
-        const latest = mine.reduce<ProjectSubmission | null>(
-          (best, submission) =>
-            !best || submission.version > best.version ? submission : best,
-          null,
-        );
-        setForm(
-          latest && (latest.status === "draft" || latest.status === "changes_requested")
-            ? formFromSubmission(latest)
-            : EMPTY_FORM,
-        );
+          // Seed the form from an editable version, so a draft or a version sent
+          // back for changes is picked up where the freelancer left off.
+          const mine = items.filter(
+            (submission) =>
+              !currentProfileId ||
+              submission.freelancerProfileId === currentProfileId,
+          );
+          const latest = mine.reduce<ProjectSubmission | null>(
+            (best, submission) =>
+              !best || submission.version > best.version ? submission : best,
+            null,
+          );
+          setForm(
+            latest &&
+              (latest.status === "draft" ||
+                latest.status === "changes_requested")
+              ? formFromSubmission(latest)
+              : EMPTY_FORM,
+          );
 
-        setRevisions(
-          revisionsResult.status === "fulfilled" ? revisionsResult.value.items : [],
-        );
+          setRevisions(
+            revisionsResult.status === "fulfilled"
+              ? revisionsResult.value.items
+              : [],
+          );
 
-        const failures: string[] = [];
-        if (tasksResult.status === "rejected") failures.push("task");
-        if (milestonesResult.status === "rejected") failures.push("milestone");
-        if (submissionsResult.status === "rejected") failures.push("submissions");
-        if (revisionsResult.status === "rejected") failures.push("revision requests");
-        setLoadErrors(failures);
-      })
+          const failures: string[] = [];
+          if (tasksResult.status === "rejected") failures.push("task");
+          if (milestonesResult.status === "rejected")
+            failures.push("milestone");
+          if (submissionsResult.status === "rejected")
+            failures.push("submissions");
+          if (revisionsResult.status === "rejected")
+            failures.push("revision requests");
+          setLoadErrors(failures);
+        },
+      )
       .finally(() => setLoading(false));
   }, [projectId, taskId, reloadKey]);
 
   const refresh = useCallback(() => {
     setLoading(true);
     setLoadErrors([]);
+    setLatestEvaluation(null);
     setReloadKey((key) => key + 1);
   }, []);
 
@@ -223,7 +313,8 @@ export default function FreelancerTaskWorkPage() {
 
   const latestSubmission = useMemo(() => {
     const mine = submissions.filter(
-      (submission) => !profileId || submission.freelancerProfileId === profileId,
+      (submission) =>
+        !profileId || submission.freelancerProfileId === profileId,
     );
     return mine.reduce<ProjectSubmission | null>(
       (latest, submission) =>
@@ -232,10 +323,50 @@ export default function FreelancerTaskWorkPage() {
     );
   }, [submissions, profileId]);
 
+  useEffect(() => {
+    if (!latestSubmission?.id) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const loadEvaluation = async (): Promise<void> => {
+      try {
+        const detail = await getDeliverySubmission(latestSubmission.id);
+        if (cancelled) return;
+        const evaluation =
+          detail.latestEvaluationRun ?? detail.evaluationRun ?? null;
+        setLatestEvaluation(evaluation);
+        if (detail.status !== latestSubmission.status) {
+          setSubmissions((current) =>
+            current.map((submission) =>
+              submission.id === detail.id ? detail : submission,
+            ),
+          );
+          if (detail.status === "changes_requested") {
+            setForm(formFromSubmission(detail));
+          }
+        }
+        if (detail.openRevisionRequests) {
+          setRevisions(detail.openRevisionRequests);
+        }
+        if (evaluation && ["queued", "running"].includes(evaluation.status)) {
+          timer = setTimeout(() => void loadEvaluation(), 5_000);
+        }
+      } catch {
+        if (!cancelled) setLatestEvaluation(null);
+      }
+    };
+    void loadEvaluation();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [latestSubmission?.id, latestSubmission?.status]);
+
   // An editable draft, or a version the reviewer sent back for changes.
   const editableSubmission =
     latestSubmission &&
-    (latestSubmission.status === "draft" || latestSubmission.status === "changes_requested")
+    (latestSubmission.status === "draft" ||
+      latestSubmission.status === "changes_requested")
       ? latestSubmission
       : null;
 
@@ -256,7 +387,10 @@ export default function FreelancerTaskWorkPage() {
     [task, tasksById],
   );
 
-  const criteria = useMemo(() => acceptanceCriteriaList(task?.acceptanceCriteria), [task]);
+  const criteria = useMemo(
+    () => acceptanceCriteriaList(task?.acceptanceCriteria),
+    [task],
+  );
 
   const formValues = useCallback(() => {
     const screenshots = toUrlList(form.screenshots);
@@ -267,7 +401,9 @@ export default function FreelancerTaskWorkPage() {
       summary: form.summary.trim(),
       content: form.notes.trim() ? { notes: form.notes.trim() } : null,
       fileUrls:
-        screenshots.length || attachments.length ? { screenshots, attachments } : null,
+        screenshots.length || attachments.length
+          ? { screenshots, attachments }
+          : null,
       repoUrl: form.repoUrl.trim(),
       branchName: form.branchName.trim(),
       pullRequestUrl: form.pullRequestUrl.trim(),
@@ -318,14 +454,20 @@ export default function FreelancerTaskWorkPage() {
     setSaving("draft");
     try {
       if (editableSubmission) {
-        await updateDeliverySubmission(editableSubmission.id, buildUpdatePayload());
+        await updateDeliverySubmission(
+          editableSubmission.id,
+          buildUpdatePayload(),
+        );
       } else {
         await createDeliverySubmission(projectId, {
           ...buildCreatePayload(),
           status: "draft",
         });
       }
-      toast.success("Draft saved", "Your work is saved but not yet sent for review.");
+      toast.success(
+        "Draft saved",
+        "Your work is saved but not yet sent for review.",
+      );
       refresh();
     } catch (error) {
       toast.error(
@@ -338,11 +480,33 @@ export default function FreelancerTaskWorkPage() {
   };
 
   const handleSubmit = async () => {
+    const commitSha = form.commitSha.trim();
+    if (commitSha && !/^[a-fA-F0-9]{40}$/.test(commitSha)) {
+      toast.error(
+        "Full commit SHA required",
+        "Use the exact 40-character Git commit SHA so the evaluator reviews an immutable snapshot.",
+      );
+      return;
+    }
+    if (form.submissionType === "repository" && !commitSha) {
+      toast.error(
+        "Commit SHA required",
+        "Repository submissions must identify the exact 40-character commit SHA.",
+      );
+      return;
+    }
+    if (form.submissionType === "pull_request" && !form.pullRequestUrl.trim()) {
+      toast.error("Pull request required", "Add the GitHub pull-request URL.");
+      return;
+    }
     setSaving("submit");
     try {
       if (editableSubmission) {
-        await updateDeliverySubmission(editableSubmission.id, buildUpdatePayload());
-        await submitDeliverySubmission(editableSubmission.id, {
+        const savedSubmission = await updateDeliverySubmission(
+          editableSubmission.id,
+          buildUpdatePayload(),
+        );
+        await submitDeliverySubmission(savedSubmission.id, {
           summary: form.summary.trim() || undefined,
         });
       } else {
@@ -364,7 +528,8 @@ export default function FreelancerTaskWorkPage() {
   };
 
   const openRevisions = revisions.filter(
-    (revision) => revision.status === "open" || revision.status === "in_progress",
+    (revision) =>
+      revision.status === "open" || revision.status === "in_progress",
   );
 
   return (
@@ -437,7 +602,9 @@ export default function FreelancerTaskWorkPage() {
 
             <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
               <h3 className="font-headline text-xl font-semibold text-on-surface">
-                {editableSubmission ? "Continue your submission" : "New submission"}
+                {editableSubmission
+                  ? "Continue your submission"
+                  : "New submission"}
               </h3>
               {latestSubmission && (
                 <p className="mt-1 text-sm text-on-surface-variant">
@@ -478,7 +645,10 @@ export default function FreelancerTaskWorkPage() {
                   name="title"
                   value={form.title}
                   onChange={(event) =>
-                    setForm((current) => ({ ...current, title: event.target.value }))
+                    setForm((current) => ({
+                      ...current,
+                      title: event.target.value,
+                    }))
                   }
                   placeholder="Checkout API implementation"
                 />
@@ -486,7 +656,9 @@ export default function FreelancerTaskWorkPage() {
                 <Field
                   label="Summary"
                   value={form.summary}
-                  onChange={(value) => setForm((current) => ({ ...current, summary: value }))}
+                  onChange={(value) =>
+                    setForm((current) => ({ ...current, summary: value }))
+                  }
                   placeholder="What you built and how it meets the acceptance criteria."
                   rows={3}
                 />
@@ -497,7 +669,10 @@ export default function FreelancerTaskWorkPage() {
                     name="repoUrl"
                     value={form.repoUrl}
                     onChange={(event) =>
-                      setForm((current) => ({ ...current, repoUrl: event.target.value }))
+                      setForm((current) => ({
+                        ...current,
+                        repoUrl: event.target.value,
+                      }))
                     }
                     placeholder="https://github.com/nexus-ai/..."
                   />
@@ -506,7 +681,10 @@ export default function FreelancerTaskWorkPage() {
                     name="branchName"
                     value={form.branchName}
                     onChange={(event) =>
-                      setForm((current) => ({ ...current, branchName: event.target.value }))
+                      setForm((current) => ({
+                        ...current,
+                        branchName: event.target.value,
+                      }))
                     }
                     placeholder="feat/checkout-api"
                   />
@@ -527,16 +705,21 @@ export default function FreelancerTaskWorkPage() {
                     name="commitSha"
                     value={form.commitSha}
                     onChange={(event) =>
-                      setForm((current) => ({ ...current, commitSha: event.target.value }))
+                      setForm((current) => ({
+                        ...current,
+                        commitSha: event.target.value,
+                      }))
                     }
-                    placeholder="abc123"
+                    placeholder="40-character commit SHA"
                   />
                 </div>
 
                 <Field
                   label="Notes"
                   value={form.notes}
-                  onChange={(value) => setForm((current) => ({ ...current, notes: value }))}
+                  onChange={(value) =>
+                    setForm((current) => ({ ...current, notes: value }))
+                  }
                   placeholder="Anything the reviewer should know."
                 />
 
@@ -604,7 +787,9 @@ export default function FreelancerTaskWorkPage() {
                       key={dependency.id}
                       className="flex items-start justify-between gap-2 text-sm"
                     >
-                      <span className="min-w-0 text-on-surface">{dependency.title}</span>
+                      <span className="min-w-0 text-on-surface">
+                        {dependency.title}
+                      </span>
                       <StatusBadge status={dependency.status} />
                     </li>
                   ))}
@@ -633,7 +818,9 @@ export default function FreelancerTaskWorkPage() {
                         <StatusBadge status={revision.status} />
                       </div>
                       {revision.description && (
-                        <p className="mt-1 text-on-surface-variant">{revision.description}</p>
+                        <p className="mt-1 text-on-surface-variant">
+                          {revision.description}
+                        </p>
                       )}
                       {revision.dueAt && (
                         <p className="mt-1 text-xs text-on-surface-variant">
@@ -653,6 +840,10 @@ export default function FreelancerTaskWorkPage() {
                 </h3>
                 <EvidenceList className="mt-4" submission={latestSubmission} />
               </section>
+            )}
+
+            {latestEvaluation && (
+              <FreelancerEvaluation run={latestEvaluation} />
             )}
           </aside>
         </div>

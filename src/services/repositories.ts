@@ -10,6 +10,13 @@ export interface ProjectRepository {
   defaultBranch: string;
   status: "pending" | "active" | "failed" | "archived";
   error?: string | null;
+  evaluationWebhook?: {
+    status?: "active" | "inactive" | "failed";
+    id?: string | null;
+    url?: string;
+    error?: string;
+    syncedAt?: string;
+  } | null;
   lastSyncedAt?: string | null;
   createdAt: string;
 }
@@ -76,29 +83,33 @@ export async function createProjectRepository(
     visibility?: "private" | "public";
     defaultBranch?: string;
     description?: string;
-  } = {}
+  } = {},
 ): Promise<ProjectRepository> {
   try {
     const { data } = await api.post<ApiDataResponse<ProjectRepository>>(
       deliveryEndpoints.repositories.create(projectId),
-      payload
+      payload,
     );
     return data.data;
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not create the project repository"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not create the project repository"),
+    );
   }
 }
 
 export async function getProjectRepository(
-  projectId: string
+  projectId: string,
 ): Promise<ProjectRepositoryDetail> {
   try {
     const { data } = await api.get<ApiDataResponse<ProjectRepositoryDetail>>(
-      deliveryEndpoints.repositories.projectRepository(projectId)
+      deliveryEndpoints.repositories.projectRepository(projectId),
     );
     return data.data;
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not load the project repository"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not load the project repository"),
+    );
   }
 }
 
@@ -109,27 +120,44 @@ export async function syncRepositoryCollaborators(
     includePlanningAssignees?: boolean;
     freelancerProfileIds?: string[];
     permission?: string;
-  } = {}
+  } = {},
 ): Promise<SyncCollaboratorsResult> {
   try {
     const { data } = await api.post<ApiDataResponse<SyncCollaboratorsResult>>(
       deliveryEndpoints.repositories.syncCollaborators(projectId),
-      payload
+      payload,
     );
     return data.data;
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not sync repository collaborators"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not sync repository collaborators"),
+    );
+  }
+}
+
+export async function syncRepositoryEvaluationWebhook(
+  projectId: string,
+): Promise<ProjectRepository> {
+  try {
+    const { data } = await api.post<ApiDataResponse<ProjectRepository>>(
+      deliveryEndpoints.repositories.syncEvaluationWebhook(projectId),
+    );
+    return data.data;
+  } catch (error) {
+    throw new Error(
+      getApiErrorMessage(error, "Could not sync the evaluation webhook"),
+    );
   }
 }
 
 export async function resendCollaboratorInvite(
   collaboratorId: string,
-  payload: { permission?: string } = {}
+  payload: { permission?: string } = {},
 ): Promise<RepositoryCollaborator> {
   try {
     const { data } = await api.post<ApiDataResponse<RepositoryCollaborator>>(
       deliveryEndpoints.repositories.resendInvite(collaboratorId),
-      payload
+      payload,
     );
     return data.data;
   } catch (error) {
@@ -151,7 +179,7 @@ export async function getAdminRepositories(params?: {
     if (params?.limit) query.append("limit", String(params.limit));
 
     const { data } = await api.get<PaginatedResponse<AdminProjectRepository>>(
-      `${deliveryEndpoints.repositories.adminList}?${query.toString()}`
+      `${deliveryEndpoints.repositories.adminList}?${query.toString()}`,
     );
     return data;
   } catch (error) {

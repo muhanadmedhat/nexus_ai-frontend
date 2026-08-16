@@ -61,6 +61,17 @@ export default function AdminEvaluationDetail() {
   }
 
   const rubric = run?.acceptanceCoverage?.items ?? [];
+  const evidence = run?.evidenceBundle ?? null;
+  const findings = Array.isArray(run?.findings?.findings)
+    ? run.findings.findings.filter(
+        (item): item is string => typeof item === "string",
+      )
+    : [];
+  const risks = Array.isArray(run?.findings?.risks)
+    ? run.findings.risks.filter(
+        (item): item is string => typeof item === "string",
+      )
+    : [];
 
   return (
     <DashboardShell
@@ -163,6 +174,73 @@ export default function AdminEvaluationDetail() {
               </section>
             )}
 
+            {(findings.length > 0 || risks.length > 0) && (
+              <section className="mt-5 grid gap-4 md:grid-cols-2">
+                {findings.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-on-surface">Findings</h4>
+                    <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-on-surface-variant">
+                      {findings.map((finding, index) => (
+                        <li key={`${index}-${finding}`}>{finding}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {risks.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-on-surface">
+                      Technical risks
+                    </h4>
+                    <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-on-surface-variant">
+                      {risks.map((risk, index) => (
+                        <li key={`${index}-${risk}`}>{risk}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {evidence && (
+              <section className="mt-5">
+                <h4 className="font-semibold text-on-surface">
+                  Inspection evidence
+                </h4>
+                <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                  <MetaRow
+                    label="Execution"
+                    value={evidence.executionMode ?? "—"}
+                  />
+                  <MetaRow
+                    label="Exact snapshot"
+                    value={
+                      evidence.snapshotVerified ? "Verified" : "Not verified"
+                    }
+                  />
+                  <MetaRow
+                    label="Automated checks"
+                    value={
+                      evidence.verification?.commandsAttempted != null
+                        ? `${evidence.verification.commandsAttempted} run, ${evidence.verification.commandsFailed ?? 0} failed`
+                        : "—"
+                    }
+                  />
+                  <MetaRow
+                    label="Changed files inspected"
+                    value={
+                      evidence.inspectionCoverage?.changedFiles != null
+                        ? `${Math.round((evidence.inspectionCoverage.changedFileCoverage ?? 0) * 100)}% of ${evidence.inspectionCoverage.changedFiles}`
+                        : "—"
+                    }
+                  />
+                  <MetaRow
+                    label="GitHub checks"
+                    value={evidence.githubChecks?.combinedStatus ?? "—"}
+                  />
+                </dl>
+              </section>
+            )}
+
             {run.error && (
               <section className="mt-5">
                 <h4 className="font-semibold text-error">Error</h4>
@@ -182,6 +260,11 @@ export default function AdminEvaluationDetail() {
               />
               <MetaRow label="Model" value={run.modelName ?? "—"} />
               <MetaRow label="Prompt" value={run.promptVersion ?? "—"} />
+              <MetaRow label="Trigger" value={run.trigger ?? "—"} />
+              <MetaRow
+                label="Commit"
+                value={run.evaluatedCommitSha?.slice(0, 12) ?? "—"}
+              />
               <MetaRow
                 label="Created"
                 value={new Date(run.createdAt).toLocaleString()}

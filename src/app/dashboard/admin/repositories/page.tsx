@@ -23,11 +23,18 @@ import {
   getProjectRepository,
   resendCollaboratorInvite,
   syncRepositoryCollaborators,
+  syncRepositoryEvaluationWebhook,
   type AdminProjectRepository,
   type RepositoryCollaborator,
 } from "@/services/repositories";
 
-const STATUS_FILTERS = ["all", "active", "pending", "failed", "archived"] as const;
+const STATUS_FILTERS = [
+  "all",
+  "active",
+  "pending",
+  "failed",
+  "archived",
+] as const;
 
 // Projects far enough along to own an implementation repository.
 const REPOSITORY_READY_STATUSES = [
@@ -45,11 +52,15 @@ function formatDate(value?: string | null) {
 
 export default function AdminRepositoriesPage() {
   const toast = useToast();
-  const [repositories, setRepositories] = useState<AdminProjectRepository[]>([]);
+  const [repositories, setRepositories] = useState<AdminProjectRepository[]>(
+    [],
+  );
   const [status, setStatus] = useState<(typeof STATUS_FILTERS)[number]>("all");
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
-  const [collaborators, setCollaborators] = useState<RepositoryCollaborator[]>([]);
+  const [collaborators, setCollaborators] = useState<RepositoryCollaborator[]>(
+    [],
+  );
   const [collaboratorsLoading, setCollaboratorsLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [projects, setProjects] = useState<AdminProjectSummary[]>([]);
@@ -66,7 +77,9 @@ export default function AdminRepositoriesPage() {
       });
       setRepositories(response.data ?? []);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not load repositories");
+      toast.error(
+        error instanceof Error ? error.message : "Could not load repositories",
+      );
     } finally {
       setLoading(false);
     }
@@ -109,7 +122,11 @@ export default function AdminRepositoriesPage() {
       setNewProjectId("");
       refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not create the repository");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not create the repository",
+      );
     } finally {
       setCreating(false);
     }
@@ -122,7 +139,11 @@ export default function AdminRepositoriesPage() {
         const detail = await getProjectRepository(projectId);
         setCollaborators(detail.collaborators ?? []);
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Could not load collaborators");
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Could not load collaborators",
+        );
       } finally {
         setCollaboratorsLoading(false);
       }
@@ -156,7 +177,9 @@ export default function AdminRepositoriesPage() {
       );
       await loadRepositories();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not sync collaborators");
+      toast.error(
+        error instanceof Error ? error.message : "Could not sync collaborators",
+      );
     } finally {
       setBusyId(null);
     }
@@ -171,7 +194,33 @@ export default function AdminRepositoriesPage() {
       );
       toast.success("Invite sent again");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not resend the invite");
+      toast.error(
+        error instanceof Error ? error.message : "Could not resend the invite",
+      );
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleWebhookSync = async (repository: AdminProjectRepository) => {
+    setBusyId(`${repository.id}:webhook`);
+    try {
+      const updated = await syncRepositoryEvaluationWebhook(
+        repository.projectId,
+      );
+      if (updated.evaluationWebhook?.status === "active") {
+        toast.success("Evaluation webhook is active");
+      } else {
+        toast.error(
+          "Webhook sync failed",
+          updated.evaluationWebhook?.error ?? "Check the GitHub configuration.",
+        );
+      }
+      await loadRepositories();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not sync the webhook",
+      );
     } finally {
       setBusyId(null);
     }
@@ -185,22 +234,22 @@ export default function AdminRepositoriesPage() {
     >
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-2">
-        {STATUS_FILTERS.map((item) => (
-          <button
-            key={item}
-            onClick={() => {
-              setStatus(item);
-              setLoading(true);
-            }}
-            className={`rounded-full border px-3 py-1.5 text-sm capitalize transition-colors ${
-              status === item
-                ? "border-primary-container bg-primary-container/10 text-primary-container"
-                : "border-outline-variant text-on-surface-variant hover:bg-surface-container-low"
-            }`}
-          >
-            {item}
-          </button>
-        ))}
+          {STATUS_FILTERS.map((item) => (
+            <button
+              key={item}
+              onClick={() => {
+                setStatus(item);
+                setLoading(true);
+              }}
+              className={`rounded-full border px-3 py-1.5 text-sm capitalize transition-colors ${
+                status === item
+                  ? "border-primary-container bg-primary-container/10 text-primary-container"
+                  : "border-outline-variant text-on-surface-variant hover:bg-surface-container-low"
+              }`}
+            >
+              {item}
+            </button>
+          ))}
         </div>
         <Button size="sm" variant="outline" onClick={() => refresh()}>
           <RefreshCw size={15} /> Refresh
@@ -208,7 +257,10 @@ export default function AdminRepositoriesPage() {
       </div>
 
       <div className="mb-6 flex flex-wrap items-center gap-2 rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
-        <label htmlFor="new-repository-project" className="text-sm text-on-surface-variant">
+        <label
+          htmlFor="new-repository-project"
+          className="text-sm text-on-surface-variant"
+        >
           Create a repository for
         </label>
         <select
@@ -240,7 +292,8 @@ export default function AdminRepositoriesPage() {
         </div>
       ) : repositories.length === 0 ? (
         <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-6 text-sm text-on-surface-variant">
-          No repositories yet. Create one from a project once it is implementation ready.
+          No repositories yet. Create one from a project once it is
+          implementation ready.
         </div>
       ) : (
         <div className="space-y-3">
@@ -270,6 +323,7 @@ export default function AdminRepositoriesPage() {
                         ? ` · ${repository.missingUsernameCount} missing username`
                         : ""}{" "}
                       · synced {formatDate(repository.lastSyncedAt)}
+                      {` · evaluation webhook ${repository.evaluationWebhook?.status ?? "not synced"}`}
                     </p>
                     {repository.error && (
                       <p className="mt-1 flex items-center gap-1 text-sm text-error">
@@ -291,6 +345,15 @@ export default function AdminRepositoriesPage() {
                   </a>
                   <Button
                     size="sm"
+                    variant="outline"
+                    loading={busyId === `${repository.id}:webhook`}
+                    disabled={repository.status !== "active"}
+                    onClick={() => void handleWebhookSync(repository)}
+                  >
+                    <RefreshCw size={15} /> Webhook
+                  </Button>
+                  <Button
+                    size="sm"
                     loading={busyId === repository.id}
                     disabled={repository.status !== "active"}
                     onClick={() => void handleSync(repository)}
@@ -304,11 +367,13 @@ export default function AdminRepositoriesPage() {
                 <div className="border-t border-outline-variant p-4">
                   {collaboratorsLoading ? (
                     <div className="flex items-center gap-2 text-on-surface-variant">
-                      <Loader2 className="animate-spin" size={16} /> Loading collaborators...
+                      <Loader2 className="animate-spin" size={16} /> Loading
+                      collaborators...
                     </div>
                   ) : collaborators.length === 0 ? (
                     <p className="text-sm text-on-surface-variant">
-                      No collaborators yet. Use Sync to invite the assigned freelancers.
+                      No collaborators yet. Use Sync to invite the assigned
+                      freelancers.
                     </p>
                   ) : (
                     <div className="space-y-2">
@@ -328,7 +393,9 @@ export default function AdminRepositoriesPage() {
                               · {collaborator.permission}
                             </p>
                             {collaborator.error && (
-                              <p className="mt-1 text-sm text-error">{collaborator.error}</p>
+                              <p className="mt-1 text-sm text-error">
+                                {collaborator.error}
+                              </p>
                             )}
                           </div>
                           <div className="flex items-center gap-2">
@@ -337,7 +404,9 @@ export default function AdminRepositoriesPage() {
                               size="sm"
                               variant="outline"
                               loading={busyId === collaborator.id}
-                              disabled={collaborator.inviteStatus === "accepted"}
+                              disabled={
+                                collaborator.inviteStatus === "accepted"
+                              }
                               onClick={() => void handleResend(collaborator)}
                             >
                               <Send size={15} /> Resend

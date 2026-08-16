@@ -80,8 +80,7 @@ export interface CreateSubmissionPayload {
  */
 export type UpdateSubmissionPayload = {
   [K in keyof Omit<CreateSubmissionPayload, "taskId">]?:
-    | Omit<CreateSubmissionPayload, "taskId">[K]
-    | null;
+    Omit<CreateSubmissionPayload, "taskId">[K] | null;
 };
 
 export interface ReviewSubmissionPayload {
@@ -91,6 +90,7 @@ export interface ReviewSubmissionPayload {
   score?: number;
   createRevisionRequest?: boolean;
   releasePayment?: boolean;
+  manualReviewAcknowledged?: boolean;
 }
 
 export interface SubmissionDetail extends ProjectSubmission {
@@ -128,7 +128,10 @@ function toQuery(params?: SubmissionListParams): string {
   return query.toString();
 }
 
-function toPaginated<T>(payload: ApiPaginatedResponse<T>, params?: { page?: number; limit?: number }): PaginatedResult<T> {
+function toPaginated<T>(
+  payload: ApiPaginatedResponse<T>,
+  params?: { page?: number; limit?: number },
+): PaginatedResult<T> {
   const items = Array.isArray(payload.data) ? payload.data : [];
   return {
     items,
@@ -179,16 +182,26 @@ export async function listDeliverySubmissions(
   }
 }
 
-export async function getDeliverySubmission(submissionId: string): Promise<SubmissionDetail> {
+export async function getDeliverySubmission(
+  submissionId: string,
+): Promise<SubmissionDetail> {
   if (deliveryFixturesEnabled()) {
-    const submission = fixtureSubmissions.find((item) => item.id === submissionId) ?? fixtureSubmissions[0];
+    const submission =
+      fixtureSubmissions.find((item) => item.id === submissionId) ??
+      fixtureSubmissions[0];
     return {
       ...submission,
       latestEvaluationRun:
-        fixtureEvaluationRuns.find((run) => run.submissionId === submission.id) ?? null,
-      reviews: fixtureReviews.filter((review) => review.submissionId === submission.id),
+        fixtureEvaluationRuns.find(
+          (run) => run.submissionId === submission.id,
+        ) ?? null,
+      reviews: fixtureReviews.filter(
+        (review) => review.submissionId === submission.id,
+      ),
       openRevisionRequests: fixtureRevisionRequests.filter(
-        (revision) => revision.submissionId === submission.id && revision.status !== "resolved",
+        (revision) =>
+          revision.submissionId === submission.id &&
+          revision.status !== "resolved",
       ),
     };
   }
@@ -196,9 +209,7 @@ export async function getDeliverySubmission(submissionId: string): Promise<Submi
   try {
     const { data } = await api.get<
       ApiDataResponse<SubmissionDetailResponse | SubmissionDetail>
-    >(
-      deliveryEndpoints.submissions.detail(submissionId),
-    );
+    >(deliveryEndpoints.submissions.detail(submissionId));
     const detail = data.data;
     if ("submission" in detail) {
       return {
@@ -218,7 +229,8 @@ export async function updateDeliverySubmission(
   submissionId: string,
   payload: UpdateSubmissionPayload,
 ): Promise<ProjectSubmission> {
-  if (deliveryFixturesEnabled()) return { ...fixtureSubmissions[0], ...payload } as ProjectSubmission;
+  if (deliveryFixturesEnabled())
+    return { ...fixtureSubmissions[0], ...payload } as ProjectSubmission;
 
   try {
     const { data } = await api.patch<ApiDataResponse<ProjectSubmission>>(
@@ -235,7 +247,8 @@ export async function submitDeliverySubmission(
   submissionId: string,
   payload?: { summary?: string },
 ): Promise<ProjectSubmission> {
-  if (deliveryFixturesEnabled()) return { ...fixtureSubmissions[0], status: "submitted" };
+  if (deliveryFixturesEnabled())
+    return { ...fixtureSubmissions[0], status: "submitted" };
 
   try {
     const { data } = await api.post<ApiDataResponse<ProjectSubmission>>(
