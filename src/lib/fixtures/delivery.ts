@@ -161,7 +161,7 @@ export const fixtureEvaluationRuns: EvaluationRun[] = [
       ],
     },
     riskFlags: ["payment_integrity", "missing_tests"],
-    modelName: "gemini-2.0-flash",
+    modelName: "gemini-3.1-flash-lite",
     promptVersion: "submission-evaluation-v1",
     error: null,
     startedAt: "2026-08-11T10:00:30.000Z",
