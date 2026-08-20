@@ -26,6 +26,7 @@ interface BackendProject {
   quoteStatus?: string | null;
   quoteGeneratedAt?: string | null;
   quoteNotes?: string | null;
+  automationStatus?: string | null;
   createdAt: string;
 }
 
@@ -53,6 +54,7 @@ function toProject(row: BackendProject): Project {
     quoteStatus: row.quoteStatus ?? null,
     quoteGeneratedAt: row.quoteGeneratedAt ?? null,
     quoteNotes: row.quoteNotes ?? null,
+    automationStatus: row.automationStatus ?? null,
     createdAt: row.createdAt,
   };
 }

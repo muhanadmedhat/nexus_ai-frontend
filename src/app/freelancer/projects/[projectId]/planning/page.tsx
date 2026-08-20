@@ -287,7 +287,7 @@ export default function FreelancerPlanningSubmission() {
         "Submission sent for AI evaluation",
         submissionType === "ui_ux" && !architectureApproved
           ? "Your evidence is saved. Evaluation starts after architecture is approved."
-          : "The quality gate is checking the applicable required items before admin review.",
+          : "The quality gate is checking the applicable required items before the principal reviewer decides.",
       );
       router.push(`/freelancer/projects/${projectId}`);
     } catch (error) {

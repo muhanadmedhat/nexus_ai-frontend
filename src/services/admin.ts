@@ -1,4 +1,9 @@
-import { API_ENDPOINTS, api, sprint4Endpoints, getApiErrorMessage } from "@/lib/api";
+import {
+  API_ENDPOINTS,
+  api,
+  sprint4Endpoints,
+  getApiErrorMessage,
+} from "@/lib/api";
 
 // ===== Types =====
 
@@ -189,7 +194,7 @@ export interface FreelancerDetail {
 
 export interface AgentHealth {
   name: string;
-  status: 'healthy' | 'degraded' | 'failing';
+  status: "healthy" | "degraded" | "failing";
   queued: number;
   running: number;
   completedToday: number;
@@ -285,7 +290,7 @@ export interface AssessmentDetail {
 export async function getAdminStats(): Promise<AdminStats> {
   try {
     const { data } = await api.get<{ status: string; data: AdminStats }>(
-      "/admin/stats"
+      "/admin/stats",
     );
     return data.data;
   } catch (error) {
@@ -299,19 +304,39 @@ export interface AdminProjectSummary {
   id: string;
   title: string;
   status: string;
+  automationStatus?: string;
+  createdAt?: string;
+  deadline?: string | null;
+  budgetMin?: string | number | null;
+  budgetMax?: string | number | null;
+  currency?: string;
+  customer?: { firstName?: string; lastName?: string; email?: string };
 }
 
 export async function getAdminProjects(params?: {
   page?: number;
   limit?: number;
+  status?: string;
+  automationStatus?: string;
+  search?: string;
+  customerId?: string;
+  dateFrom?: string;
+  dateTo?: string;
 }) {
   const query = new URLSearchParams();
   if (params?.page) query.append("page", String(params.page));
   if (params?.limit) query.append("limit", String(params.limit));
+  if (params?.status) query.append("status", params.status);
+  if (params?.automationStatus)
+    query.append("automationStatus", params.automationStatus);
+  if (params?.search) query.append("search", params.search);
+  if (params?.customerId) query.append("customerId", params.customerId);
+  if (params?.dateFrom) query.append("dateFrom", params.dateFrom);
+  if (params?.dateTo) query.append("dateTo", params.dateTo);
 
   try {
     const { data } = await api.get<AdminQueueResponse<AdminProjectSummary>>(
-      `${API_ENDPOINTS.admin.projects}?${query.toString()}`
+      `${API_ENDPOINTS.admin.projects}?${query.toString()}`,
     );
     return data;
   } catch (error) {
@@ -348,16 +373,18 @@ export async function getAdminUsers(params?: {
 
 export async function updateAdminUser(
   id: string,
-  payload: Partial<Pick<
-    AdminUser,
-    | "firstName"
-    | "lastName"
-    | "email"
-    | "phoneNumber"
-    | "role"
-    | "isEmailVerified"
-    | "isIdVerified"
-  >> & { disabled?: boolean },
+  payload: Partial<
+    Pick<
+      AdminUser,
+      | "firstName"
+      | "lastName"
+      | "email"
+      | "phoneNumber"
+      | "role"
+      | "isEmailVerified"
+      | "isIdVerified"
+    >
+  > & { disabled?: boolean },
 ) {
   const { data } = await api.patch<{ status: string; data: AdminUser }>(
     `/admin/users/${id}`,
@@ -401,18 +428,21 @@ export async function getFreelancers(params?: {
 
 export async function getFreelancerDetail(id: string) {
   const { data } = await api.get<{ status: string; data: FreelancerDetail }>(
-    `/admin/freelancers/${id}`
+    `/admin/freelancers/${id}`,
   );
   return data.data;
 }
 
 export async function updateFreelancerVerification(
   id: string,
-  payload: { status: "approved" | "rejected" | "interview_pending"; reason?: string }
+  payload: {
+    status: "approved" | "rejected" | "interview_pending";
+    reason?: string;
+  },
 ) {
   const { data } = await api.patch<{ status: string; data: unknown }>(
     `/admin/freelancers/${id}/verification`,
-    payload
+    payload,
   );
   return data.data;
 }
@@ -421,7 +451,7 @@ export async function updateFreelancerVerification(
 
 export async function getAgentOverview(): Promise<AgentOverview> {
   const { data } = await api.get<{ status: string; data: AgentOverview }>(
-    "/admin/agents/overview"
+    "/admin/agents/overview",
   );
   return data.data;
 }
@@ -451,7 +481,7 @@ export async function getAgentJobs(params?: {
 
 export async function getAgentJobDetail(id: string): Promise<AgentJob> {
   const { data } = await api.get<{ status: string; data: AgentJob }>(
-    `/admin/agent-jobs/${id}`
+    `/admin/agent-jobs/${id}`,
   );
   return data.data;
 }
@@ -459,7 +489,7 @@ export async function getAgentJobDetail(id: string): Promise<AgentJob> {
 export async function retryAgentJob(id: string): Promise<AgentJob> {
   try {
     const { data } = await api.post<{ status: string; data: AgentJob }>(
-      `/admin/agent-jobs/${id}/retry`
+      `/admin/agent-jobs/${id}/retry`,
     );
     return data.data;
   } catch (error) {
@@ -486,8 +516,10 @@ export async function getAssessments(params?: {
   if (params?.search) query.append("search", params.search);
   if (params?.dateFrom) query.append("dateFrom", params.dateFrom);
   if (params?.dateTo) query.append("dateTo", params.dateTo);
-  if (params?.minScore !== undefined) query.append("minScore", String(params.minScore));
-  if (params?.maxScore !== undefined) query.append("maxScore", String(params.maxScore));
+  if (params?.minScore !== undefined)
+    query.append("minScore", String(params.minScore));
+  if (params?.maxScore !== undefined)
+    query.append("maxScore", String(params.maxScore));
 
   const { data } = await api.get<{
     status: string;
@@ -502,29 +534,33 @@ export async function getAssessments(params?: {
 
 export async function getAssessmentDetail(id: string) {
   const { data } = await api.get<{ status: string; data: AssessmentDetail }>(
-    `/admin/assessments/${id}`
+    `/admin/assessments/${id}`,
   );
   return data.data;
 }
 
 export async function reviewAssessment(
   id: string,
-  payload: { decision: "pass" | "fail" | "needs_review"; notes?: string; scoreOverride?: number }
+  payload: {
+    decision: "pass" | "fail" | "needs_review";
+    notes?: string;
+    scoreOverride?: number;
+  },
 ) {
   const { data } = await api.patch<{ status: string; data: unknown }>(
     `/admin/assessments/${id}/review`,
-    payload
+    payload,
   );
   return data.data;
 }
 
 export async function updateAssessmentScore(
   id: string,
-  payload: { score: number; notes?: string }
+  payload: { score: number; notes?: string },
 ): Promise<AssessmentDetail> {
   const { data } = await api.patch<{ status: string; data: AssessmentDetail }>(
     `/admin/assessments/${id}/score`,
-    payload
+    payload,
   );
   return data.data;
 }
@@ -532,11 +568,11 @@ export async function updateAssessmentScore(
 export async function updateAssessmentQuestionScore(
   id: string,
   questionId: string,
-  payload: { score: number; feedback?: string }
+  payload: { score: number; feedback?: string },
 ): Promise<AssessmentDetail> {
   const { data } = await api.patch<{ status: string; data: AssessmentDetail }>(
     `/admin/assessments/${id}/questions/${questionId}/score`,
-    payload
+    payload,
   );
   return data.data;
 }
@@ -544,15 +580,14 @@ export async function updateAssessmentQuestionScore(
 export async function updateFreelancerSkillScore(
   profileId: string,
   skillScoreId: string,
-  payload: { score: number; confidence?: number; evidence?: string }
+  payload: { score: number; confidence?: number; evidence?: string },
 ): Promise<FreelancerDetail> {
   const { data } = await api.patch<{ status: string; data: FreelancerDetail }>(
     `/admin/freelancers/${profileId}/skill-scores/${skillScoreId}`,
-    payload
+    payload,
   );
   return data.data;
 }
-
 
 interface AdminQueueResponse<T> {
   data: T[];
@@ -565,52 +600,100 @@ type AdminQueueItem = Record<string, unknown>;
 
 // ===== Sprint 4 Admin Queues =====
 
-export async function getAdminMatchingRuns(params?: { status?: string; targetRoleKey?: string; projectSearch?: string; page?: number; limit?: number }) {
+export async function getAdminMatchingRuns(params?: {
+  status?: string;
+  targetRoleKey?: string;
+  projectSearch?: string;
+  page?: number;
+  limit?: number;
+}) {
   const query = new URLSearchParams();
   if (params?.status) query.append("status", params.status);
-  if (params?.targetRoleKey) query.append("targetRoleKey", params.targetRoleKey);
-  if (params?.projectSearch) query.append("projectSearch", params.projectSearch);
+  if (params?.targetRoleKey)
+    query.append("targetRoleKey", params.targetRoleKey);
+  if (params?.projectSearch)
+    query.append("projectSearch", params.projectSearch);
   if (params?.page) query.append("page", String(params.page));
   if (params?.limit) query.append("limit", String(params.limit));
 
   const { data } = await api.get<AdminQueueResponse<AdminQueueItem>>(
-    `${sprint4Endpoints.adminSprint4.matchingRuns}?${query.toString()}`
+    `${sprint4Endpoints.adminSprint4.matchingRuns}?${query.toString()}`,
   );
   return data;
 }
 
-export async function getAdminPlanningSubmissions(params?: { status?: string; submissionType?: string; page?: number; limit?: number }) {
+export async function getAdminPlanningSubmissions(params?: {
+  status?: string;
+  submissionType?: string;
+  page?: number;
+  limit?: number;
+}) {
   const query = new URLSearchParams();
   if (params?.status) query.append("status", params.status);
-  if (params?.submissionType) query.append("submissionType", params.submissionType);
+  if (params?.submissionType)
+    query.append("submissionType", params.submissionType);
   if (params?.page) query.append("page", String(params.page));
   if (params?.limit) query.append("limit", String(params.limit));
 
   const { data } = await api.get<AdminQueueResponse<AdminQueueItem>>(
-    `${sprint4Endpoints.adminSprint4.planningSubmissions}?${query.toString()}`
+    `${sprint4Endpoints.adminSprint4.planningSubmissions}?${query.toString()}`,
   );
   return data;
 }
 
-export async function getAdminProjectPlans(params?: { status?: string; page?: number; limit?: number }) {
+export async function getAdminProjectPlans(params?: {
+  status?: string;
+  page?: number;
+  limit?: number;
+}) {
   const query = new URLSearchParams();
   if (params?.status) query.append("status", params.status);
   if (params?.page) query.append("page", String(params.page));
   if (params?.limit) query.append("limit", String(params.limit));
 
   const { data } = await api.get<AdminQueueResponse<AdminQueueItem>>(
-    `${sprint4Endpoints.adminSprint4.projectPlans}?${query.toString()}`
+    `${sprint4Endpoints.adminSprint4.projectPlans}?${query.toString()}`,
   );
   return data;
 }
 
-export async function getAdminPayments(params?: { page?: number; limit?: number }) {
+export async function getAdminPayments(params?: {
+  page?: number;
+  limit?: number;
+}) {
   const query = new URLSearchParams();
   if (params?.page) query.append("page", String(params.page));
   if (params?.limit) query.append("limit", String(params.limit));
 
   const { data } = await api.get<AdminQueueResponse<AdminQueueItem>>(
-    `${sprint4Endpoints.adminSprint4.payments}?${query.toString()}`
+    `${sprint4Endpoints.adminSprint4.payments}?${query.toString()}`,
   );
   return data;
+}
+
+export async function getAdminRevenue() {
+  const { data } = await api.get<{
+    status: string;
+    data: {
+      byCurrency: Record<
+        string,
+        {
+          grossRevenue: number;
+          platformFees: number;
+          deadlinePenalties: number;
+          entries: number;
+        }
+      >;
+      recentEntries: Array<{
+        id: string;
+        entryType: string;
+        amount: string;
+        currency: string;
+        reason: string | null;
+        postedAt: string | null;
+        project?: { id: string; title: string };
+      }>;
+    };
+  }>("/admin/revenue");
+  return data.data;
 }

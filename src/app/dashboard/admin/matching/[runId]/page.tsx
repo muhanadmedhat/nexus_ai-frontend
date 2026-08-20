@@ -40,7 +40,8 @@ import {
 } from "@/services/planning";
 
 type Decision = "approved" | "rejected" | "rerun_required";
-type WorkflowStep = "architect" | "ui_ux" | "submissions" | "scrum_plan" | "escrow";
+type WorkflowStep =
+  "architect" | "ui_ux" | "submissions" | "scrum_plan" | "escrow";
 type AdminRunDetail = RunDetail & { projectTitle?: string | null };
 
 const stepLabels: Record<WorkflowStep, string> = {
@@ -140,7 +141,10 @@ function runMatchesRole(
   return findRun([run], role)?.id === run.id;
 }
 
-function findAssignment(assignments: RoleAssignment[], role: "architect" | "ui_ux") {
+function findAssignment(
+  assignments: RoleAssignment[],
+  role: "architect" | "ui_ux",
+) {
   const keys =
     role === "architect"
       ? ["architect", "architecture"]
@@ -243,7 +247,9 @@ export default function AdminMatchingDetail() {
         [] as PlanningSubmission[],
       );
       const projectPlans = fulfilledValue(plansResult, [] as ProjectPlan[]);
-      const flowRuns = projectRuns.some((projectRun) => projectRun.id === run.id)
+      const flowRuns = projectRuns.some(
+        (projectRun) => projectRun.id === run.id,
+      )
         ? projectRuns
         : [run, ...projectRuns];
       const failedLabels = failedRequestLabels([
@@ -267,7 +273,10 @@ export default function AdminMatchingDetail() {
 
       const architectRun = findRun(flowRuns, "architect");
       const uiuxRun = findRun(flowRuns, "ui_ux");
-      const architectAssignment = findAssignment(projectAssignments, "architect");
+      const architectAssignment = findAssignment(
+        projectAssignments,
+        "architect",
+      );
       const uiuxAssignment = findAssignment(projectAssignments, "ui_ux");
       const architectDone = isRoleDone(architectRun, architectAssignment);
       const uiuxDone = isRoleDone(uiuxRun, uiuxAssignment);
@@ -276,7 +285,9 @@ export default function AdminMatchingDetail() {
         "architecture",
       );
       const uiuxApproved = isSubmissionApproved(projectSubmissions, "ui_ux");
-      const approvedPlan = projectPlans.find((plan) => plan.status === "approved");
+      const approvedPlan = projectPlans.find(
+        (plan) => plan.status === "approved",
+      );
 
       if (!architectDone) {
         setActiveStep("architect");
@@ -312,7 +323,9 @@ export default function AdminMatchingDetail() {
       }
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Could not load project workflow";
+        error instanceof Error
+          ? error.message
+          : "Could not load project workflow";
       toast.error("Could not load project workflow", message);
     } finally {
       setLoading(false);
@@ -346,7 +359,7 @@ export default function AdminMatchingDetail() {
           setPlanGenerationJobId(null);
           toast.success(
             "Scrum plan ready",
-            "The generated plan is ready for admin review.",
+            "The generated plan is ready for the principal reviewer; admin remains available for overrides.",
           );
           return;
         }
@@ -388,14 +401,18 @@ export default function AdminMatchingDetail() {
   const uiuxDone = isRoleDone(uiuxRun, uiuxAssignment);
   const architectureSubmission = latestSubmission(submissions, "architecture");
   const uiuxSubmission = latestSubmission(submissions, "ui_ux");
-  const architectureApproved = isSubmissionApproved(submissions, "architecture");
+  const architectureApproved = isSubmissionApproved(
+    submissions,
+    "architecture",
+  );
   const uiuxApproved = isSubmissionApproved(submissions, "ui_ux");
   const latestPlan = [...plans].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   )[0];
   const approvedPlan = plans.find((plan) => plan.status === "approved");
   const submissionsUnlocked = architectDone && uiuxDone;
-  const scrumUnlocked = submissionsUnlocked && architectureApproved && uiuxApproved;
+  const scrumUnlocked =
+    submissionsUnlocked && architectureApproved && uiuxApproved;
   const escrowUnlocked = Boolean(approvedPlan);
 
   const steps: Array<{
@@ -528,7 +545,9 @@ export default function AdminMatchingDetail() {
     } catch (error) {
       toast.error(
         "Could not generate plan",
-        error instanceof Error ? error.message : "The Scrum Master job could not start.",
+        error instanceof Error
+          ? error.message
+          : "The Scrum Master job could not start.",
       );
     } finally {
       setActionLoading(null);
@@ -632,7 +651,9 @@ export default function AdminMatchingDetail() {
               role={activeStep}
               run={activeStep === "architect" ? architectRun : uiuxRun}
               assignment={
-                activeStep === "architect" ? architectAssignment : uiuxAssignment
+                activeStep === "architect"
+                  ? architectAssignment
+                  : uiuxAssignment
               }
               detail={selectedRunDetail}
               locked={activeStep === "ui_ux" && !architectDone}
@@ -710,8 +731,8 @@ function RoleSelectionPanel({
           UI/UX unlocks after architect approval
         </h3>
         <p className="mt-1 text-sm text-on-surface-variant">
-          This keeps the planning sequence clean and avoids starting UI/UX review
-          before the architecture owner is selected.
+          This keeps the planning sequence clean and avoids starting UI/UX
+          review before the architecture owner is selected.
         </p>
       </section>
     );
@@ -745,7 +766,7 @@ function RoleSelectionPanel({
             {assignment
               ? `${roleLabel(role)} is already assigned. Candidate actions are locked for this role.`
               : detail?.summary ||
-              "Review the ranked shortlist and assign the best planning freelancer."}
+                "Review the ranked shortlist and assign the best planning freelancer."}
           </p>
         </div>
         {assignment ? (
@@ -776,7 +797,9 @@ function RoleSelectionPanel({
         )}
       </div>
 
-      {assignment ? <AssignedRoleCard role={role} assignment={assignment} /> : null}
+      {assignment ? (
+        <AssignedRoleCard role={role} assignment={assignment} />
+      ) : null}
 
       <div className="mt-5 space-y-3">
         {detail?.candidates?.length ? (
@@ -918,7 +941,11 @@ function CandidateRow({
 
         {assignment ? (
           <span className="inline-flex !w-full items-center justify-center gap-2 rounded-full border border-outline-variant/40 bg-surface-container-lowest px-4 py-2 text-xs font-semibold text-on-surface-variant xl:!w-auto">
-            {assignedCandidate ? <CheckCircle2 size={15} /> : <Lock size={15} />}
+            {assignedCandidate ? (
+              <CheckCircle2 size={15} />
+            ) : (
+              <Lock size={15} />
+            )}
             {assignedCandidate ? "Assigned" : "Locked"}
           </span>
         ) : (
@@ -940,7 +967,7 @@ function CandidateRow({
         <div className="rounded-lg bg-surface-container-lowest p-3">
           <p>Rate</p>
           <p className="mt-1 text-sm font-semibold text-on-surface">
-            {hourlyRate != null ? `$${hourlyRate}/hr` : "Not set"}
+            {hourlyRate != null ? `${hourlyRate} EGP/hr` : "Not set"}
           </p>
         </div>
         <div className="rounded-lg bg-surface-container-lowest p-3">
@@ -1002,7 +1029,10 @@ function SubmissionsPanel({
 }) {
   if (locked) {
     return (
-      <LockedPanel title="Deliverables are locked" description="Approve both planning roles before reviewing architecture and UI/UX submissions." />
+      <LockedPanel
+        title="Deliverables are locked"
+        description="Approve both planning roles before reviewing architecture and UI/UX submissions."
+      />
     );
   }
 
@@ -1051,7 +1081,9 @@ function SubmissionCard({
             {submission?.title || "Waiting for freelancer submission"}
           </p>
         </div>
-        <StatusBadge status={approved ? "approved" : submission?.status ?? "pending"} />
+        <StatusBadge
+          status={approved ? "approved" : (submission?.status ?? "pending")}
+        />
       </div>
       {submission?.summary ? (
         <p className="mt-4 line-clamp-3 text-sm leading-6 text-on-surface-variant">
@@ -1067,7 +1099,11 @@ function SubmissionCard({
             </Button>
           </Link>
         ) : (
-          <Button variant="outline" className="!w-auto px-4 py-2 text-sm" disabled>
+          <Button
+            variant="outline"
+            className="!w-auto px-4 py-2 text-sm"
+            disabled
+          >
             <Clock3 size={15} />
             Waiting
           </Button>
@@ -1092,7 +1128,10 @@ function ScrumPlanPanel({
 }) {
   if (locked) {
     return (
-      <LockedPanel title="Scrum Master is locked" description="Approve both architecture and UI/UX deliverables before generating the project plan." />
+      <LockedPanel
+        title="Scrum Master is locked"
+        description="Approve both architecture and UI/UX deliverables before generating the project plan."
+      />
     );
   }
 
@@ -1164,7 +1203,10 @@ function ScrumPlanPanel({
 function EscrowPanel({ locked }: { locked: boolean }) {
   if (locked) {
     return (
-      <LockedPanel title="Escrow is locked" description="Approve and materialize the Scrum Master plan before asking the customer to fund escrow." />
+      <LockedPanel
+        title="Escrow is locked"
+        description="Approve and materialize the Scrum Master plan before asking the customer to fund escrow."
+      />
     );
   }
 
@@ -1189,7 +1231,13 @@ function EscrowPanel({ locked }: { locked: boolean }) {
   );
 }
 
-function LockedPanel({ title, description }: { title: string; description: string }) {
+function LockedPanel({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
   return (
     <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-8 text-center card-shadow">
       <Lock className="mx-auto h-8 w-8 text-outline" />

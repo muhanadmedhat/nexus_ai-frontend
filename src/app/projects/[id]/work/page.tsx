@@ -6,7 +6,10 @@ import { useParams } from "next/navigation";
 import {
   ArrowLeft,
   CheckCircle,
+  ExternalLink,
   MessageSquareWarning,
+  PackageCheck,
+  Star,
   XCircle,
 } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
@@ -35,6 +38,12 @@ import {
 } from "@/services/project-submissions";
 import { listRevisionRequests } from "@/services/revisions";
 import { listProjectReleaseRequests } from "@/services/release-requests";
+import {
+  decideProjectHandoff,
+  getProjectHandoff,
+  rateProjectContributor,
+  type ProjectHandoffOverview,
+} from "@/services/project-handoffs";
 import { formatDate, formatMoney } from "@/utils/format";
 import type { Project } from "@/types/project";
 import type {
@@ -263,6 +272,188 @@ function EvaluationSummary({ detail }: { detail: SubmissionDetail }) {
   );
 }
 
+function FinalDeliveryPanel({
+  projectId,
+  overview,
+  onUpdated,
+}: {
+  projectId: string;
+  overview: ProjectHandoffOverview | null;
+  onUpdated: () => void;
+}) {
+  const toast = useToast();
+  const [feedback, setFeedback] = useState("");
+  const [working, setWorking] = useState<string | null>(null);
+  const [ratingValues, setRatingValues] = useState<Record<string, number>>({});
+  const [ratingComments, setRatingComments] = useState<Record<string, string>>({});
+  const handoff = overview?.handoff ?? null;
+  const report = handoff?.verificationReport;
+
+  const decide = async (decision: "accepted" | "changes_requested") => {
+    if (decision === "changes_requested" && !feedback.trim()) {
+      toast.error("Feedback required", "Describe the outcome you expected so the principal reviewer can route the revision.");
+      return;
+    }
+    setWorking(decision);
+    try {
+      await decideProjectHandoff(projectId, decision, feedback);
+      toast.success(
+        decision === "accepted" ? "Project accepted" : "Changes requested",
+        decision === "accepted"
+          ? "The project is complete and team ratings are now open."
+          : "The principal reviewer was notified immediately.",
+      );
+      setFeedback("");
+      onUpdated();
+    } catch (error) {
+      toast.error("Could not save your decision", error instanceof Error ? error.message : "Try again.");
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  const rate = async (userId: string) => {
+    const rating = ratingValues[userId];
+    if (!rating) {
+      toast.error("Choose a rating", "Select an overall score from 1 to 5.");
+      return;
+    }
+    setWorking(`rating:${userId}`);
+    try {
+      await rateProjectContributor(projectId, {
+        ratedUserId: userId,
+        rating,
+        comment: ratingComments[userId]?.trim() || undefined,
+      });
+      toast.success("Rating submitted", "Thank you for reviewing this contributor.");
+      onUpdated();
+    } catch (error) {
+      toast.error("Could not submit rating", error instanceof Error ? error.message : "Try again.");
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  return (
+    <section className="rounded-xl border border-primary-container/30 bg-surface-container-lowest p-6 card-shadow">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <PackageCheck size={20} className="text-primary-container" />
+            <h3 className="font-headline text-xl font-semibold text-on-surface">Final integrated delivery</h3>
+          </div>
+          <p className="mt-2 text-sm text-on-surface-variant">
+            Approved task branches are merged, then the complete default-branch snapshot is tested before it reaches you.
+          </p>
+        </div>
+        <StatusBadge status={handoff?.status ?? "awaiting_tasks"} />
+      </div>
+
+      {!handoff ? (
+        <p className="mt-4 rounded-lg bg-surface-container-low p-4 text-sm text-on-surface-variant">
+          Final integration starts automatically after every implementation task is approved.
+        </p>
+      ) : (
+        <div className="mt-5 space-y-4">
+          {handoff.summary && <p className="whitespace-pre-wrap text-sm leading-6 text-on-surface-variant">{handoff.summary}</p>}
+          <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-lg bg-surface-container-low p-3">
+              <p className="text-xs text-on-surface-variant">Integrated branch</p>
+              <p className="mt-1 font-mono text-on-surface">{handoff.integrationBranch}</p>
+            </div>
+            <div className="rounded-lg bg-surface-container-low p-3">
+              <p className="text-xs text-on-surface-variant">Verified commit</p>
+              <p className="mt-1 truncate font-mono text-on-surface">{handoff.integrationCommitSha ?? "Pending"}</p>
+            </div>
+            <div className="rounded-lg bg-surface-container-low p-3">
+              <p className="text-xs text-on-surface-variant">Final verification</p>
+              <p className="mt-1 font-semibold text-on-surface">
+                {report?.score != null ? `${report.score}/100 · ` : ""}{report?.recommendation?.replace(/_/g, " ") ?? "Pending"}
+              </p>
+            </div>
+          </div>
+          {handoff.lastError && (
+            <p className="rounded-lg border border-error/30 bg-error/5 p-3 text-sm text-error">{handoff.lastError}</p>
+          )}
+          {handoff.reviewerFeedback && (
+            <p className="rounded-lg bg-surface-container-low p-3 text-sm text-on-surface-variant">
+              <span className="font-semibold text-on-surface">Principal reviewer: </span>
+              {handoff.reviewerFeedback}
+            </p>
+          )}
+          {(report?.findings?.length ?? 0) > 0 && (
+            <div className="rounded-lg bg-surface-container-low p-4 text-sm text-on-surface-variant">
+              <p className="font-semibold text-on-surface">Verification findings</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5">{report?.findings?.map((item) => <li key={item}>{item}</li>)}</ul>
+            </div>
+          )}
+          <div className="flex flex-wrap gap-3">
+            {handoff.repositoryUrl && (
+              <a href={handoff.repositoryUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-semibold text-primary-container hover:underline">
+                Open source repository <ExternalLink size={14} />
+              </a>
+            )}
+            {handoff.liveUrl && (
+              <a href={handoff.liveUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-semibold text-primary-container hover:underline">
+                Open live delivery <ExternalLink size={14} />
+              </a>
+            )}
+            {handoff.artifactUrls?.map((url, index) => (
+              <a key={url} href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-semibold text-primary-container hover:underline">
+                Artifact {index + 1} <ExternalLink size={14} />
+              </a>
+            ))}
+          </div>
+
+          {overview?.clientCanDecide && (
+            <div className="rounded-lg border border-primary-container/30 bg-primary-container/5 p-4">
+              <p className="font-semibold text-on-surface">Your acceptance</p>
+              <p className="mt-1 text-sm text-on-surface-variant">
+                Review the delivered result. Accept it if it matches the agreed brief, or describe a concrete outcome that still needs correction.
+              </p>
+              {handoff.clientReviewDueAt && <p className="mt-2 text-xs text-on-surface-variant">Review requested by {formatDate(handoff.clientReviewDueAt)}</p>}
+              <textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} rows={3} maxLength={12000} placeholder="Optional acceptance note, or required details when requesting changes." className="input-halo mt-3 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm" />
+              <div className="mt-3 flex flex-wrap gap-3">
+                <Button size="sm" loading={working === "accepted"} disabled={working !== null} onClick={() => void decide("accepted")}><CheckCircle size={15} /> Accept final delivery</Button>
+                <Button size="sm" variant="outline" loading={working === "changes_requested"} disabled={working !== null} onClick={() => void decide("changes_requested")}><MessageSquareWarning size={15} /> Request final changes</Button>
+              </div>
+            </div>
+          )}
+
+          {overview?.ratingsOpen && overview.contributors.length > 0 && (
+            <div className="space-y-3">
+              <div>
+                <h4 className="font-semibold text-on-surface">Rate the project team</h4>
+                <p className="mt-1 text-sm text-on-surface-variant">One saved review per contributor; ratings update their verified platform record.</p>
+              </div>
+              {overview.contributors.map((contributor) => (
+                <div key={contributor.userId} className="rounded-lg border border-outline-variant/30 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="font-medium text-on-surface">{contributor.name}</p>
+                      <p className="text-xs capitalize text-on-surface-variant">{contributor.roleKeys.join(" · ").replace(/_/g, " ")}</p>
+                    </div>
+                    {contributor.rating && <span className="inline-flex items-center gap-1 font-semibold text-primary-container"><Star size={15} fill="currentColor" /> {contributor.rating.rating}/5</span>}
+                  </div>
+                  {contributor.rating ? (
+                    contributor.rating.comment && <p className="mt-2 text-sm text-on-surface-variant">{contributor.rating.comment}</p>
+                  ) : (
+                    <div className="mt-3 space-y-3">
+                      <div className="flex flex-wrap gap-2">{[1, 2, 3, 4, 5].map((value) => <button key={value} type="button" aria-pressed={ratingValues[contributor.userId] === value} onClick={() => setRatingValues((current) => ({ ...current, [contributor.userId]: value }))} className={`rounded-md border px-3 py-1.5 text-sm font-semibold ${ratingValues[contributor.userId] === value ? "border-primary-container bg-primary-container text-on-primary" : "border-outline-variant text-on-surface-variant"}`}>{value}/5</button>)}</div>
+                      <input value={ratingComments[contributor.userId] ?? ""} onChange={(event) => setRatingComments((current) => ({ ...current, [contributor.userId]: event.target.value }))} maxLength={4000} placeholder="Optional public feedback" className="input-halo w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm" />
+                      <Button size="sm" variant="outline" loading={working === `rating:${contributor.userId}`} disabled={working !== null} onClick={() => void rate(contributor.userId)}>Submit rating</Button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function CustomerProjectWorkPage() {
   const { id: projectId } = useParams<{ id: string }>();
   const toast = useToast();
@@ -277,6 +468,7 @@ export default function CustomerProjectWorkPage() {
   const [submissions, setSubmissions] = useState<ProjectSubmission[]>([]);
   const [revisions, setRevisions] = useState<ProjectRevisionRequest[]>([]);
   const [releases, setReleases] = useState<PaymentReleaseRequest[]>([]);
+  const [handoffOverview, setHandoffOverview] = useState<ProjectHandoffOverview | null>(null);
 
   const [openSubmission, setOpenSubmission] = useState<SubmissionDetail | null>(
     null,
@@ -302,6 +494,7 @@ export default function CustomerProjectWorkPage() {
       listDeliverySubmissions(projectId),
       listRevisionRequests(projectId),
       listProjectReleaseRequests(projectId),
+      getProjectHandoff(projectId),
     ])
       .then(
         ([
@@ -311,6 +504,7 @@ export default function CustomerProjectWorkPage() {
           submissionsResult,
           revisionsResult,
           releasesResult,
+          handoffResult,
         ]) => {
           setProject(
             projectResult.status === "fulfilled" ? projectResult.value : null,
@@ -340,6 +534,9 @@ export default function CustomerProjectWorkPage() {
               ? releasesResult.value.items
               : [],
           );
+          setHandoffOverview(
+            handoffResult.status === "fulfilled" ? handoffResult.value : null,
+          );
 
           const failures: string[] = [];
           if (milestonesResult.status === "rejected")
@@ -351,6 +548,8 @@ export default function CustomerProjectWorkPage() {
             failures.push("revision requests");
           if (releasesResult.status === "rejected")
             failures.push("payment releases");
+          if (handoffResult.status === "rejected")
+            failures.push("final delivery");
           setLoadErrors(failures);
         },
       )
@@ -366,6 +565,12 @@ export default function CustomerProjectWorkPage() {
     setManualReviewAcknowledged(false);
     setReloadKey((key) => key + 1);
   }, []);
+
+  useEffect(() => {
+    const live = () => refresh();
+    window.addEventListener("nexus:notification", live);
+    return () => window.removeEventListener("nexus:notification", live);
+  }, [refresh]);
 
   const latestSubmissionByTask = useMemo(() => {
     const map = new Map<string, ProjectSubmission>();
@@ -540,9 +745,9 @@ export default function CustomerProjectWorkPage() {
     }
   };
 
-  const canDecide =
-    openSubmission?.status === "submitted" ||
-    openSubmission?.status === "under_review";
+  // Customers can follow evidence and verdicts, while the assigned principal
+  // reviewer owns technical acceptance. Admin review remains an override.
+  const canDecide = false;
   const latestEvaluation =
     openSubmission?.latestEvaluationRun ??
     openSubmission?.evaluationRun ??
@@ -586,7 +791,7 @@ export default function CustomerProjectWorkPage() {
     <DashboardShell
       role="customer"
       title="Delivery"
-      subtitle="Track implementation progress, review submitted work, and follow payments."
+      subtitle="Track implementation progress, principal-reviewer verdicts, and payments."
     >
       <Link
         href={`/projects/${projectId}`}
@@ -607,6 +812,12 @@ export default function CustomerProjectWorkPage() {
                 onAction={refresh}
               />
             )}
+
+            <FinalDeliveryPanel
+              projectId={projectId}
+              overview={handoffOverview}
+              onUpdated={refresh}
+            />
 
             <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -904,8 +1115,9 @@ export default function CustomerProjectWorkPage() {
                   </div>
                 ) : (
                   <p className="mt-5 text-sm text-on-surface-variant">
-                    This version is {openSubmission.status.replace(/_/g, " ")}{" "}
-                    and cannot be reviewed again.
+                    Technical acceptance is handled by the project&apos;s
+                    principal reviewer. You can follow the evidence, AI verdict,
+                    comments, and final status here.
                   </p>
                 )}
               </section>

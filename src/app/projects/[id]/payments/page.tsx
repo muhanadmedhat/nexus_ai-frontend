@@ -238,6 +238,24 @@ export default function ProjectPaymentsPage() {
               </p>
               <div className="mt-4 grid gap-3 md:grid-cols-3">
                 {[
+                  ...(summary.budgetAllocation.platformFee
+                    ? [
+                        {
+                          label: "Nexus platform fee",
+                          allocation: summary.budgetAllocation.platformFee,
+                        },
+                      ]
+                    : []),
+                  ...(summary.budgetAllocation.governance
+                    ? [
+                        {
+                          label: "Principal reviewer",
+                          allocation:
+                            summary.budgetAllocation.governance
+                              .principalReviewer,
+                        },
+                      ]
+                    : []),
                   {
                     label: "UI/UX planning",
                     allocation: summary.budgetAllocation.planning.ui_ux,
@@ -268,7 +286,11 @@ export default function ProjectPaymentsPage() {
                       "estimatedHours" in allocation && (
                         <p className="mt-1 text-xs text-on-surface-variant">
                           Covers {Number(allocation.estimatedHours)} estimated
-                          hours up to{" "}
+                          hours
+                          {"people" in allocation && allocation.people
+                            ? ` across ${Number(allocation.people)} ${Number(allocation.people) === 1 ? "person" : "people"}`
+                            : ""}{" "}
+                          up to{" "}
                           {formatMoney(
                             Number(allocation.maxHourlyRate),
                             summary.budgetAllocation?.currency,

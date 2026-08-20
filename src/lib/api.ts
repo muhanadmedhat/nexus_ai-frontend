@@ -17,6 +17,8 @@ export const API_ENDPOINTS = {
     completeProfile: "/auth/complete-profile",
     resendVerification: "/auth/resend-verification",
     verifyEmail: "/auth/verify-email",
+    sendPhoneVerification: "/auth/phone/send-verification",
+    verifyPhone: "/auth/phone/verify",
   },
   users: {
     me: "/users/me",

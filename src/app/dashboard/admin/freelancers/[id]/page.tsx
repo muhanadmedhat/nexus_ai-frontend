@@ -36,14 +36,17 @@ const statusLabels: Record<string, string> = {
 };
 
 const statusStyles: Record<string, string> = {
-  cv_processing: "border-primary-container/20 bg-primary-container/10 text-primary-container",
+  cv_processing:
+    "border-primary-container/20 bg-primary-container/10 text-primary-container",
   cv_extraction_failed: "border-error/20 bg-error-container/40 text-error",
   assessment_pending:
     "border-outline-variant/50 bg-surface-container-high text-on-surface-variant",
-  assessment_generation_failed: "border-error/20 bg-error-container/40 text-error",
+  assessment_generation_failed:
+    "border-error/20 bg-error-container/40 text-error",
   assessment_submitted:
     "border-outline-variant/50 bg-surface-container-high text-on-surface-variant",
-  approved: "border-primary-container/20 bg-primary-container/10 text-primary-container",
+  approved:
+    "border-primary-container/20 bg-primary-container/10 text-primary-container",
   rejected: "border-error/20 bg-error-container/40 text-error",
   interview_pending:
     "border-tertiary-container/20 bg-tertiary-container/10 text-tertiary-container",
@@ -113,7 +116,9 @@ export default function FreelancerDetailPage() {
     try {
       setDetail(await getFreelancerDetail(params.id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load freelancer");
+      setError(
+        err instanceof Error ? err.message : "Failed to load freelancer",
+      );
     } finally {
       setLoading(false);
     }
@@ -142,7 +147,7 @@ export default function FreelancerDetailPage() {
   const fallbackSkills = useMemo(
     () =>
       showAllSkills
-        ? detail?.profile.skills ?? []
+        ? (detail?.profile.skills ?? [])
         : (detail?.profile.skills ?? []).slice(0, SKILL_PREVIEW_LIMIT),
     [detail?.profile.skills, showAllSkills],
   );
@@ -180,7 +185,9 @@ export default function FreelancerDetailPage() {
       await loadDetail();
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Could not update freelancer status";
+        err instanceof Error
+          ? err.message
+          : "Could not update freelancer status";
       setError(message);
       toast.error("Decision failed", message);
     } finally {
@@ -190,7 +197,11 @@ export default function FreelancerDetailPage() {
 
   if (loading) {
     return (
-      <DashboardShell role="admin" title="Freelancer Review" subtitle="Loading...">
+      <DashboardShell
+        role="admin"
+        title="Freelancer Review"
+        subtitle="Loading..."
+      >
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary-container" />
         </div>
@@ -422,13 +433,17 @@ export default function FreelancerDetailPage() {
 
             <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
               <div className="rounded-xl bg-surface-container-low p-4">
-                <p className="text-xs text-on-surface-variant">Assessment score</p>
+                <p className="text-xs text-on-surface-variant">
+                  Assessment score
+                </p>
                 <p className="mt-1 font-headline text-2xl font-semibold text-on-surface">
                   {formatPercent(assessment?.score ?? profile.assessmentScore)}
                 </p>
               </div>
               <div className="rounded-xl bg-surface-container-low p-4">
-                <p className="text-xs text-on-surface-variant">Recommendation</p>
+                <p className="text-xs text-on-surface-variant">
+                  Recommendation
+                </p>
                 <p className="mt-1 font-semibold capitalize text-on-surface">
                   {assessment?.recommendation || "-"}
                 </p>
@@ -470,7 +485,7 @@ export default function FreelancerDetailPage() {
                 <div className="flex justify-between gap-4">
                   <dt className="text-on-surface-variant">Hourly rate</dt>
                   <dd className="font-medium text-on-surface">
-                    ${profile.hourlyRate || 0}/hr
+                    {profile.hourlyRate || 0} EGP/hr
                   </dd>
                 </div>
                 <div className="flex justify-between gap-4">
@@ -518,7 +533,9 @@ export default function FreelancerDetailPage() {
                   </dd>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <dt className="text-on-surface-variant">Assessment started</dt>
+                  <dt className="text-on-surface-variant">
+                    Assessment started
+                  </dt>
                   <dd className="font-medium text-on-surface">
                     {assessment?.startedAt
                       ? new Date(assessment.startedAt).toLocaleString()
@@ -617,7 +634,8 @@ export default function FreelancerDetailPage() {
                   </button>
                 ) : null}
                 <p className="mt-3 text-xs text-on-surface-variant">
-                  Assessment scores are not available yet, so these are profile skills.
+                  Assessment scores are not available yet, so these are profile
+                  skills.
                 </p>
               </>
             ) : (

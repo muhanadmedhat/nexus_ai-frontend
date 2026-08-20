@@ -25,6 +25,7 @@ function messageHref(
   notification: Notification,
   role: "customer" | "freelancer" | "admin",
 ) {
+  if (notification.actionUrl) return notification.actionUrl;
   if (!notification.projectId) return null;
   if (role === "freelancer" && notification.taskId) {
     return `/freelancer/projects/${notification.projectId}/tasks/${notification.taskId}`;
@@ -84,11 +85,13 @@ export default function MessagesPage() {
       if (document.visibilityState === "visible") void refresh();
     };
     window.addEventListener("focus", refreshWhenVisible);
+    window.addEventListener("nexus:notification", refreshWhenVisible);
     document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
       window.clearTimeout(initialLoad);
       window.clearInterval(interval);
       window.removeEventListener("focus", refreshWhenVisible);
+      window.removeEventListener("nexus:notification", refreshWhenVisible);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, [refresh]);

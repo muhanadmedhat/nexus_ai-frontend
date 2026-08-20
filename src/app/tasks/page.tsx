@@ -69,11 +69,13 @@ export default function TasksPage() {
     const intervalId = window.setInterval(() => void loadTasks(true), 20_000);
     const handleFocus = () => void loadTasks(true);
     window.addEventListener("focus", handleFocus);
+    window.addEventListener("nexus:notification", handleFocus);
 
     return () => {
       window.clearTimeout(initialTimeoutId);
       window.clearInterval(intervalId);
       window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("nexus:notification", handleFocus);
     };
   }, [authLoading, loadTasks, user?.role]);
 
@@ -117,9 +119,7 @@ export default function TasksPage() {
     >
       {role !== "freelancer" ? (
         <EmptyTasks
-          title={
-            role === "admin" ? "No personal task queue" : "No tasks yet"
-          }
+          title={role === "admin" ? "No personal task queue" : "No tasks yet"}
           description={
             role === "admin"
               ? "Review project tasks from the admin delivery workspace."
@@ -198,7 +198,8 @@ export default function TasksPage() {
                       {group.title}
                     </h2>
                     <p className="text-sm text-on-surface-variant">
-                      {group.tasks.length} assigned {group.tasks.length === 1 ? "task" : "tasks"}
+                      {group.tasks.length} assigned{" "}
+                      {group.tasks.length === 1 ? "task" : "tasks"}
                     </p>
                   </div>
                   <Link

@@ -8,6 +8,7 @@ import {
   getNotifications,
   markNotificationAsRead,
   markAllNotificationsAsRead,
+  subscribeToNotifications,
   type Notification,
 } from "@/services/notifications";
 
@@ -59,6 +60,11 @@ export function NotificationDropdown() {
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, [loadNotifications]);
+
+  useEffect(
+    () => subscribeToNotifications(() => void loadNotifications()),
+    [loadNotifications],
+  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -205,9 +211,22 @@ export function NotificationDropdown() {
                         {getTypeIcon(n)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-on-surface">
-                          {n.title}
-                        </p>
+                        {n.actionUrl ? (
+                          <Link
+                            href={n.actionUrl}
+                            onClick={() => {
+                              setIsOpen(false);
+                              if (!n.isRead) void handleMarkRead(n.id);
+                            }}
+                            className="text-sm font-medium text-on-surface hover:text-primary-container"
+                          >
+                            {n.title}
+                          </Link>
+                        ) : (
+                          <p className="text-sm font-medium text-on-surface">
+                            {n.title}
+                          </p>
+                        )}
                         <p className="text-xs text-on-surface-variant line-clamp-2">
                           {n.body || "Open Messages for more details."}
                         </p>

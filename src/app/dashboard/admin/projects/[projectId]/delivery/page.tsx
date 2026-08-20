@@ -6,6 +6,8 @@ import { useParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
 import {
   DeliveryEmpty,
   DeliveryRetryBanner,
@@ -22,6 +24,11 @@ import { getProject } from "@/services/projects";
 import { listDeliverySubmissions } from "@/services/project-submissions";
 import { listRevisionRequests } from "@/services/revisions";
 import { listProjectReleaseRequests } from "@/services/release-requests";
+import {
+  getProjectHandoff,
+  retryProjectHandoff,
+  type ProjectHandoffOverview,
+} from "@/services/project-handoffs";
 import { formatDate, formatMoney } from "@/utils/format";
 import type { Project } from "@/types/project";
 import type {
@@ -87,6 +94,7 @@ function PanelSlot({ owner, service }: { owner: string; service: string }) {
 
 export default function AdminProjectDeliveryPage() {
   const { projectId } = useParams<{ projectId: string }>();
+  const toast = useToast();
 
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
@@ -98,6 +106,8 @@ export default function AdminProjectDeliveryPage() {
   const [submissions, setSubmissions] = useState<ProjectSubmission[]>([]);
   const [revisions, setRevisions] = useState<ProjectRevisionRequest[]>([]);
   const [releases, setReleases] = useState<PaymentReleaseRequest[]>([]);
+  const [handoff, setHandoff] = useState<ProjectHandoffOverview | null>(null);
+  const [retryingHandoff, setRetryingHandoff] = useState(false);
 
   useEffect(() => {
     if (!projectId) return;
@@ -109,6 +119,7 @@ export default function AdminProjectDeliveryPage() {
       listDeliverySubmissions(projectId),
       listRevisionRequests(projectId),
       listProjectReleaseRequests(projectId),
+      getProjectHandoff(projectId),
     ])
       .then(
         ([
@@ -118,6 +129,7 @@ export default function AdminProjectDeliveryPage() {
           submissionsResult,
           revisionsResult,
           releasesResult,
+          handoffResult,
         ]) => {
           setProject(
             projectResult.status === "fulfilled" ? projectResult.value : null,
@@ -147,6 +159,9 @@ export default function AdminProjectDeliveryPage() {
               ? releasesResult.value.items
               : [],
           );
+          setHandoff(
+            handoffResult.status === "fulfilled" ? handoffResult.value : null,
+          );
 
           const failures: string[] = [];
           if (milestonesResult.status === "rejected")
@@ -158,6 +173,7 @@ export default function AdminProjectDeliveryPage() {
             failures.push("revision requests");
           if (releasesResult.status === "rejected")
             failures.push("payment releases");
+          if (handoffResult.status === "rejected") failures.push("final delivery");
           setLoadErrors(failures);
         },
       )
@@ -183,6 +199,19 @@ export default function AdminProjectDeliveryPage() {
       (task) => !task.milestoneId || !milestoneIds.has(task.milestoneId),
     );
   }, [tasks, milestones]);
+
+  const retryFinalDelivery = async () => {
+    setRetryingHandoff(true);
+    try {
+      await retryProjectHandoff(projectId);
+      toast.success("Final verification queued", "Integration will retry from the approved task commits.");
+      refresh();
+    } catch (error) {
+      toast.error("Could not retry final delivery", error instanceof Error ? error.message : "Try again.");
+    } finally {
+      setRetryingHandoff(false);
+    }
+  };
 
   return (
     <DashboardShell
@@ -341,7 +370,7 @@ export default function AdminProjectDeliveryPage() {
           <Section
             index={6}
             title="Payment release requests"
-            description="Sprint 5 releases are ledger-only; no Stripe transfer is attempted."
+            description="Approved task payouts are recorded immediately and dispatched through configured Stripe Connect automation."
           >
             {releases.length ? (
               <ul className="space-y-2">
@@ -367,6 +396,40 @@ export default function AdminProjectDeliveryPage() {
               </ul>
             ) : (
               <DeliveryEmpty title="No release requests" />
+            )}
+          </Section>
+
+          <Section
+            index={7}
+            title="Final integration and client handoff"
+            description="Technical override surface for merge, verification, and escrow-finalization failures."
+          >
+            {handoff?.handoff ? (
+              <div className="space-y-3 rounded-lg border border-outline-variant/30 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-on-surface">
+                      {handoff.handoff.summary || "Integrated project delivery"}
+                    </p>
+                    <p className="mt-1 font-mono text-xs text-on-surface-variant">
+                      {handoff.handoff.integrationBranch} · {handoff.handoff.integrationCommitSha?.slice(0, 12) || "commit pending"}
+                    </p>
+                  </div>
+                  <StatusBadge status={handoff.handoff.status} />
+                </div>
+                {handoff.handoff.lastError && (
+                  <p className="rounded-lg bg-error/10 p-3 text-sm text-error">
+                    {handoff.handoff.lastError}
+                  </p>
+                )}
+                {["integration_failed", "verification_failed"].includes(handoff.handoff.status) && (
+                  <Button variant="outline" loading={retryingHandoff} onClick={() => void retryFinalDelivery()}>
+                    Retry integration and verification
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <DeliveryEmpty title="Waiting for all approved tasks" description="The final handoff record is created automatically after every implementation task is accepted." />
             )}
           </Section>
         </div>

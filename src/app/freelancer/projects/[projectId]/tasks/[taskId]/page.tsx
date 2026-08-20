@@ -22,7 +22,10 @@ import {
 } from "@/components/delivery/helpers";
 import {
   getMilestones,
+  getTaskCheckpoints,
+  completeTaskCheckpoint,
   getTasks,
+  type TaskCheckpoint,
   type ProjectMilestone,
 } from "@/services/planning";
 import { getMyFreelancerProfile } from "@/services/freelancers";
@@ -194,6 +197,31 @@ function Field({
   );
 }
 
+function DeadlineCountdown({ dueAt }: { dueAt: string }) {
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    const initial = window.setTimeout(() => setNow(Date.now()), 0);
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(timer);
+    };
+  }, []);
+  if (!now) return <span>Calculating…</span>;
+  const seconds = Math.max(
+    0,
+    Math.floor((new Date(dueAt).getTime() - now) / 1000),
+  );
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return (
+    <span>
+      {seconds > 0 ? `${days}d ${hours}h ${minutes}m` : "Deadline passed"}
+    </span>
+  );
+}
+
 function SubmissionReceipt({
   submission,
   review,
@@ -246,11 +274,11 @@ function SubmissionReceipt({
       <p className="mt-3 text-sm leading-6 text-on-surface-variant">
         {submission.status === "submitted" ||
         submission.status === "under_review"
-          ? "Your answers and evidence are locked while evaluation and admin review are in progress. This page updates automatically when a decision is made."
+          ? "Your answers and evidence are locked while evaluation and principal review are in progress. This page updates automatically when a decision is made."
           : submission.status === "approved"
-            ? "The admin approved this task. Its allocated amount is now included in your approved earnings."
+            ? "The principal reviewer approved this task. Its allocated amount is now included in your approved earnings."
             : submission.status === "rejected"
-              ? "The admin rejected this version. Review the feedback below before creating a revised submission."
+              ? "The principal reviewer rejected this version. Review the feedback below before creating a revised submission."
               : `This submission is ${submission.status.replace(/_/g, " ")}.`}
       </p>
 
@@ -383,6 +411,10 @@ export default function FreelancerTaskWorkPage() {
   const [milestones, setMilestones] = useState<ProjectMilestone[]>([]);
   const [submissions, setSubmissions] = useState<ProjectSubmission[]>([]);
   const [revisions, setRevisions] = useState<ProjectRevisionRequest[]>([]);
+  const [checkpoints, setCheckpoints] = useState<TaskCheckpoint[]>([]);
+  const [checkpointWorking, setCheckpointWorking] = useState<string | null>(
+    null,
+  );
   const [latestEvaluation, setLatestEvaluation] =
     useState<EvaluationRun | null>(null);
   const [latestDetail, setLatestDetail] = useState<SubmissionDetail | null>(
@@ -408,6 +440,7 @@ export default function FreelancerTaskWorkPage() {
           getMilestones(projectId),
           listDeliverySubmissions(projectId, { taskId }),
           listRevisionRequests(projectId, { taskId }),
+          getTaskCheckpoints(taskId),
         ]);
       })
       .then(
@@ -416,6 +449,7 @@ export default function FreelancerTaskWorkPage() {
           milestonesResult,
           submissionsResult,
           revisionsResult,
+          checkpointsResult,
         ]) => {
           setAllTasks(
             tasksResult.status === "fulfilled"
@@ -459,6 +493,11 @@ export default function FreelancerTaskWorkPage() {
               ? revisionsResult.value.items
               : [],
           );
+          setCheckpoints(
+            checkpointsResult.status === "fulfilled"
+              ? checkpointsResult.value
+              : [],
+          );
 
           const failures: string[] = [];
           if (tasksResult.status === "rejected") failures.push("task");
@@ -468,11 +507,47 @@ export default function FreelancerTaskWorkPage() {
             failures.push("submissions");
           if (revisionsResult.status === "rejected")
             failures.push("revision requests");
+          if (checkpointsResult.status === "rejected")
+            failures.push("checkpoints");
           setLoadErrors(failures);
         },
       )
       .finally(() => setLoading(false));
   }, [projectId, taskId, reloadKey]);
+
+  useEffect(() => {
+    if (!projectId || !taskId) return;
+    let cancelled = false;
+    let inFlight = false;
+
+    const refreshTaskState = async () => {
+      if (inFlight || document.visibilityState !== "visible") return;
+      inFlight = true;
+      try {
+        const [tasksResult, checkpointsResult] = await Promise.all([
+          getTasks(projectId, { limit: 200 }),
+          getTaskCheckpoints(taskId),
+        ]);
+        if (!cancelled) {
+          setAllTasks(tasksResult as DeliveryTask[]);
+          setCheckpoints(checkpointsResult);
+        }
+      } catch {
+        // The initial loader and manual retry surface persistent failures.
+      } finally {
+        inFlight = false;
+      }
+    };
+    const interval = window.setInterval(() => void refreshTaskState(), 15_000);
+    window.addEventListener("focus", refreshTaskState);
+    window.addEventListener("nexus:notification", refreshTaskState);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshTaskState);
+      window.removeEventListener("nexus:notification", refreshTaskState);
+    };
+  }, [projectId, taskId]);
 
   const refresh = useCallback(() => {
     setLoading(true);
@@ -751,6 +826,27 @@ export default function FreelancerTaskWorkPage() {
       revision.status === "open" || revision.status === "in_progress",
   );
 
+  const handleCheckpointComplete = async (checkpoint: TaskCheckpoint) => {
+    setCheckpointWorking(checkpoint.id);
+    try {
+      const updated = await completeTaskCheckpoint(taskId, checkpoint.id);
+      setCheckpoints((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      );
+      toast.success(
+        "Checkpoint completed",
+        "Your progress record was updated.",
+      );
+    } catch (error) {
+      toast.error(
+        "Could not complete checkpoint",
+        error instanceof Error ? error.message : "Try again.",
+      );
+    } finally {
+      setCheckpointWorking(null);
+    }
+  };
+
   return (
     <DashboardShell
       role="freelancer"
@@ -802,6 +898,63 @@ export default function FreelancerTaskWorkPage() {
                 </p>
               )}
             </section>
+
+            {checkpoints.length > 0 && (
+              <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-headline text-base font-semibold text-on-surface">
+                      Delivery checkpoints
+                    </h3>
+                    <p className="mt-1 text-sm text-on-surface-variant">
+                      Missed checkpoints deduct the shown percentage and
+                      repeated misses trigger automatic rematching.
+                    </p>
+                  </div>
+                  <p className="text-sm font-medium text-on-surface">
+                    Deductions:{" "}
+                    {Number(task.penaltyAmount ?? 0).toLocaleString()}{" "}
+                    {task.currency} · strikes {task.deadlineStrikes ?? 0}/
+                    {task.maxDeadlineStrikes ?? 2}
+                  </p>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {checkpoints.map((checkpoint) => (
+                    <div
+                      key={checkpoint.id}
+                      className="flex flex-col gap-3 rounded-lg bg-surface-container-low p-4 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium text-on-surface">
+                            {checkpoint.title}
+                          </p>
+                          <StatusBadge status={checkpoint.status} />
+                        </div>
+                        <p className="mt-1 text-sm text-on-surface-variant">
+                          Due {formatDate(checkpoint.dueAt)} ·{" "}
+                          <DeadlineCountdown dueAt={checkpoint.dueAt} /> ·{" "}
+                          {Number(checkpoint.weightPercent)}% of work ·{" "}
+                          {Number(checkpoint.penaltyPercent)}% penalty if missed
+                        </p>
+                      </div>
+                      {["pending", "missed"].includes(checkpoint.status) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          loading={checkpointWorking === checkpoint.id}
+                          onClick={() =>
+                            void handleCheckpointComplete(checkpoint)
+                          }
+                        >
+                          Mark complete
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
             {criteria.length > 0 && (
               <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
@@ -1027,7 +1180,8 @@ export default function FreelancerTaskWorkPage() {
                   : "Not allocated"}
               </p>
               <p className="mt-1 text-xs leading-5 text-on-surface-variant">
-                This task amount becomes approved earnings after admin approval.
+                This task amount becomes approved earnings after
+                principal-reviewer approval.
               </p>
             </section>
 

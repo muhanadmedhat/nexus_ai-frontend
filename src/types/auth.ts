@@ -1,6 +1,9 @@
 export type UserRole = "customer" | "freelancer" | "admin";
 
-export const PUBLIC_ROLES: Exclude<UserRole, "admin">[] = ["customer", "freelancer"];
+export const PUBLIC_ROLES: Exclude<UserRole, "admin">[] = [
+  "customer",
+  "freelancer",
+];
 
 export interface AuthUser {
   id: string;
@@ -11,6 +14,7 @@ export interface AuthUser {
   role: UserRole;
   photoUrl: string | null;
   isEmailVerified: boolean;
+  isPhoneVerified: boolean;
   cvUrl: string | null;
 }
 

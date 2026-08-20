@@ -203,6 +203,19 @@ export interface ProjectMilestone {
   taskCount?: number;
 }
 
+export interface TaskCheckpoint {
+  id: string;
+  taskId: string;
+  title: string;
+  orderIndex: number;
+  dueAt: string;
+  weightPercent: string | number;
+  penaltyPercent: string | number;
+  status: "pending" | "met" | "missed" | "completed_late" | "waived";
+  completedAt: string | null;
+  penaltyAmount: string | number;
+}
+
 export interface ProjectTask {
   id: string;
   projectId: string;
@@ -218,6 +231,10 @@ export interface ProjectTask {
   currency?: string | null;
   startsAt?: string | null;
   dueAt?: string | null;
+  penaltyAmount?: string | number | null;
+  deadlineStrikes?: number;
+  maxDeadlineStrikes?: number;
+  assignmentStatus?: string;
   acceptanceCriteria?: unknown;
   metadata?: {
     contractReferences?: string[];
@@ -642,5 +659,32 @@ export async function updateTask(
     return data.data;
   } catch (error) {
     throw new Error(getApiErrorMessage(error, "Could not update task"));
+  }
+}
+
+export async function getTaskCheckpoints(taskId: string) {
+  try {
+    const { data } = await api.get<ApiDataResponse<TaskCheckpoint[]>>(
+      `/project-tasks/${taskId}/checkpoints`,
+    );
+    return Array.isArray(data.data) ? data.data : [];
+  } catch (error) {
+    throw new Error(
+      getApiErrorMessage(error, "Could not load task checkpoints"),
+    );
+  }
+}
+
+export async function completeTaskCheckpoint(
+  taskId: string,
+  checkpointId: string,
+) {
+  try {
+    const { data } = await api.patch<ApiDataResponse<TaskCheckpoint>>(
+      `/project-tasks/${taskId}/checkpoints/${checkpointId}/complete`,
+    );
+    return data.data;
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, "Could not complete checkpoint"));
   }
 }

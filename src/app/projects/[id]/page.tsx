@@ -42,6 +42,9 @@ export default function ProjectDetailsPage() {
     : briefComplete
       ? "The brief details are captured. Review and confirm them to generate the final price."
       : "Define your requirements with the AI agent.";
+  const finalDeliveryReady =
+    project?.automationStatus === "awaiting_client_acceptance";
+  const projectCompleted = project?.status === "completed";
 
   useEffect(() => {
     if (!id || user?.role !== "customer") return;
@@ -196,12 +199,30 @@ export default function ProjectDetailsPage() {
             <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
               <h3 className="font-headline text-base font-semibold text-on-surface">Next action</h3>
               <p className="mt-1 text-sm text-on-surface-variant">
-                {nextActionText}
+                {projectCompleted
+                  ? "Your delivery was accepted. You can revisit the final build and team ratings."
+                  : finalDeliveryReady
+                    ? "The integrated project passed final review and is waiting for your acceptance."
+                    : nextActionText}
               </p>
-              <Link href={`/projects/${project.id}/requirements`}>
+              <Link
+                href={
+                  finalDeliveryReady || projectCompleted
+                    ? `/projects/${project.id}/work`
+                    : `/projects/${project.id}/requirements`
+                }
+              >
                 <Button className="mt-4 inline-flex w-full items-center justify-center">
-                  <MessageSquare size={18} className="mr-2" />
-                  {requirementsActionLabel}
+                  {finalDeliveryReady || projectCompleted ? (
+                    <ListChecks size={18} className="mr-2" />
+                  ) : (
+                    <MessageSquare size={18} className="mr-2" />
+                  )}
+                  {projectCompleted
+                    ? "View completed delivery"
+                    : finalDeliveryReady
+                      ? "Review final delivery"
+                      : requirementsActionLabel}
                 </Button>
               </Link>
               {briefConfirmed && (

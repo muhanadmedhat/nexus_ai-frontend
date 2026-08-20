@@ -7,9 +7,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
+import Spline from "@splinetool/react-spline";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { AuthVisualPanel } from "@/components/layout/auth-visual-panel";
 import { GoogleAuthButton } from "@/components/auth/google-auth-button";
 import { useAuth } from "@/hooks/use-auth";
 import { getMe, signIn } from "@/services/auth";
@@ -57,102 +57,142 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="flex min-h-screen w-full flex-col bg-[#f5f5f0] lg:h-screen lg:overflow-hidden lg:flex-row">
-      <AuthVisualPanel
-        imageSrc="/auth-panel-nexus.png"
-        sceneUrl="https://prod.spline.design/jENSkvxRxQfrmnBl/scene.splinecode"
-        alt="Nexus AI assistant robot"
-        title={
-          <>
-            From messy briefs
-            <br />
-            to verified delivery.
-          </>
-        }
-        description={
-          <>
-            AI agents structure requirements, match freelancers to tasks,
-            evaluate submissions, and support escrow release.
-          </>
-        }
-      />
+    <>
+      {/* Hide Spline watermark */}
+      <style>
+        {`
+          .spline-watermark,
+          [data-spline-watermark],
+          [class*="spline-watermark"],
+          .spline-viewer .watermark,
+          canvas + div[style*="position: absolute"] {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+          }
+        `}
+      </style>
 
-      <section className="flex flex-1 flex-col items-center justify-center bg-surface p-8 md:p-12 lg:h-screen lg:overflow-hidden lg:p-12">
-        <div className="w-full max-w-[448px]">
-          <div className="mb-10">
-            <h1 className="mb-4 font-headline text-4xl font-bold leading-tight tracking-tight text-on-surface md:text-5xl">
-              Welcome back
-            </h1>
-            <p className="max-w-sm text-lg text-on-surface-variant">
-              Sign in to continue managing your projects with precision.
+      <main className="relative flex min-h-screen w-full flex-col bg-[#f5f5f0] lg:h-screen lg:overflow-hidden lg:flex-row">
+        {/* Left Panel – Title (top) + Robot (bottom) */}
+        <section className="relative hidden w-1/2 flex-col items-center justify-center overflow-hidden border-outline-variant/50 bg-surface bg-[radial-gradient(70%_50%_at_50%_42%,rgba(50,73,51,0.08),transparent_72%)] p-8 lg:flex lg:border-r">
+          <div className="relative z-10 flex h-full w-full flex-col items-center justify-start">
+            <div className="pt-[8vh] font-headline text-6xl font-bold tracking-tight text-on-surface md:text-7xl">
+              Nexus <span className="text-primary-container">AI</span>
+            </div>
+            <p className="mt-6 max-w-md text-center text-lg leading-relaxed text-on-surface-variant">
+              Structured briefs. Matched talent.{" "}
+              <span className="font-medium text-primary-container">
+                Verified work.
+              </span>
+            </p>
+
+            <div className="w-full flex-1 flex items-center justify-center">
+              <Spline
+                scene="https://draft.spline.design/joTbeFyFhCIcKsZ1/scene.splinecode"
+                className="h-[75vh] w-full"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Right Panel – Form */}
+        <section className="flex flex-1 flex-col items-center justify-center bg-surface p-8 md:p-12 lg:h-screen lg:overflow-hidden lg:p-12">
+          <div className="w-full max-w-[448px]">
+            <div className="mb-10">
+              <h1 className="mb-4 font-headline text-4xl font-bold leading-tight tracking-tight text-on-surface md:text-5xl">
+                Welcome back
+              </h1>
+              <p className="max-w-sm text-lg text-on-surface-variant">
+                Sign in to continue managing your projects with precision.
+              </p>
+            </div>
+
+            <form
+              onSubmit={handleSubmit(onSubmit)}
+              className="w-full space-y-6"
+            >
+              <Input
+                label="Email Address"
+                uppercaseLabel
+                type="email"
+                placeholder="name@company.com"
+                icon={<Mail size={20} className="text-outline" />}
+                {...register("email")}
+                error={errors.email?.message}
+              />
+              <Input
+                label="Password"
+                uppercaseLabel
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                icon={<Lock size={20} className="text-outline" />}
+                trailing={
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="text-outline transition-colors hover:text-on-surface"
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                }
+                labelExtra={
+                  <Link
+                    href="#"
+                    className="text-xs font-semibold text-primary-container hover:underline"
+                  >
+                    Forgot password?
+                  </Link>
+                }
+                {...register("password")}
+                error={errors.password?.message}
+              />
+              <Button type="submit" loading={isSubmitting}>
+                Sign in
+              </Button>
+            </form>
+
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-outline-variant/30" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-surface px-4 text-on-surface-variant">
+                  Or continue with
+                </span>
+              </div>
+            </div>
+
+            <GoogleAuthButton />
+
+            <p className="mt-8 text-center text-on-surface-variant">
+              Don&apos;t have an account?{" "}
+              <Link
+                href="/register"
+                className="font-bold text-primary-container hover:underline"
+              >
+                Create one
+              </Link>
             </p>
           </div>
+        </section>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="w-full space-y-6">
-            <Input
-              label="Email Address"
-              uppercaseLabel
-              type="email"
-              placeholder="name@company.com"
-              icon={<Mail size={20} className="text-outline" />}
-              {...register("email")}
-              error={errors.email?.message}
-            />
-            <Input
-              label="Password"
-              uppercaseLabel
-              type={showPassword ? "text" : "password"}
-              placeholder="••••••••"
-              icon={<Lock size={20} className="text-outline" />}
-              trailing={
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="text-outline transition-colors hover:text-on-surface"
-                >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              }
-              labelExtra={
-                <Link
-                  href="#"
-                  className="text-xs font-semibold text-primary-container hover:underline"
-                >
-                  Forgot password?
-                </Link>
-              }
-              {...register("password")}
-              error={errors.password?.message}
-            />
-            <Button type="submit" loading={isSubmitting}>
-              Sign in
-            </Button>
-          </form>
-
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-outline-variant/30" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-surface px-4 text-on-surface-variant">
-                Or continue with
-              </span>
-            </div>
+        <footer className="pointer-events-none absolute inset-x-0 bottom-0 z-20 hidden items-center justify-between px-10 py-5 text-xs text-on-surface-variant lg:flex">
+          <span className="pointer-events-auto">© 2026 Nexus AI</span>
+          <div className="pointer-events-auto flex gap-5">
+            <a href="#" className="transition-colors hover:text-on-surface">
+              Terms
+            </a>
+            <a href="#" className="transition-colors hover:text-on-surface">
+              Privacy
+            </a>
+            <a href="#" className="transition-colors hover:text-on-surface">
+              Support
+            </a>
           </div>
-
-          <GoogleAuthButton />
-
-          <p className="mt-8 text-center text-on-surface-variant">
-            Don&apos;t have an account?{" "}
-            <Link
-              href="/register"
-              className="font-bold text-primary-container hover:underline"
-            >
-              Create one
-            </Link>
-          </p>
-        </div>
-      </section>
-    </main>
+        </footer>
+      </main>
+    </>
   );
 }

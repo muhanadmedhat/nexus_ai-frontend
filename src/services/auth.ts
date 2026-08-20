@@ -16,6 +16,7 @@ interface BackendUser {
   role: AuthUser["role"];
   photoUrl: string | null;
   isEmailVerified: boolean;
+  isPhoneVerified: boolean;
   cvUrl?: string | null;
 }
 
@@ -41,6 +42,7 @@ function toAuthUser(row: BackendUser): AuthUser {
     role: row.role,
     photoUrl: row.photoUrl,
     isEmailVerified: row.isEmailVerified ?? false,
+    isPhoneVerified: row.isPhoneVerified ?? false,
     cvUrl: row.cvUrl ?? null,
   };
 }
@@ -59,7 +61,7 @@ export async function signIn(email: string, password: string) {
     });
 
     if (!data.accessToken) {
-      throw new Error('Invalid login response: missing accessToken');
+      throw new Error("Invalid login response: missing accessToken");
     }
 
     setAuthTokens({ accessToken: data.accessToken });
@@ -82,10 +84,13 @@ export async function signOut() {
 
 export async function signUp(input: RegisterInput): Promise<void> {
   try {
-    const { data } = await api.post<TokenResponse>(API_ENDPOINTS.auth.signup, input);
+    const { data } = await api.post<TokenResponse>(
+      API_ENDPOINTS.auth.signup,
+      input,
+    );
 
     if (!data.accessToken) {
-      throw new Error('Invalid signup response');
+      throw new Error("Invalid signup response");
     }
 
     setAuthTokens({ accessToken: data.accessToken });
@@ -94,16 +99,23 @@ export async function signUp(input: RegisterInput): Promise<void> {
   }
 }
 
-export async function exchangeAuthCode(code: string): Promise<AuthExchangeResponse> {
+export async function exchangeAuthCode(
+  code: string,
+): Promise<AuthExchangeResponse> {
   try {
-    const { data } = await api.post<AuthExchangeResponse>(API_ENDPOINTS.auth.exchange, {
-      code,
-    });
+    const { data } = await api.post<AuthExchangeResponse>(
+      API_ENDPOINTS.auth.exchange,
+      {
+        code,
+      },
+    );
 
     setAuthTokens({ accessToken: data.accessToken });
     return data;
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not complete Google sign in"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not complete Google sign in"),
+    );
   }
 }
 
@@ -130,18 +142,52 @@ export async function resendVerificationEmail(): Promise<void> {
   try {
     await api.post(API_ENDPOINTS.auth.resendVerification);
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not send verification code"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not send verification code"),
+    );
   }
 }
 
 export async function verifyEmail(code: string): Promise<void> {
   try {
-    const { data } = await api.post<TokenResponse>(API_ENDPOINTS.auth.verifyEmail, {
-      code,
-    });
+    const { data } = await api.post<TokenResponse>(
+      API_ENDPOINTS.auth.verifyEmail,
+      {
+        code,
+      },
+    );
     setAuthTokens({ accessToken: data.accessToken });
   } catch (error) {
     throw new Error(getApiErrorMessage(error, "Could not verify email"));
+  }
+}
+
+export async function sendPhoneVerification(): Promise<{
+  expiresInSeconds: number;
+  testMode: boolean;
+}> {
+  try {
+    const { data } = await api.post<{
+      expiresInSeconds: number;
+      testMode: boolean;
+    }>(API_ENDPOINTS.auth.sendPhoneVerification);
+    return data;
+  } catch (error) {
+    throw new Error(
+      getApiErrorMessage(error, "Could not send verification code"),
+    );
+  }
+}
+
+export async function verifyPhone(code: string): Promise<void> {
+  try {
+    const { data } = await api.post<TokenResponse>(
+      API_ENDPOINTS.auth.verifyPhone,
+      { code },
+    );
+    setAuthTokens({ accessToken: data.accessToken });
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, "Could not verify phone number"));
   }
 }
 

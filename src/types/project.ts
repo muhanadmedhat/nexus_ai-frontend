@@ -37,6 +37,7 @@ export interface Project {
   quoteStatus?: string | null;
   quoteGeneratedAt?: string | null;
   quoteNotes?: string | null;
+  automationStatus?: string | null;
   createdAt: string;
 }
 

@@ -232,6 +232,13 @@ export default function FreelancerProjectDetailPage() {
     setReloadKey((key) => key + 1);
   }, []);
 
+  useEffect(() => {
+    const refreshFromNotification = () => refresh();
+    window.addEventListener("nexus:notification", refreshFromNotification);
+    return () =>
+      window.removeEventListener("nexus:notification", refreshFromNotification);
+  }, [refresh]);
+
   const myTasks = useMemo(
     () =>
       profileId

@@ -117,6 +117,13 @@ export interface ProjectBudgetAllocation {
   totalAmount: string | number;
   currency: string;
   complexity: "trivial" | "standard" | "complex";
+  platformFee?: {
+    percentage: number;
+    amount: string | number;
+  };
+  governance?: {
+    principalReviewer: ProjectBudgetRoleAllocation;
+  };
   planning: {
     architect: ProjectBudgetRoleAllocation;
     ui_ux: ProjectBudgetRoleAllocation;
@@ -124,7 +131,12 @@ export interface ProjectBudgetAllocation {
   implementation: {
     percentage: number;
     amount: string | number;
+    estimatedHours?: number;
+    people?: number;
+    maxHourlyRate?: string | number;
   };
+  minimumRecommendedAmount?: string | number;
+  budgetGap?: string | number;
   generatedAt: string;
 }
 
@@ -132,6 +144,7 @@ export interface ProjectBudgetRoleAllocation {
   percentage: number;
   amount: string | number;
   estimatedHours: number;
+  people?: number;
   maxHourlyRate: string | number;
 }
 

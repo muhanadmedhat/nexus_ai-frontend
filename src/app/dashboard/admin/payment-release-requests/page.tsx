@@ -6,14 +6,21 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useToast } from "@/components/ui/toast";
-import { DeliveryEmpty, DeliveryError, DeliveryLoading } from "@/components/delivery";
+import {
+  DeliveryEmpty,
+  DeliveryError,
+  DeliveryLoading,
+} from "@/components/delivery";
 import { toNumber } from "@/components/delivery/helpers";
 import {
   listAdminReleaseRequests,
   reviewReleaseRequest,
 } from "@/services/release-requests";
 import { formatDate, formatMoney } from "@/utils/format";
-import type { PaymentReleaseRequest, ReleaseRequestStatus } from "@/types/delivery";
+import type {
+  PaymentReleaseRequest,
+  ReleaseRequestStatus,
+} from "@/types/delivery";
 
 const FILTERS: { value: ReleaseRequestStatus | "all"; label: string }[] = [
   { value: "pending", label: "Pending" },
@@ -48,7 +55,9 @@ export default function AdminPaymentReleaseRequestsPage() {
       .catch((caught) => {
         if (!active) return;
         setError(
-          caught instanceof Error ? caught.message : "Could not load release requests",
+          caught instanceof Error
+            ? caught.message
+            : "Could not load release requests",
         );
       })
       .finally(() => {
@@ -99,7 +108,7 @@ export default function AdminPaymentReleaseRequestsPage() {
     <DashboardShell
       role="admin"
       title="Escrow Releases"
-      subtitle="Approve or reject freelancer payment release requests. Sprint 5 releases are ledger-only."
+      subtitle="Recover or override releases that could not complete automatically. Ledger posting is immediate; enabled Stripe Connect payouts retry in the background."
     >
       <div className="mb-5 flex flex-wrap gap-2">
         {FILTERS.map((filter) => (
@@ -145,7 +154,10 @@ export default function AdminPaymentReleaseRequestsPage() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-3">
                       <span className="font-headline text-xl font-semibold text-on-surface">
-                        {formatMoney(toNumber(request.amount), request.currency)}
+                        {formatMoney(
+                          toNumber(request.amount),
+                          request.currency,
+                        )}
                       </span>
                       <StatusBadge status={request.status} />
                       <span className="rounded-full bg-surface-container-high px-2.5 py-0.5 text-xs font-medium text-on-surface-variant">
@@ -153,7 +165,9 @@ export default function AdminPaymentReleaseRequestsPage() {
                       </span>
                     </div>
                     {request.reason && (
-                      <p className="mt-2 text-sm text-on-surface-variant">{request.reason}</p>
+                      <p className="mt-2 text-sm text-on-surface-variant">
+                        {request.reason}
+                      </p>
                     )}
                     <dl className="mt-3 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
                       <div className="flex gap-2">
@@ -176,7 +190,9 @@ export default function AdminPaymentReleaseRequestsPage() {
                       </div>
                       <div className="flex gap-2">
                         <dt className="text-on-surface-variant">Requested</dt>
-                        <dd className="text-on-surface">{formatDate(request.createdAt)}</dd>
+                        <dd className="text-on-surface">
+                          {formatDate(request.createdAt)}
+                        </dd>
                       </div>
                     </dl>
                   </div>

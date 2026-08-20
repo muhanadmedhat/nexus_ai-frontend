@@ -201,9 +201,10 @@ export default function FreelancerPaymentsPage() {
               Your earnings
             </h2>
             <p className="mt-1 text-sm text-on-surface-variant">
-              Task allocations are reserved in the approved plan. An
-              admin-approved submission moves its task amount into approved
-              earnings; escrow release remains a separate step.
+              Task and planning allocations are reserved before work starts.
+              Once verified work is accepted by the principal reviewer, the net
+              amount is posted to your earnings automatically and transferred to
+              your connected Stripe account when payout onboarding is ready.
             </p>
             {account?.earnings.currencies.length ? (
               <div className="mt-5 space-y-5">
