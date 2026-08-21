@@ -38,6 +38,8 @@ export const API_ENDPOINTS = {
   },
   freelancers: {
     me: "/freelancers/me",
+    principalReviewerApplication:
+      "/freelancers/me/principal-reviewer/application",
   },
   freelancerVerification: {
     me: "/freelancer-verification/me",
@@ -61,6 +63,8 @@ export const API_ENDPOINTS = {
     freelancerDetail: (id: string) => `/admin/freelancers/${id}`,
     freelancerVerification: (id: string) =>
       `/admin/freelancers/${id}/verification`,
+    principalReviewerReview: (id: string) =>
+      `/admin/freelancers/${id}/principal-reviewer`,
     agentsOverview: "/admin/agents/overview",
     agentJobs: "/admin/agent-jobs",
     agentJobDetail: (id: string) => `/admin/agent-jobs/${id}`,

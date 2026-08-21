@@ -23,7 +23,8 @@ import {
 const statusBadgeColors: Record<string, string> = {
   cv_processing:
     "border border-primary-container/20 bg-primary-container/10 text-primary-container",
-  cv_extraction_failed: "border border-error/20 bg-error-container/40 text-error",
+  cv_extraction_failed:
+    "border border-error/20 bg-error-container/40 text-error",
   assessment_pending:
     "border border-outline-variant/50 bg-surface-container-high text-on-surface-variant",
   assessment_generation_failed:
@@ -84,12 +85,15 @@ export default function AdminFreelancersPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
-  const [statusFilter, setStatusFilter] = useState<string>("assessment_submitted");
+  const [statusFilter, setStatusFilter] = useState<string>(
+    "assessment_submitted",
+  );
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [skills, setSkills] = useState("");
+  const [principalReviewerFilter, setPrincipalReviewerFilter] = useState("");
   const limit = 20;
 
   const loadFreelancers = useCallback(async () => {
@@ -111,15 +115,26 @@ export default function AdminFreelancersPage() {
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
         skills: skillsArray,
+        principalReviewerStatus: principalReviewerFilter || undefined,
       });
       setFreelancers(result.data);
       setTotal(result.total);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load freelancers");
+      setError(
+        err instanceof Error ? err.message : "Failed to load freelancers",
+      );
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter, search, dateFrom, dateTo, skills]);
+  }, [
+    page,
+    statusFilter,
+    search,
+    dateFrom,
+    dateTo,
+    skills,
+    principalReviewerFilter,
+  ]);
 
   useEffect(() => {
     const loadTimer = window.setTimeout(() => {
@@ -187,10 +202,12 @@ export default function AdminFreelancersPage() {
     setDateFrom("");
     setDateTo("");
     setSkills("");
+    setPrincipalReviewerFilter("");
     setPage(1);
   };
 
-  const hasActiveFilters = search || dateFrom || dateTo || skills;
+  const hasActiveFilters =
+    search || dateFrom || dateTo || skills || principalReviewerFilter;
 
   return (
     <DashboardShell
@@ -200,15 +217,35 @@ export default function AdminFreelancersPage() {
     >
       {/* Filter tabs */}
       <div className="mb-4 flex flex-wrap gap-2">
-        {["assessment_submitted", "approved", "rejected", "interview_pending"].map((status) => (
+        <button
+          onClick={() => {
+            setStatusFilter("");
+            setPrincipalReviewerFilter("pending");
+            setPage(1);
+          }}
+          className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+            !statusFilter && principalReviewerFilter === "pending"
+              ? "bg-primary-container text-on-primary-container"
+              : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high"
+          }`}
+        >
+          Reviewer applications
+        </button>
+        {[
+          "assessment_submitted",
+          "approved",
+          "rejected",
+          "interview_pending",
+        ].map((status) => (
           <button
             key={status}
             onClick={() => {
               setStatusFilter(status);
+              setPrincipalReviewerFilter("");
               setPage(1);
             }}
             className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-              statusFilter === status
+              statusFilter === status && !principalReviewerFilter
                 ? "bg-primary-container text-on-primary-container"
                 : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high"
             }`}
@@ -237,7 +274,10 @@ export default function AdminFreelancersPage() {
           <input
             type="date"
             value={dateFrom}
-            onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+            onChange={(e) => {
+              setDateFrom(e.target.value);
+              setPage(1);
+            }}
             className="rounded-lg border border-outline-variant bg-surface-container-lowest pl-9 pr-3 py-2 text-sm text-on-surface focus:border-primary-container focus:outline-none focus:ring-1 focus:ring-primary-container"
             aria-label="Date from"
           />
@@ -248,7 +288,10 @@ export default function AdminFreelancersPage() {
           <input
             type="date"
             value={dateTo}
-            onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+            onChange={(e) => {
+              setDateTo(e.target.value);
+              setPage(1);
+            }}
             className="rounded-lg border border-outline-variant bg-surface-container-lowest pl-9 pr-3 py-2 text-sm text-on-surface focus:border-primary-container focus:outline-none focus:ring-1 focus:ring-primary-container"
             aria-label="Date to"
           />
@@ -258,9 +301,29 @@ export default function AdminFreelancersPage() {
           type="text"
           placeholder="Skills (comma separated)"
           value={skills}
-          onChange={(e) => { setSkills(e.target.value); setPage(1); }}
+          onChange={(e) => {
+            setSkills(e.target.value);
+            setPage(1);
+          }}
           className="min-w-[150px] rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface placeholder:text-outline/50 focus:border-primary-container focus:outline-none focus:ring-1 focus:ring-primary-container"
         />
+
+        <select
+          value={principalReviewerFilter}
+          onChange={(event) => {
+            setPrincipalReviewerFilter(event.target.value);
+            setPage(1);
+          }}
+          className="rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:outline-none focus:ring-1 focus:ring-primary-container"
+          aria-label="Principal reviewer status"
+        >
+          <option value="">All reviewer statuses</option>
+          <option value="pending">Reviewer applications</option>
+          <option value="approved">Qualified reviewers</option>
+          <option value="suspended">Suspended reviewers</option>
+          <option value="rejected">Rejected reviewers</option>
+          <option value="not_applied">Not applied</option>
+        </select>
 
         {hasActiveFilters && (
           <button
@@ -283,7 +346,9 @@ export default function AdminFreelancersPage() {
         </div>
       ) : freelancers.length === 0 ? (
         <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-12 text-center">
-          <p className="text-on-surface-variant">No freelancers match your filters.</p>
+          <p className="text-on-surface-variant">
+            No freelancers match your filters.
+          </p>
         </div>
       ) : (
         <>
@@ -291,18 +356,36 @@ export default function AdminFreelancersPage() {
             <table className="w-full text-left text-sm">
               <thead className="bg-surface-container-high">
                 <tr>
-                  <th className="px-4 py-3 font-medium text-on-surface-variant">Freelancer</th>
-                  <th className="px-4 py-3 font-medium text-on-surface-variant">Headline</th>
-                  <th className="px-4 py-3 font-medium text-on-surface-variant">Top skills</th>
-                  <th className="px-4 py-3 font-medium text-on-surface-variant">Score</th>
-                  <th className="px-4 py-3 font-medium text-on-surface-variant">Status</th>
-                  <th className="px-4 py-3 font-medium text-on-surface-variant">Submitted</th>
-                  <th className="px-4 py-3 font-medium text-on-surface-variant text-right">Actions</th>
+                  <th className="px-4 py-3 font-medium text-on-surface-variant">
+                    Freelancer
+                  </th>
+                  <th className="px-4 py-3 font-medium text-on-surface-variant">
+                    Headline
+                  </th>
+                  <th className="px-4 py-3 font-medium text-on-surface-variant">
+                    Top skills
+                  </th>
+                  <th className="px-4 py-3 font-medium text-on-surface-variant">
+                    Score
+                  </th>
+                  <th className="px-4 py-3 font-medium text-on-surface-variant">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 font-medium text-on-surface-variant">
+                    Reviewer
+                  </th>
+                  <th className="px-4 py-3 font-medium text-on-surface-variant">
+                    Submitted
+                  </th>
+                  <th className="px-4 py-3 font-medium text-on-surface-variant text-right">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {freelancers.map((freelancer) => {
-                  const topScores = freelancer.topSkillScores?.slice(0, 3) ?? [];
+                  const topScores =
+                    freelancer.topSkillScores?.slice(0, 3) ?? [];
                   const fallbackSkills = freelancer.skills?.slice(0, 3) ?? [];
                   const isFinalStatus = isFinalVerificationStatus(
                     freelancer.verificationStatus,
@@ -367,6 +450,14 @@ export default function AdminFreelancersPage() {
                             freelancer.verificationStatus}
                         </span>
                       </td>
+                      <td className="px-4 py-4">
+                        <span className="inline-block rounded-full border border-outline-variant/50 bg-surface-container-high px-2.5 py-1 text-xs font-semibold capitalize text-on-surface-variant">
+                          {freelancer.principalReviewerStatus.replaceAll(
+                            "_",
+                            " ",
+                          )}
+                        </span>
+                      </td>
                       <td className="px-4 py-4 text-xs text-on-surface-variant">
                         {freelancer.assessmentSubmittedAt
                           ? new Date(
@@ -387,7 +478,9 @@ export default function AdminFreelancersPage() {
                               )}
                               {statusLabels[freelancer.verificationStatus]}
                             </span>
-                            <Link href={`/dashboard/admin/freelancers/${freelancer.id}`}>
+                            <Link
+                              href={`/dashboard/admin/freelancers/${freelancer.id}`}
+                            >
                               <Button
                                 variant="outline"
                                 className="!w-auto rounded-full px-2.5 py-1.5 text-[11px]"
@@ -402,7 +495,9 @@ export default function AdminFreelancersPage() {
                             <Button
                               type="button"
                               className="!w-auto rounded-full px-2.5 py-1.5 text-[11px]"
-                              loading={actioning === `${freelancer.id}:approved`}
+                              loading={
+                                actioning === `${freelancer.id}:approved`
+                              }
                               disabled={Boolean(actioning)}
                               onClick={() =>
                                 handleDecision(freelancer.id, "approved")
@@ -411,7 +506,9 @@ export default function AdminFreelancersPage() {
                               <CheckCircle size={13} />
                               Approve
                             </Button>
-                            <Link href={`/dashboard/admin/freelancers/${freelancer.id}`}>
+                            <Link
+                              href={`/dashboard/admin/freelancers/${freelancer.id}`}
+                            >
                               <Button
                                 variant="outline"
                                 className="!w-auto rounded-full px-2.5 py-1.5 text-[11px]"
@@ -423,7 +520,9 @@ export default function AdminFreelancersPage() {
                             <Button
                               type="button"
                               className="!w-auto rounded-full bg-error px-2.5 py-1.5 text-[11px] text-on-error hover:bg-error/80"
-                              loading={actioning === `${freelancer.id}:rejected`}
+                              loading={
+                                actioning === `${freelancer.id}:rejected`
+                              }
                               disabled={Boolean(actioning)}
                               onClick={() =>
                                 handleDecision(freelancer.id, "rejected")
@@ -466,7 +565,9 @@ export default function AdminFreelancersPage() {
                                 loading={
                                   actioning === `${freelancer.id}:rejected`
                                 }
-                                disabled={Boolean(actioning) || !rejectReason.trim()}
+                                disabled={
+                                  Boolean(actioning) || !rejectReason.trim()
+                                }
                                 className="!w-auto bg-error px-3 py-1.5 text-xs text-on-error hover:bg-error/80"
                               >
                                 Confirm reject

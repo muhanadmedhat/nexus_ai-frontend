@@ -13,6 +13,36 @@ export interface FreelancerProfile {
   availabilityHoursPerWeek: number | null;
   githubUsername: string | null;
   skillScores?: FreelancerSkillScore[];
+  verificationStatus?: string;
+  assessmentScore?: string | null;
+  principalReviewerStatus:
+    "not_applied" | "pending" | "approved" | "rejected" | "suspended";
+  principalReviewerAppliedAt: string | null;
+  principalReviewerReviewedAt: string | null;
+  principalReviewerRejectionReason: string | null;
+  principalReviewerHourlyRate: string | null;
+  principalReviewerMaxProjects: number;
+  principalReviewerActiveProjects: number;
+  principalReviewerEligibility: PrincipalReviewerEligibility;
+}
+
+export interface PrincipalReviewerEligibility {
+  eligibleToApply: boolean;
+  requirements: {
+    baseProfileApproved: boolean;
+    minimumExperienceYears: number;
+    yearsExperience: number;
+    minimumAssessmentScore: number;
+    assessmentScore: number;
+    minimumPerformanceScore: number;
+    performanceScore: number;
+    minimumQualifiedSkills: number;
+    minimumSkillScore: number;
+    qualifiedSkills: Array<{ skill: string; score: number | null }>;
+    declaredRelevantSkills: string[];
+    noRiskFlags: boolean;
+  };
+  gaps: string[];
 }
 
 export interface FreelancerSkillScore {
@@ -44,7 +74,9 @@ export async function getMyFreelancerProfile(): Promise<FreelancerProfile> {
     );
     return data.profile;
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not load freelancer profile"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not load freelancer profile"),
+    );
   }
 }
 
@@ -58,6 +90,43 @@ export async function updateMyFreelancerProfile(
     );
     return data.profile;
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Could not update freelancer profile"));
+    throw new Error(
+      getApiErrorMessage(error, "Could not update freelancer profile"),
+    );
+  }
+}
+
+export async function applyForPrincipalReviewer(
+  statement?: string,
+): Promise<FreelancerProfile> {
+  try {
+    const { data } = await api.post<FreelancerProfileResponse>(
+      API_ENDPOINTS.freelancers.principalReviewerApplication,
+      statement?.trim() ? { statement: statement.trim() } : {},
+    );
+    return data.profile;
+  } catch (error) {
+    throw new Error(
+      getApiErrorMessage(
+        error,
+        "Could not submit principal reviewer application",
+      ),
+    );
+  }
+}
+
+export async function withdrawPrincipalReviewerApplication(): Promise<FreelancerProfile> {
+  try {
+    const { data } = await api.delete<FreelancerProfileResponse>(
+      API_ENDPOINTS.freelancers.principalReviewerApplication,
+    );
+    return data.profile;
+  } catch (error) {
+    throw new Error(
+      getApiErrorMessage(
+        error,
+        "Could not withdraw principal reviewer application",
+      ),
+    );
   }
 }

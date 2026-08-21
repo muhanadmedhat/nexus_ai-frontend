@@ -14,6 +14,7 @@ import {
   FileText,
   Mail,
   Save,
+  ShieldCheck,
   Upload,
 } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
@@ -24,7 +25,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { updateMe } from "@/services/users";
 import {
   getMyFreelancerProfile,
+  applyForPrincipalReviewer,
   updateMyFreelancerProfile,
+  withdrawPrincipalReviewerApplication,
   type FreelancerProfile,
 } from "@/services/freelancers";
 import { uploadProfileImage, uploadCv } from "@/services/uploads";
@@ -57,7 +60,8 @@ export default function ProfilePage() {
   const toast = useToast();
   const role = user?.role || "customer";
   const initials =
-    `${user?.firstName?.[0] ?? ""}${user?.lastName?.[0] ?? ""}`.toUpperCase() || "?";
+    `${user?.firstName?.[0] ?? ""}${user?.lastName?.[0] ?? ""}`.toUpperCase() ||
+    "?";
 
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -68,7 +72,12 @@ export default function ProfilePage() {
   const [cvStatusMessage, setCvStatusMessage] = useState<string | null>(null);
   const [cvFileName, setCvFileName] = useState<string | null>(null);
   const [cvUrl, setCvUrl] = useState<string | null>(null);
-  const [freelancerProfile, setFreelancerProfile] = useState<FreelancerProfile | null>(null);
+  const [freelancerProfile, setFreelancerProfile] =
+    useState<FreelancerProfile | null>(null);
+  const [principalStatement, setPrincipalStatement] = useState("");
+  const [principalAction, setPrincipalAction] = useState<
+    "apply" | "withdraw" | null
+  >(null);
   const displayedCvUrl = cvUrl ?? user?.cvUrl ?? null;
   const cvInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -142,11 +151,16 @@ export default function ProfilePage() {
       githubUsername: values.githubUsername.trim(),
     };
 
-    const availabilityHoursPerWeek = parseNonNegativeInteger(values.availabilityHoursPerWeek);
+    const availabilityHoursPerWeek = parseNonNegativeInteger(
+      values.availabilityHoursPerWeek,
+    );
 
     if (role === "freelancer") {
       if (Number.isNaN(availabilityHoursPerWeek)) {
-        toast.error("Invalid availability", "Availability must be whole hours per week.");
+        toast.error(
+          "Invalid availability",
+          "Availability must be whole hours per week.",
+        );
         return;
       }
     }
@@ -189,11 +203,50 @@ export default function ProfilePage() {
     }
   };
 
+  const handlePrincipalReviewerApply = async () => {
+    setPrincipalAction("apply");
+    try {
+      const updated = await applyForPrincipalReviewer(principalStatement);
+      setFreelancerProfile(updated);
+      setPrincipalStatement("");
+      toast.success(
+        "Application submitted",
+        "Your principal reviewer qualification is awaiting human review.",
+      );
+    } catch (error) {
+      toast.error(
+        "Application failed",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+    } finally {
+      setPrincipalAction(null);
+    }
+  };
+
+  const handlePrincipalReviewerWithdraw = async () => {
+    setPrincipalAction("withdraw");
+    try {
+      const updated = await withdrawPrincipalReviewerApplication();
+      setFreelancerProfile(updated);
+      toast.success("Application withdrawn");
+    } catch (error) {
+      toast.error(
+        "Could not withdraw",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+    } finally {
+      setPrincipalAction(null);
+    }
+  };
+
   const handleFileSelect = async (file: File) => {
     const validTypes = ["image/jpeg", "image/png", "image/webp"];
     if (!validTypes.includes(file.type)) {
       setUploadError("Only JPG, PNG, and WebP images are allowed");
-      toast.error("Invalid image", "Only JPG, PNG, and WebP images are allowed.");
+      toast.error(
+        "Invalid image",
+        "Only JPG, PNG, and WebP images are allowed.",
+      );
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
@@ -263,8 +316,10 @@ export default function ProfilePage() {
   const skillScores = freelancerProfile?.skillScores ?? [];
   const averageSkillScore =
     skillScores.length > 0
-      ? skillScores.reduce((sum, skill) => sum + (Number(skill.score) || 0), 0) /
-        skillScores.length
+      ? skillScores.reduce(
+          (sum, skill) => sum + (Number(skill.score) || 0),
+          0,
+        ) / skillScores.length
       : null;
   const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
   const photoUrl = previewUrl ?? user?.photoUrl ?? null;
@@ -294,7 +349,9 @@ export default function ProfilePage() {
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <span className="flex h-full w-full items-center justify-center">{initials}</span>
+                  <span className="flex h-full w-full items-center justify-center">
+                    {initials}
+                  </span>
                 )}
                 <button
                   type="button"
@@ -321,14 +378,18 @@ export default function ProfilePage() {
               />
 
               <div className="min-w-0">
-                <p className="text-sm font-medium text-primary-container">{roleLabel}</p>
+                <p className="text-sm font-medium text-primary-container">
+                  {roleLabel}
+                </p>
                 <h2 className="truncate font-headline text-2xl font-bold text-on-surface sm:text-3xl">
                   {user?.firstName || "User"} {user?.lastName || ""}
                 </h2>
                 <p className="mt-1 truncate text-sm text-on-surface-variant">
                   {user?.email || "No email saved"}
                 </p>
-                {uploadError ? <p className="mt-2 text-sm text-error">{uploadError}</p> : null}
+                {uploadError ? (
+                  <p className="mt-2 text-sm text-error">{uploadError}</p>
+                ) : null}
               </div>
             </div>
 
@@ -347,12 +408,20 @@ export default function ProfilePage() {
                   />
                   <ProfileStat
                     label="Rated skills"
-                    value={skillScores.length === 0 ? "Not ready" : String(skillScores.length)}
+                    value={
+                      skillScores.length === 0
+                        ? "Not ready"
+                        : String(skillScores.length)
+                    }
                     active={skillScores.length > 0}
                   />
                   <ProfileStat
                     label="Avg score"
-                    value={averageSkillScore == null ? "Not ready" : `${averageSkillScore.toFixed(1)} / 5.0`}
+                    value={
+                      averageSkillScore == null
+                        ? "Not ready"
+                        : `${averageSkillScore.toFixed(1)} / 5.0`
+                    }
                     active={averageSkillScore != null}
                   />
                 </>
@@ -391,7 +460,8 @@ export default function ProfilePage() {
                   label="First Name"
                   disabled={isSubmitting}
                   {...register("firstName", {
-                    validate: (value) => value.trim().length > 0 || "First name is required",
+                    validate: (value) =>
+                      value.trim().length > 0 || "First name is required",
                   })}
                   error={errors.firstName?.message}
                 />
@@ -399,7 +469,8 @@ export default function ProfilePage() {
                   label="Last Name"
                   disabled={isSubmitting}
                   {...register("lastName", {
-                    validate: (value) => value.trim().length > 0 || "Last name is required",
+                    validate: (value) =>
+                      value.trim().length > 0 || "Last name is required",
                   })}
                   error={errors.lastName?.message}
                 />
@@ -416,7 +487,9 @@ export default function ProfilePage() {
                 control={control}
                 rules={{
                   validate: (value) =>
-                    !value || isEgyptianPhoneNumber(value) || "Enter a valid Egyptian phone number",
+                    !value ||
+                    isEgyptianPhoneNumber(value) ||
+                    "Enter a valid Egyptian phone number",
                 }}
                 render={({ field }) => (
                   <PhoneNumberInput
@@ -492,7 +565,9 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
-                  {cvUploadError ? <p className="mt-3 text-sm text-error">{cvUploadError}</p> : null}
+                  {cvUploadError ? (
+                    <p className="mt-3 text-sm text-error">{cvUploadError}</p>
+                  ) : null}
                   {cvStatusMessage ? (
                     <p className="mt-3 text-sm font-medium text-primary-container">
                       {cvStatusMessage}
@@ -554,7 +629,20 @@ export default function ProfilePage() {
         </div>
 
         {role === "freelancer" ? (
-          <SkillScoresTable skillScores={skillScores} averageScore={averageSkillScore} />
+          <>
+            <PrincipalReviewerCard
+              profile={freelancerProfile}
+              statement={principalStatement}
+              onStatementChange={setPrincipalStatement}
+              action={principalAction}
+              onApply={handlePrincipalReviewerApply}
+              onWithdraw={handlePrincipalReviewerWithdraw}
+            />
+            <SkillScoresTable
+              skillScores={skillScores}
+              averageScore={averageSkillScore}
+            />
+          </>
         ) : null}
 
         <div className="flex justify-end">
@@ -575,6 +663,184 @@ export default function ProfilePage() {
   );
 }
 
+function PrincipalReviewerCard({
+  profile,
+  statement,
+  onStatementChange,
+  action,
+  onApply,
+  onWithdraw,
+}: {
+  profile: FreelancerProfile | null;
+  statement: string;
+  onStatementChange: (value: string) => void;
+  action: "apply" | "withdraw" | null;
+  onApply: () => void;
+  onWithdraw: () => void;
+}) {
+  if (!profile) return null;
+  const status = profile.principalReviewerStatus ?? "not_applied";
+  const eligibility = profile.principalReviewerEligibility;
+  const statusLabel: Record<string, string> = {
+    not_applied: "Not applied",
+    pending: "Awaiting review",
+    approved: "Qualified",
+    rejected: "Not approved",
+    suspended: "Paused",
+  };
+  const canApply =
+    eligibility?.eligibleToApply &&
+    ["not_applied", "rejected", "suspended"].includes(status);
+  const canWithdraw =
+    ["pending", "approved"].includes(status) &&
+    (profile.principalReviewerActiveProjects ?? 0) === 0;
+
+  return (
+    <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 card-shadow sm:p-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="flex gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary-container/15 text-primary-container">
+            <ShieldCheck size={21} />
+          </div>
+          <div>
+            <h3 className="font-headline text-lg font-semibold text-on-surface">
+              Principal reviewer track
+            </h3>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-on-surface-variant">
+              Senior reviewers validate architecture, integrations, evaluations,
+              and final delivery. Qualification is separate from ordinary task
+              matching.
+            </p>
+          </div>
+        </div>
+        <span className="w-fit rounded-full border border-primary-container/25 bg-primary-container/10 px-3 py-1 text-xs font-semibold text-primary-container">
+          {statusLabel[status] ?? status}
+        </span>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <ProfileStat
+          label="Experience"
+          value={`${eligibility?.requirements.yearsExperience ?? 0} / ${eligibility?.requirements.minimumExperienceYears ?? 7} years`}
+          active={
+            (eligibility?.requirements.yearsExperience ?? 0) >=
+            (eligibility?.requirements.minimumExperienceYears ?? 7)
+          }
+        />
+        <ProfileStat
+          label="Assessment"
+          value={`${eligibility?.requirements.assessmentScore ?? 0}%`}
+          active={
+            (eligibility?.requirements.assessmentScore ?? 0) >=
+            (eligibility?.requirements.minimumAssessmentScore ?? 80)
+          }
+        />
+        <ProfileStat
+          label="Assessed skills"
+          value={`${eligibility?.requirements.qualifiedSkills.length ?? 0} qualified`}
+          active={
+            (eligibility?.requirements.qualifiedSkills.length ?? 0) >=
+            (eligibility?.requirements.minimumQualifiedSkills ?? 2)
+          }
+        />
+        <ProfileStat
+          label="Performance"
+          value={`${eligibility?.requirements.performanceScore ?? 0}%`}
+          active={
+            (eligibility?.requirements.performanceScore ?? 0) >=
+            (eligibility?.requirements.minimumPerformanceScore ?? 80)
+          }
+        />
+        <ProfileStat
+          label="Capacity"
+          value={`${profile.principalReviewerActiveProjects ?? 0} / ${profile.principalReviewerMaxProjects ?? 3} projects`}
+          active={status === "approved"}
+        />
+      </div>
+
+      {(eligibility?.requirements.declaredRelevantSkills.length ?? 0) > 0 ? (
+        <p className="mt-4 text-sm text-on-surface-variant">
+          Declared reviewer skills:{" "}
+          {eligibility.requirements.declaredRelevantSkills.join(", ")}
+        </p>
+      ) : null}
+
+      {profile.principalReviewerHourlyRate ? (
+        <p className="mt-4 text-sm text-on-surface-variant">
+          Reviewer rate: {profile.principalReviewerHourlyRate} EGP/hour
+        </p>
+      ) : null}
+
+      {profile.principalReviewerRejectionReason ? (
+        <div className="mt-4 rounded-lg border border-error/20 bg-error-container/10 p-3 text-sm text-error">
+          {profile.principalReviewerRejectionReason}
+        </div>
+      ) : null}
+
+      {(eligibility?.gaps.length ?? 0) > 0 ? (
+        <div className="mt-4 rounded-lg border border-outline-variant/30 bg-surface-container-low p-4">
+          <p className="text-sm font-semibold text-on-surface">
+            Before applying
+          </p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-on-surface-variant">
+            {eligibility.gaps.map((gap) => (
+              <li key={gap}>{gap}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {canApply ? (
+        <div className="mt-5 space-y-3">
+          <label className="block text-sm font-semibold text-on-surface">
+            Why are you ready to govern projects?{" "}
+            <span className="font-normal text-on-surface-variant">
+              (optional)
+            </span>
+          </label>
+          <textarea
+            value={statement}
+            onChange={(event) => onStatementChange(event.target.value)}
+            rows={3}
+            maxLength={1000}
+            placeholder="Describe your architecture, technical leadership, and review experience."
+            className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface outline-none focus:border-primary-container"
+          />
+          <Button
+            type="button"
+            className="!w-auto px-4 py-2.5"
+            loading={action === "apply"}
+            disabled={
+              Boolean(action) ||
+              (statement.length > 0 && statement.trim().length < 20)
+            }
+            onClick={onApply}
+          >
+            Apply for reviewer qualification
+          </Button>
+        </div>
+      ) : null}
+
+      {canWithdraw ? (
+        <div className="mt-5">
+          <Button
+            type="button"
+            variant="outline"
+            className="!w-auto px-4 py-2.5"
+            loading={action === "withdraw"}
+            disabled={Boolean(action)}
+            onClick={onWithdraw}
+          >
+            {status === "approved"
+              ? "Leave reviewer pool"
+              : "Withdraw application"}
+          </Button>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function ProfileStat({
   label,
   value,
@@ -591,7 +857,9 @@ function ProfileStat({
           size={15}
           className={active ? "text-primary-container" : "text-outline"}
         />
-        <p className="text-xs font-medium uppercase text-on-surface-variant">{label}</p>
+        <p className="text-xs font-medium uppercase text-on-surface-variant">
+          {label}
+        </p>
       </div>
       <p className="mt-1 truncate font-semibold text-on-surface">{value}</p>
     </div>
@@ -624,7 +892,9 @@ function SkillScoresTable({
         <div className="rounded-lg bg-surface-container-low px-3 py-2 text-sm text-on-surface-variant">
           Average{" "}
           <span className="font-semibold tabular-nums text-on-surface">
-            {averageScore == null ? "not ready" : `${averageScore.toFixed(1)} / 5.0`}
+            {averageScore == null
+              ? "not ready"
+              : `${averageScore.toFixed(1)} / 5.0`}
           </span>
         </div>
       </div>
@@ -652,7 +922,9 @@ function SkillScoresTable({
                     <p className="font-semibold tabular-nums text-primary-container">
                       {score.toFixed(1)}
                     </p>
-                    <p className="text-[11px] text-on-surface-variant">out of 5.0</p>
+                    <p className="text-[11px] text-on-surface-variant">
+                      out of 5.0
+                    </p>
                   </div>
                 </div>
                 <div className="mt-3 h-2 rounded-full bg-surface-container-high">

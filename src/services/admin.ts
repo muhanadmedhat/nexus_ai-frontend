@@ -146,6 +146,9 @@ export interface FreelancerListItem {
   rejectedAt?: string | null;
   aiProfileSummary?: string | null;
   topSkillScores?: FreelancerSkillScore[];
+  principalReviewerStatus: string;
+  principalReviewerHourlyRate: string | null;
+  principalReviewerMaxProjects: number;
   createdAt: string;
 }
 
@@ -174,6 +177,34 @@ export interface FreelancerDetail {
     skillScores: FreelancerSkillScore[];
     createdAt: string;
     updatedAt: string;
+    principalReviewerStatus:
+      "not_applied" | "pending" | "approved" | "rejected" | "suspended";
+    principalReviewerAppliedAt: string | null;
+    principalReviewerReviewedAt: string | null;
+    principalReviewerReviewedBy: string | null;
+    principalReviewerRejectionReason: string | null;
+    principalReviewerHourlyRate: string | null;
+    principalReviewerMaxProjects: number;
+    principalReviewerActiveProjects: number;
+    principalReviewerQualification: JsonObject | null;
+    principalReviewerEligibility: {
+      eligibleToApply: boolean;
+      requirements: {
+        baseProfileApproved: boolean;
+        minimumExperienceYears: number;
+        yearsExperience: number;
+        minimumAssessmentScore: number;
+        assessmentScore: number;
+        minimumPerformanceScore: number;
+        performanceScore: number;
+        minimumQualifiedSkills: number;
+        minimumSkillScore: number;
+        qualifiedSkills: Array<{ skill: string; score: number | null }>;
+        declaredRelevantSkills: string[];
+        noRiskFlags: boolean;
+      };
+      gaps: string[];
+    };
   };
   assessment: {
     id: string;
@@ -403,6 +434,7 @@ export async function getFreelancers(params?: {
   skills?: string[];
   dateFrom?: string;
   dateTo?: string;
+  principalReviewerStatus?: string;
 }) {
   const query = new URLSearchParams();
   if (params?.status) query.append("status", params.status);
@@ -414,6 +446,9 @@ export async function getFreelancers(params?: {
   }
   if (params?.dateFrom) query.append("dateFrom", params.dateFrom);
   if (params?.dateTo) query.append("dateTo", params.dateTo);
+  if (params?.principalReviewerStatus) {
+    query.append("principalReviewerStatus", params.principalReviewerStatus);
+  }
 
   const { data } = await api.get<{
     status: string;
@@ -444,6 +479,23 @@ export async function updateFreelancerVerification(
     `/admin/freelancers/${id}/verification`,
     payload,
   );
+  return data.data;
+}
+
+export async function reviewPrincipalReviewer(
+  id: string,
+  payload: {
+    status: "approved" | "rejected" | "suspended";
+    reason?: string;
+    hourlyRate?: number;
+    maxConcurrentProjects?: number;
+    override?: boolean;
+  },
+) {
+  const { data } = await api.patch<{
+    status: string;
+    data: FreelancerDetail;
+  }>(API_ENDPOINTS.admin.principalReviewerReview(id), payload);
   return data.data;
 }
 

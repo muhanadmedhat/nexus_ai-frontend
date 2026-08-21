@@ -5,8 +5,10 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   getFreelancerDetail,
+  reviewPrincipalReviewer,
   updateFreelancerVerification,
   type FreelancerDetail,
 } from "@/services/admin";
@@ -108,13 +110,22 @@ export default function FreelancerDetailPage() {
   const [showRejectReason, setShowRejectReason] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showAllSkills, setShowAllSkills] = useState(false);
+  const [principalRate, setPrincipalRate] = useState("");
+  const [principalCapacity, setPrincipalCapacity] = useState("3");
+  const [principalReason, setPrincipalReason] = useState("");
+  const [principalOverride, setPrincipalOverride] = useState(false);
 
   const loadDetail = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      setDetail(await getFreelancerDetail(params.id));
+      const next = await getFreelancerDetail(params.id);
+      setDetail(next);
+      setPrincipalRate(next.profile.principalReviewerHourlyRate ?? "");
+      setPrincipalCapacity(
+        String(next.profile.principalReviewerMaxProjects ?? 3),
+      );
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to load freelancer",
@@ -195,6 +206,74 @@ export default function FreelancerDetailPage() {
     }
   };
 
+  const handlePrincipalDecision = async (
+    status: "approved" | "rejected" | "suspended",
+  ) => {
+    const reason = principalReason.trim();
+    if (status !== "approved" && !reason) {
+      setError("A reason is required to reject or suspend reviewer access.");
+      return;
+    }
+    if (status === "approved" && principalOverride && !reason) {
+      setError("Document why the qualification requirements are overridden.");
+      return;
+    }
+    const hourlyRate = Number(principalRate);
+    const maxConcurrentProjects = Number(principalCapacity);
+    if (
+      status === "approved" &&
+      principalRate &&
+      (!hourlyRate || hourlyRate <= 0)
+    ) {
+      setError("Reviewer hourly rate must be positive.");
+      return;
+    }
+    if (
+      status === "approved" &&
+      (!Number.isInteger(maxConcurrentProjects) ||
+        maxConcurrentProjects < 1 ||
+        maxConcurrentProjects > 3)
+    ) {
+      setError("Reviewer capacity must be between 1 and 3 projects.");
+      return;
+    }
+
+    setActioning(`principal_${status}`);
+    setError(null);
+    try {
+      const updated = await reviewPrincipalReviewer(params.id, {
+        status,
+        reason: reason || undefined,
+        hourlyRate:
+          status === "approved" && principalRate ? hourlyRate : undefined,
+        maxConcurrentProjects:
+          status === "approved" ? maxConcurrentProjects : undefined,
+        override: status === "approved" ? principalOverride : undefined,
+      });
+      setDetail(updated);
+      setPrincipalRate(updated.profile.principalReviewerHourlyRate ?? "");
+      setPrincipalCapacity(
+        String(updated.profile.principalReviewerMaxProjects ?? 3),
+      );
+      setPrincipalReason("");
+      setPrincipalOverride(false);
+      toast.success(
+        status === "approved"
+          ? "Principal reviewer approved"
+          : status === "suspended"
+            ? "Reviewer access paused"
+            : "Reviewer application rejected",
+      );
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Could not save reviewer decision";
+      setError(message);
+      toast.error("Reviewer decision failed", message);
+    } finally {
+      setActioning(null);
+    }
+  };
+
   if (loading) {
     return (
       <DashboardShell
@@ -226,6 +305,13 @@ export default function FreelancerDetailPage() {
   const isFinalStatus =
     profile.verificationStatus === "approved" ||
     profile.verificationStatus === "rejected";
+  const principalOverrideRequired =
+    profile.principalReviewerStatus !== "pending" ||
+    !profile.principalReviewerEligibility.eligibleToApply;
+  const principalApplicationStatement =
+    typeof profile.principalReviewerQualification?.statement === "string"
+      ? profile.principalReviewerQualification.statement
+      : null;
 
   return (
     <DashboardShell
@@ -406,6 +492,218 @@ export default function FreelancerDetailPage() {
         </aside>
 
         <main className="space-y-6">
+          <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
+            <div className="flex flex-col gap-3 border-b border-outline-variant/20 pb-5 md:flex-row md:items-start md:justify-between">
+              <div className="flex gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-container/10 text-primary-container">
+                  <ShieldCheck size={20} />
+                </div>
+                <div>
+                  <h3 className="font-headline text-xl font-semibold text-on-surface">
+                    Principal reviewer qualification
+                  </h3>
+                  <p className="mt-1 text-sm text-on-surface-variant">
+                    Separate senior approval for architecture, code review,
+                    risk, and delivery governance.
+                  </p>
+                </div>
+              </div>
+              <span className="w-fit rounded-full border border-primary-container/25 bg-primary-container/10 px-3 py-1 text-xs font-semibold capitalize text-primary-container">
+                {profile.principalReviewerStatus.replaceAll("_", " ")}
+              </span>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <div className="rounded-xl bg-surface-container-low p-4">
+                <p className="text-xs text-on-surface-variant">Experience</p>
+                <p className="mt-1 font-semibold text-on-surface">
+                  {
+                    profile.principalReviewerEligibility.requirements
+                      .yearsExperience
+                  }{" "}
+                  /{" "}
+                  {
+                    profile.principalReviewerEligibility.requirements
+                      .minimumExperienceYears
+                  }{" "}
+                  years
+                </p>
+              </div>
+              <div className="rounded-xl bg-surface-container-low p-4">
+                <p className="text-xs text-on-surface-variant">Assessment</p>
+                <p className="mt-1 font-semibold text-on-surface">
+                  {
+                    profile.principalReviewerEligibility.requirements
+                      .assessmentScore
+                  }
+                  % /{" "}
+                  {
+                    profile.principalReviewerEligibility.requirements
+                      .minimumAssessmentScore
+                  }
+                  %
+                </p>
+              </div>
+              <div className="rounded-xl bg-surface-container-low p-4">
+                <p className="text-xs text-on-surface-variant">
+                  Assessed skills
+                </p>
+                <p className="mt-1 font-semibold text-on-surface">
+                  {
+                    profile.principalReviewerEligibility.requirements
+                      .qualifiedSkills.length
+                  }{" "}
+                  qualified
+                </p>
+              </div>
+              <div className="rounded-xl bg-surface-container-low p-4">
+                <p className="text-xs text-on-surface-variant">Performance</p>
+                <p className="mt-1 font-semibold text-on-surface">
+                  {
+                    profile.principalReviewerEligibility.requirements
+                      .performanceScore
+                  }
+                  % /{" "}
+                  {
+                    profile.principalReviewerEligibility.requirements
+                      .minimumPerformanceScore
+                  }
+                  %
+                </p>
+              </div>
+              <div className="rounded-xl bg-surface-container-low p-4">
+                <p className="text-xs text-on-surface-variant">Current load</p>
+                <p className="mt-1 font-semibold text-on-surface">
+                  {profile.principalReviewerActiveProjects} /{" "}
+                  {profile.principalReviewerMaxProjects} projects
+                </p>
+              </div>
+            </div>
+
+            {principalApplicationStatement ? (
+              <div className="mt-4 rounded-xl border border-outline-variant/30 bg-surface-container-low p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+                  Applicant statement
+                </p>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-on-surface">
+                  {principalApplicationStatement}
+                </p>
+              </div>
+            ) : null}
+
+            {profile.principalReviewerEligibility.requirements
+              .declaredRelevantSkills.length > 0 ? (
+              <p className="mt-4 text-sm text-on-surface-variant">
+                Declared reviewer skills:{" "}
+                {profile.principalReviewerEligibility.requirements.declaredRelevantSkills.join(
+                  ", ",
+                )}
+              </p>
+            ) : null}
+
+            {profile.principalReviewerEligibility.gaps.length > 0 ? (
+              <div className="mt-4 rounded-xl border border-amber-300/50 bg-amber-50 p-4 text-sm text-amber-900">
+                <p className="font-semibold">Qualification gaps</p>
+                <ul className="mt-2 list-disc space-y-1 pl-5">
+                  {profile.principalReviewerEligibility.gaps.map((gap) => (
+                    <li key={gap}>{gap}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {profile.principalReviewerRejectionReason ? (
+              <div className="mt-4 rounded-xl border border-error/20 bg-error-container/10 p-4 text-sm text-error">
+                {profile.principalReviewerRejectionReason}
+              </div>
+            ) : null}
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <Input
+                label="Reviewer hourly rate"
+                type="number"
+                min={1}
+                value={principalRate}
+                onChange={(event) => setPrincipalRate(event.target.value)}
+                placeholder="Defaults to 120% of freelancer rate"
+              />
+              <Input
+                label="Maximum concurrent projects"
+                type="number"
+                min={1}
+                max={3}
+                value={principalCapacity}
+                onChange={(event) => setPrincipalCapacity(event.target.value)}
+              />
+            </div>
+            <label className="mt-4 block text-sm font-semibold text-on-surface">
+              Decision notes
+            </label>
+            <textarea
+              value={principalReason}
+              onChange={(event) => setPrincipalReason(event.target.value)}
+              rows={3}
+              maxLength={1000}
+              placeholder="Required for rejection, suspension, or an eligibility override."
+              className="mt-2 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface outline-none focus:border-primary-container"
+            />
+            {principalOverrideRequired ? (
+              <label className="mt-3 flex items-start gap-2 text-sm text-on-surface-variant">
+                <input
+                  type="checkbox"
+                  checked={principalOverride}
+                  onChange={(event) =>
+                    setPrincipalOverride(event.target.checked)
+                  }
+                  className="mt-1"
+                />
+                Approve as a documented admin override
+                {profile.principalReviewerStatus !== "pending"
+                  ? " without a pending freelancer application."
+                  : " despite the listed gaps."}
+              </label>
+            ) : null}
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                className="!w-auto px-4 py-2.5"
+                loading={actioning === "principal_approved"}
+                disabled={
+                  Boolean(actioning) ||
+                  (principalOverrideRequired && !principalOverride)
+                }
+                onClick={() => handlePrincipalDecision("approved")}
+              >
+                Approve reviewer
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="!w-auto px-4 py-2.5"
+                loading={actioning === "principal_suspended"}
+                disabled={
+                  Boolean(actioning) ||
+                  profile.principalReviewerStatus !== "approved"
+                }
+                onClick={() => handlePrincipalDecision("suspended")}
+              >
+                Suspend
+              </Button>
+              <Button
+                type="button"
+                className="!w-auto bg-error px-4 py-2.5 text-on-error hover:bg-error/80"
+                loading={actioning === "principal_rejected"}
+                disabled={
+                  Boolean(actioning) ||
+                  profile.principalReviewerStatus !== "pending"
+                }
+                onClick={() => handlePrincipalDecision("rejected")}
+              >
+                Reject application
+              </Button>
+            </div>
+          </section>
+
           <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
             <div className="flex flex-col gap-4 border-b border-outline-variant/20 pb-5 md:flex-row md:items-center md:justify-between">
               <div>
