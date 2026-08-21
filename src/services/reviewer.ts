@@ -18,6 +18,94 @@ export interface ReviewerProject {
   };
 }
 
+export interface ReviewerMatchingInvitation {
+  id: string;
+  candidateId: string | null;
+  status: string;
+  expiresAt: string;
+  respondedAt: string | null;
+  responseReason: string | null;
+}
+
+export interface ReviewerMatchingRun {
+  id: string;
+  projectId: string;
+  targetType: string;
+  targetRoleKey: string | null;
+  targetTaskId: string | null;
+  taskTitle: string | null;
+  status: string;
+  summary: string | null;
+  candidateCount: number;
+  selectedCandidateId: string | null;
+  invitation: ReviewerMatchingInvitation | null;
+  reviewedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+export interface ReviewerCandidateProfile {
+  id: string;
+  name: string | null;
+  email: string | null;
+  headline: string | null;
+  bio: string | null;
+  summary: Record<string, unknown> | null;
+  githubUsername: string | null;
+  cvUrl: string | null;
+  hourlyRate: number | null;
+  recommendedHourlyRate: number | null;
+  availabilityHours: number | null;
+  yearsExperience: number | null;
+  topSkills: string[];
+  assessmentScore: number | null;
+  interviewScore: number | null;
+  performanceScore: number;
+  avgRating: number | null;
+  ratingsCount: number;
+  completedTasks: number;
+  approvedSubmissions: number;
+  rejectedSubmissions: number;
+  onTimeDeliveries: number;
+  lateDeliveries: number;
+  missedDeadlines: number;
+  projectRemovals: number;
+  riskFlags: Record<string, unknown>[];
+  isAvailable: boolean;
+  verificationStatus: string;
+}
+
+export interface ReviewerMatchingCandidate {
+  id: string;
+  freelancerProfileId: string | null;
+  rank: number;
+  score: string | number;
+  scoreBreakdown: Record<string, unknown> | null;
+  rationale: string | null;
+  evidence: Record<string, unknown> | null;
+  status: string;
+  freelancer: ReviewerCandidateProfile | null;
+}
+
+export interface ReviewerMatchingRunDetail extends ReviewerMatchingRun {
+  projectTitle: string | null;
+  task: {
+    id: string;
+    title: string;
+    description: string | null;
+    roleKey: string | null;
+    requiredSkills: string[];
+    startsAt: string | null;
+    dueAt: string | null;
+    dependencies: Array<{
+      dependsOnTaskId: string;
+      type: string;
+      notes: string | null;
+    }>;
+  } | null;
+  candidates: ReviewerMatchingCandidate[];
+}
+
 export async function getReviewerProjects() {
   return request<ReviewerProject[]>("/reviewer/projects");
 }
@@ -38,6 +126,27 @@ export async function getReviewerPlans(projectId: string) {
   return requestPage<Record<string, unknown>>(
     `/reviewer/projects/${projectId}/plans`,
   );
+}
+
+export async function getReviewerMatchingRuns(projectId: string) {
+  return requestPage<ReviewerMatchingRun>(
+    `/reviewer/projects/${projectId}/matching-runs`,
+  );
+}
+
+export async function getReviewerMatchingRun(id: string) {
+  return request<ReviewerMatchingRunDetail>(`/reviewer/matching-runs/${id}`);
+}
+
+export async function reviewReviewerMatchingRun(
+  id: string,
+  payload: {
+    decision: "approved" | "rejected" | "rerun_required";
+    selectedCandidateId?: string;
+    notes?: string;
+  },
+) {
+  return mutate(`/reviewer/matching-runs/${id}/review`, "post", payload);
 }
 
 export async function getReviewerSubmissions(projectId: string) {
@@ -64,7 +173,7 @@ export async function reviewReviewerHandoff(
 ) {
   return mutate(
     `/reviewer/projects/${projectId}/handoff/review`,
-    'patch',
+    "patch",
     payload,
   );
 }

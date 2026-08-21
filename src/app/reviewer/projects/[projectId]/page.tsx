@@ -5,9 +5,14 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
   ArrowLeft,
+  BriefcaseBusiness,
   CheckCircle2,
+  Clock3,
   Loader2,
   RefreshCw,
+  ShieldAlert,
+  Star,
+  Users,
   XCircle,
 } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
@@ -17,6 +22,8 @@ import { useToast } from "@/components/ui/toast";
 import {
   getReviewerOverview,
   getReviewerHandoff,
+  getReviewerMatchingRun,
+  getReviewerMatchingRuns,
   getReviewerPlanningSubmissions,
   getReviewerPlans,
   getReviewerReleaseRequests,
@@ -26,7 +33,10 @@ import {
   reviewReviewerPlanningSubmission,
   reviewReviewerRelease,
   reviewReviewerHandoff,
+  reviewReviewerMatchingRun,
   reviewReviewerSubmission,
+  type ReviewerMatchingRun,
+  type ReviewerMatchingRunDetail,
 } from "@/services/reviewer";
 
 type Row = Record<string, unknown>;
@@ -40,6 +50,7 @@ export default function ReviewerProjectPage() {
   const [overview, setOverview] = useState<Row | null>(null);
   const [planning, setPlanning] = useState<Row[]>([]);
   const [plans, setPlans] = useState<Row[]>([]);
+  const [matchingRuns, setMatchingRuns] = useState<ReviewerMatchingRun[]>([]);
   const [submissions, setSubmissions] = useState<Row[]>([]);
   const [releases, setReleases] = useState<Row[]>([]);
   const [handoff, setHandoff] = useState<Row | null>(null);
@@ -51,49 +62,83 @@ export default function ReviewerProjectPage() {
   const [selectedSubmission, setSelectedSubmission] = useState<Row | null>(
     null,
   );
+  const [selectedMatchingRun, setSelectedMatchingRun] =
+    useState<ReviewerMatchingRunDetail | null>(null);
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const [comments, setComments] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
-      const [
-        overviewResult,
-        planningResult,
-        plansResult,
-        submissionsResult,
-        releasesResult,
-        handoffResult,
-      ] = await Promise.all([
+      const results = await Promise.allSettled([
         getReviewerOverview(projectId),
         getReviewerPlanningSubmissions(projectId),
         getReviewerPlans(projectId),
+        getReviewerMatchingRuns(projectId),
         getReviewerSubmissions(projectId),
         getReviewerReleaseRequests(projectId),
         getReviewerHandoff(projectId),
       ]);
-      setOverview(overviewResult);
-      setPlanning(planningResult);
-      setPlans(plansResult);
-      setSubmissions(submissionsResult);
-      setReleases(releasesResult);
-      setHandoff(handoffResult);
-      setHandoffSummary(
-        handoffResult?.reviewerApprovedAt ? text(handoffResult.summary) : '',
+      const [
+        overviewResult,
+        planningResult,
+        plansResult,
+        matchingResult,
+        submissionsResult,
+        releasesResult,
+        handoffResult,
+      ] = results;
+      if (overviewResult.status === "rejected") throw overviewResult.reason;
+
+      setOverview(overviewResult.value);
+      setPlanning(
+        planningResult.status === "fulfilled" ? planningResult.value : [],
       );
-      setHandoffLiveUrl(text(handoffResult?.liveUrl));
-      setHandoffArtifactUrls(
-        Array.isArray(handoffResult?.artifactUrls)
-          ? handoffResult.artifactUrls.filter((item): item is string => typeof item === "string").join("\n")
+      setPlans(plansResult.status === "fulfilled" ? plansResult.value : []);
+      setMatchingRuns(
+        matchingResult.status === "fulfilled" ? matchingResult.value : [],
+      );
+      setSubmissions(
+        submissionsResult.status === "fulfilled" ? submissionsResult.value : [],
+      );
+      setReleases(
+        releasesResult.status === "fulfilled" ? releasesResult.value : [],
+      );
+      const handoffResultValue =
+        handoffResult.status === "fulfilled" ? handoffResult.value : null;
+      setHandoff(handoffResultValue);
+      setHandoffSummary(
+        handoffResultValue?.reviewerApprovedAt
+          ? text(handoffResultValue.summary)
           : "",
       );
-    } catch (error) {
-      toast.error(
-        "Could not load reviewer workbench",
-        error instanceof Error ? error.message : "Try again.",
+      setHandoffLiveUrl(text(handoffResultValue?.liveUrl));
+      setHandoffArtifactUrls(
+        Array.isArray(handoffResultValue?.artifactUrls)
+          ? handoffResultValue.artifactUrls
+              .filter((item): item is string => typeof item === "string")
+              .join("\n")
+          : "",
       );
+      const partialFailure = results
+        .slice(1)
+        .find((result) => result.status === "rejected");
+      if (partialFailure?.status === "rejected") {
+        setLoadError(
+          partialFailure.reason instanceof Error
+            ? partialFailure.reason.message
+            : "One review queue could not be refreshed.",
+        );
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Please try again.";
+      setLoadError(message);
+      toast.error("Could not load reviewer workbench", message);
     } finally {
       setLoading(false);
     }
@@ -115,6 +160,51 @@ export default function ReviewerProjectPage() {
     () => submissionCriteria(selectedSubmission),
     [selectedSubmission],
   );
+  const currentMatchingRuns = useMemo(() => {
+    const seen = new Set<string>();
+    return matchingRuns.filter((run) => {
+      if (run.targetRoleKey === "principal_reviewer") return false;
+      const target = `${run.targetType}:${run.targetTaskId ?? run.targetRoleKey ?? run.id}`;
+      if (seen.has(target)) return false;
+      seen.add(target);
+      return true;
+    });
+  }, [matchingRuns]);
+
+  const openMatchingRun = async (run: ReviewerMatchingRun) => {
+    setWorking(`match:${run.id}`);
+    try {
+      setSelectedMatchingRun(await getReviewerMatchingRun(run.id));
+    } catch (error) {
+      toast.error(
+        "Could not load candidate profiles",
+        error instanceof Error ? error.message : "Try again.",
+      );
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  const selectCandidate = async (candidateId: string) => {
+    if (!selectedMatchingRun) return;
+    const candidate = selectedMatchingRun.candidates.find(
+      (item) => item.id === candidateId,
+    );
+    const name = candidate?.freelancer?.name || "this freelancer";
+    if (
+      !window.confirm(
+        `Invite ${name}? They will have two hours to accept before matching moves to the next eligible candidate.`,
+      )
+    )
+      return;
+    const saved = await act(`candidate:${candidateId}`, () =>
+      reviewReviewerMatchingRun(selectedMatchingRun.id, {
+        decision: "approved",
+        selectedCandidateId: candidateId,
+      }),
+    );
+    if (saved) setSelectedMatchingRun(null);
+  };
 
   const decidePlanning = async (
     item: Row,
@@ -255,11 +345,12 @@ export default function ReviewerProjectPage() {
     );
   };
 
-  const decideHandoff = async (
-    decision: "approved" | "changes_requested",
-  ) => {
+  const decideHandoff = async (decision: "approved" | "changes_requested") => {
     if (!handoff) return;
-    if (decision === "changes_requested" && (!handoffTaskId || !handoffFeedback.trim())) {
+    if (
+      decision === "changes_requested" &&
+      (!handoffTaskId || !handoffFeedback.trim())
+    ) {
       toast.error(
         "Route the revision",
         "Choose the responsible task and give actionable feedback.",
@@ -283,7 +374,11 @@ export default function ReviewerProjectPage() {
     }
     const report = (handoff.verificationReport ?? {}) as Row;
     const manualReview = text(report.recommendation) === "manual_review";
-    if (decision === "approved" && manualReview && handoffFeedback.trim().length < 20) {
+    if (
+      decision === "approved" &&
+      manualReview &&
+      handoffFeedback.trim().length < 20
+    ) {
       toast.error(
         "Manual review evidence required",
         "Record at least 20 characters describing what you verified.",
@@ -295,12 +390,15 @@ export default function ReviewerProjectPage() {
         decision,
         taskId: decision === "changes_requested" ? handoffTaskId : undefined,
         feedback: handoffFeedback.trim() || undefined,
-        summary: decision === "approved" ? handoffSummary.trim() || undefined : undefined,
-        liveUrl: decision === "approved" ? handoffLiveUrl.trim() || undefined : undefined,
-        artifactUrls:
+        summary:
           decision === "approved"
-            ? artifactUrls
+            ? handoffSummary.trim() || undefined
             : undefined,
+        liveUrl:
+          decision === "approved"
+            ? handoffLiveUrl.trim() || undefined
+            : undefined,
+        artifactUrls: decision === "approved" ? artifactUrls : undefined,
         manualReviewAcknowledged: decision === "approved" && manualReview,
       }),
     );
@@ -315,11 +413,13 @@ export default function ReviewerProjectPage() {
         "The freelancer and project stakeholders were notified.",
       );
       await load();
+      return true;
     } catch (error) {
       toast.error(
         "Could not save decision",
         error instanceof Error ? error.message : "Try again.",
       );
+      return false;
     } finally {
       setWorking(null);
     }
@@ -341,8 +441,27 @@ export default function ReviewerProjectPage() {
         <div className="flex justify-center py-20 text-on-surface-variant">
           <Loader2 className="mr-2 animate-spin" /> Loading workbench…
         </div>
+      ) : loadError && !overview ? (
+        <div className="rounded-xl border border-error/30 bg-error/5 p-6">
+          <h2 className="font-semibold text-on-surface">
+            Reviewer workspace unavailable
+          </h2>
+          <p className="mt-2 text-sm text-on-surface-variant">{loadError}</p>
+          <Button
+            className="mt-4"
+            variant="outline"
+            onClick={() => void load()}
+          >
+            <RefreshCw size={16} /> Retry
+          </Button>
+        </div>
       ) : (
         <div className="space-y-6">
+          {loadError && (
+            <p className="rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm text-on-surface-variant">
+              Some reviewer data could not be refreshed: {loadError}
+            </p>
+          )}
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
             {Object.entries(attention).map(([key, value]) => (
               <div
@@ -358,6 +477,66 @@ export default function ReviewerProjectPage() {
               </div>
             ))}
           </div>
+
+          <Queue
+            title="Team and task matching"
+            empty="No candidate shortlist needs your attention yet. Architecture and UI/UX matching begins after you accept the reviewer role; implementation matching begins after the plan is approved."
+          >
+            {currentMatchingRuns.map((run) => {
+              const invitationStatus = run.invitation?.status ?? null;
+              const invitationActive = ["pending", "accepting"].includes(
+                invitationStatus ?? "",
+              );
+              const selectionFinished = invitationStatus === "accepted";
+              const canChoose =
+                ["completed", "reviewed"].includes(run.status) &&
+                run.candidateCount > 0 &&
+                !invitationActive &&
+                !selectionFinished;
+              const status = invitationActive
+                ? "invitation_pending"
+                : selectionFinished
+                  ? "accepted"
+                  : canChoose
+                    ? "selection_required"
+                    : run.status;
+              return (
+                <div
+                  key={run.id}
+                  className="flex flex-col gap-4 rounded-lg bg-surface-container-low p-4 lg:flex-row lg:items-center lg:justify-between"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium text-on-surface">
+                        {run.targetType === "task"
+                          ? run.taskTitle || "Implementation task"
+                          : roleLabel(run.targetRoleKey)}
+                      </p>
+                      <StatusBadge status={status} />
+                    </div>
+                    <p className="mt-1 text-sm text-on-surface-variant">
+                      {run.candidateCount > 0
+                        ? `${Math.min(run.candidateCount, 3)} top profile${Math.min(run.candidateCount, 3) === 1 ? "" : "s"} ready for review`
+                        : run.summary || "No eligible candidates were ranked."}
+                      {invitationActive && run.invitation?.expiresAt
+                        ? ` · response due ${new Date(run.invitation.expiresAt).toLocaleString()}`
+                        : ""}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant={canChoose ? "primary" : "outline"}
+                    loading={working === `match:${run.id}`}
+                    disabled={working !== null}
+                    onClick={() => void openMatchingRun(run)}
+                  >
+                    <Users size={16} />
+                    {canChoose ? "Review top 3" : "View matching"}
+                  </Button>
+                </div>
+              );
+            })}
+          </Queue>
 
           <Queue
             title="Planning deliverables"
@@ -483,7 +662,10 @@ export default function ReviewerProjectPage() {
                 )}
                 {Boolean(handoff.verificationReport) && (
                   <p className="text-sm text-on-surface-variant">
-                    Final AI verification: {text((handoff.verificationReport as Row).recommendation).replace(/_/g, " ") || "pending"}
+                    Final AI verification:{" "}
+                    {text(
+                      (handoff.verificationReport as Row).recommendation,
+                    ).replace(/_/g, " ") || "pending"}
                     {(handoff.verificationReport as Row).score != null
                       ? ` · ${String((handoff.verificationReport as Row).score)}/100`
                       : ""}
@@ -493,33 +675,82 @@ export default function ReviewerProjectPage() {
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="text-sm text-on-surface-variant">
                       Client-facing summary
-                      <textarea value={handoffSummary} onChange={(event) => setHandoffSummary(event.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-on-surface" />
+                      <textarea
+                        value={handoffSummary}
+                        onChange={(event) =>
+                          setHandoffSummary(event.target.value)
+                        }
+                        rows={3}
+                        className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-on-surface"
+                      />
                     </label>
                     <label className="text-sm text-on-surface-variant">
                       Live URL (required unless an artifact is provided)
-                      <input value={handoffLiveUrl} onChange={(event) => setHandoffLiveUrl(event.target.value)} placeholder="https://..." className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-on-surface" />
+                      <input
+                        value={handoffLiveUrl}
+                        onChange={(event) =>
+                          setHandoffLiveUrl(event.target.value)
+                        }
+                        placeholder="https://..."
+                        className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-on-surface"
+                      />
                     </label>
                     <label className="text-sm text-on-surface-variant sm:col-span-2">
-                      Artifact or documentation URLs (one per line; required unless a live URL is provided)
-                      <textarea value={handoffArtifactUrls} onChange={(event) => setHandoffArtifactUrls(event.target.value)} rows={2} placeholder="https://..." className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-on-surface" />
+                      Artifact or documentation URLs (one per line; required
+                      unless a live URL is provided)
+                      <textarea
+                        value={handoffArtifactUrls}
+                        onChange={(event) =>
+                          setHandoffArtifactUrls(event.target.value)
+                        }
+                        rows={2}
+                        placeholder="https://..."
+                        className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-on-surface"
+                      />
                     </label>
                   </div>
                 )}
-                {["reviewer_review", "verification_failed", "client_changes_requested"].includes(text(handoff.status)) && (
+                {[
+                  "reviewer_review",
+                  "verification_failed",
+                  "client_changes_requested",
+                ].includes(text(handoff.status)) && (
                   <label className="block text-sm text-on-surface-variant">
                     Review evidence or revision feedback
-                    <textarea value={handoffFeedback} onChange={(event) => setHandoffFeedback(event.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-on-surface" />
+                    <textarea
+                      value={handoffFeedback}
+                      onChange={(event) =>
+                        setHandoffFeedback(event.target.value)
+                      }
+                      rows={3}
+                      className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-on-surface"
+                    />
                   </label>
                 )}
-                {["verification_failed", "reviewer_review", "client_changes_requested"].includes(text(handoff.status)) && (
+                {[
+                  "verification_failed",
+                  "reviewer_review",
+                  "client_changes_requested",
+                ].includes(text(handoff.status)) && (
                   <label className="block text-sm text-on-surface-variant">
                     Responsible task for a revision
-                    <select value={handoffTaskId} onChange={(event) => setHandoffTaskId(event.target.value)} className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-on-surface">
+                    <select
+                      value={handoffTaskId}
+                      onChange={(event) => setHandoffTaskId(event.target.value)}
+                      className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-on-surface"
+                    >
                       <option value="">Choose task</option>
                       {submissions
-                        .filter((item) => text(item.status) === "approved" && text(item.taskId))
+                        .filter(
+                          (item) =>
+                            text(item.status) === "approved" &&
+                            text(item.taskId),
+                        )
                         .map((item) => (
-                          <option key={text(item.taskId)} value={text(item.taskId)}>
+                          <option
+                            key={text(item.taskId)}
+                            value={text(item.taskId)}
+                          >
                             {text(item.title) || text(item.taskId)}
                           </option>
                         ))}
@@ -528,12 +759,26 @@ export default function ReviewerProjectPage() {
                 )}
                 <div className="flex flex-wrap gap-3">
                   {text(handoff.status) === "reviewer_review" && (
-                    <Button loading={working === `handoff:${text(handoff.id)}`} disabled={working !== null} onClick={() => void decideHandoff("approved")}>
-                      <CheckCircle2 size={16} /> Send verified delivery to client
+                    <Button
+                      loading={working === `handoff:${text(handoff.id)}`}
+                      disabled={working !== null}
+                      onClick={() => void decideHandoff("approved")}
+                    >
+                      <CheckCircle2 size={16} /> Send verified delivery to
+                      client
                     </Button>
                   )}
-                  {["verification_failed", "reviewer_review", "client_changes_requested"].includes(text(handoff.status)) && (
-                    <Button variant="outline" loading={working === `handoff:${text(handoff.id)}`} disabled={working !== null} onClick={() => void decideHandoff("changes_requested")}>
+                  {[
+                    "verification_failed",
+                    "reviewer_review",
+                    "client_changes_requested",
+                  ].includes(text(handoff.status)) && (
+                    <Button
+                      variant="outline"
+                      loading={working === `handoff:${text(handoff.id)}`}
+                      disabled={working !== null}
+                      onClick={() => void decideHandoff("changes_requested")}
+                    >
                       <RefreshCw size={16} /> Route final revision
                     </Button>
                   )}
@@ -545,6 +790,293 @@ export default function ReviewerProjectPage() {
           <Button variant="outline" onClick={() => void load()}>
             <RefreshCw size={16} /> Refresh all queues
           </Button>
+        </div>
+      )}
+
+      {selectedMatchingRun && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setSelectedMatchingRun(null)}
+        >
+          <div
+            className="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-2xl bg-surface-container-lowest p-6 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary-container">
+                  Principal reviewer selection
+                </p>
+                <h2 className="mt-1 text-2xl font-semibold text-on-surface">
+                  {selectedMatchingRun.targetType === "task"
+                    ? selectedMatchingRun.taskTitle || "Implementation task"
+                    : roleLabel(selectedMatchingRun.targetRoleKey)}
+                </h2>
+                <p className="mt-2 max-w-3xl text-sm text-on-surface-variant">
+                  {selectedMatchingRun.summary ||
+                    "Compare the ranked evidence and select one freelancer."}
+                </p>
+              </div>
+              <StatusBadge
+                status={
+                  selectedMatchingRun.invitation
+                    ? `invitation_${selectedMatchingRun.invitation.status}`
+                    : selectedMatchingRun.status
+                }
+              />
+            </div>
+
+            {selectedMatchingRun.task && (
+              <div className="mt-5 grid gap-3 rounded-xl border border-outline-variant/30 bg-surface-container-low p-4 sm:grid-cols-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+                    Schedule
+                  </p>
+                  <p className="mt-1 text-sm text-on-surface">
+                    {selectedMatchingRun.task.dueAt
+                      ? `Due ${new Date(selectedMatchingRun.task.dueAt).toLocaleString()}`
+                      : "Deadline follows the approved plan"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+                    Dependencies
+                  </p>
+                  <p className="mt-1 text-sm text-on-surface">
+                    {selectedMatchingRun.task.dependencies.length
+                      ? `${selectedMatchingRun.task.dependencies.length} predecessor task${selectedMatchingRun.task.dependencies.length === 1 ? "" : "s"}; work cannot start until they finish`
+                      : "No blocking predecessor"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+                    Required skills
+                  </p>
+                  <p className="mt-1 text-sm text-on-surface">
+                    {selectedMatchingRun.task.requiredSkills.join(", ") ||
+                      "Defined by the task contract"}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {selectedMatchingRun.invitation && (
+              <p className="mt-5 rounded-lg border border-primary-container/20 bg-primary-container/5 p-3 text-sm text-on-surface-variant">
+                Invitation{" "}
+                {selectedMatchingRun.invitation.status.replaceAll("_", " ")}
+                {selectedMatchingRun.invitation.expiresAt &&
+                ["pending", "accepting"].includes(
+                  selectedMatchingRun.invitation.status,
+                )
+                  ? ` · expires ${new Date(selectedMatchingRun.invitation.expiresAt).toLocaleString()}`
+                  : ""}
+                {selectedMatchingRun.invitation.responseReason
+                  ? ` · ${selectedMatchingRun.invitation.responseReason}`
+                  : ""}
+              </p>
+            )}
+
+            <div className="mt-6 grid gap-4 xl:grid-cols-3">
+              {selectedMatchingRun.candidates.map((candidate) => {
+                const profile = candidate.freelancer;
+                const inviteOpen = [
+                  "pending",
+                  "accepting",
+                  "accepted",
+                ].includes(selectedMatchingRun.invitation?.status ?? "");
+                const candidateEligible = [
+                  "recommended",
+                  "shortlisted",
+                  "selected",
+                ].includes(candidate.status);
+                const canSelect =
+                  Boolean(profile?.isAvailable) &&
+                  Boolean(profile?.githubUsername) &&
+                  candidateEligible &&
+                  !inviteOpen;
+                return (
+                  <article
+                    key={candidate.id}
+                    className="flex flex-col rounded-xl border border-outline-variant/30 bg-surface-container-low p-5"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-primary-container">
+                          Rank #{candidate.rank}
+                        </p>
+                        <h3 className="mt-1 text-lg font-semibold text-on-surface">
+                          {profile?.name || "Freelancer profile"}
+                        </h3>
+                        <p className="text-sm text-on-surface-variant">
+                          {profile?.headline || "Verified Nexus freelancer"}
+                        </p>
+                      </div>
+                      <div className="rounded-lg bg-primary-container/10 px-3 py-2 text-center">
+                        <p className="text-lg font-semibold text-primary-container">
+                          {Math.round(Number(candidate.score))}
+                        </p>
+                        <p className="text-[10px] uppercase tracking-wide text-on-surface-variant">
+                          match
+                        </p>
+                      </div>
+                    </div>
+
+                    {profile?.bio && (
+                      <p className="mt-4 line-clamp-4 text-sm text-on-surface-variant">
+                        {profile.bio}
+                      </p>
+                    )}
+
+                    <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                      <Metric
+                        icon={<BriefcaseBusiness size={14} />}
+                        label={`${profile?.yearsExperience ?? 0} years`}
+                      />
+                      <Metric
+                        icon={<Clock3 size={14} />}
+                        label={`${profile?.availabilityHours ?? 0} hrs/week`}
+                      />
+                      <Metric
+                        icon={<Star size={14} />}
+                        label={
+                          profile?.avgRating != null
+                            ? `${profile.avgRating.toFixed(1)} (${profile.ratingsCount})`
+                            : "No ratings yet"
+                        }
+                      />
+                      <Metric
+                        icon={<CheckCircle2 size={14} />}
+                        label={`${profile?.performanceScore ?? 0}% performance`}
+                      />
+                    </div>
+
+                    {candidate.scoreBreakdown && (
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+                        {Object.entries(candidate.scoreBreakdown)
+                          .slice(0, 8)
+                          .map(([key, value]) => (
+                            <div
+                              key={key}
+                              className="rounded-lg border border-outline-variant/20 p-2"
+                            >
+                              <p className="text-[10px] uppercase tracking-wide text-on-surface-variant">
+                                {key.replaceAll("_", " ")}
+                              </p>
+                              <p className="mt-0.5 text-sm font-medium text-on-surface">
+                                {typeof value === "number" ||
+                                typeof value === "string"
+                                  ? String(value)
+                                  : "Available"}
+                              </p>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+
+                    <div className="mt-4 rounded-lg bg-surface-container-lowest p-3 text-sm text-on-surface-variant">
+                      <p>
+                        Rate: {money(profile?.hourlyRate)} / hour · assessment:{" "}
+                        {score(profile?.assessmentScore)}
+                      </p>
+                      <p className="mt-1">
+                        {profile?.completedTasks ?? 0} completed ·{" "}
+                        {profile?.onTimeDeliveries ?? 0} on time ·{" "}
+                        {profile?.missedDeadlines ?? 0} missed
+                      </p>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-1.5">
+                      {(profile?.topSkills ?? []).slice(0, 8).map((skill) => (
+                        <span
+                          key={skill}
+                          className="rounded-full bg-primary-container/10 px-2.5 py-1 text-xs text-primary-container"
+                        >
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+
+                    {candidate.rationale && (
+                      <p className="mt-4 text-sm text-on-surface-variant">
+                        <span className="font-medium text-on-surface">
+                          Why this match:
+                        </span>
+                        {candidate.rationale}
+                      </p>
+                    )}
+
+                    {(profile?.riskFlags.length ?? 0) > 0 && (
+                      <div className="mt-4 flex gap-2 rounded-lg bg-error/10 p-3 text-sm text-error">
+                        <ShieldAlert className="mt-0.5 shrink-0" size={16} />
+                        {profile?.riskFlags.length} performance risk flag
+                        {profile?.riskFlags.length === 1 ? "" : "s"} require
+                        review.
+                      </div>
+                    )}
+
+                    {profile && !profile.githubUsername && (
+                      <p className="mt-4 rounded-lg bg-warning/10 p-3 text-sm text-on-surface-variant">
+                        This profile cannot be invited until its GitHub username
+                        is connected.
+                      </p>
+                    )}
+
+                    <div className="mt-4 flex flex-wrap gap-3 text-sm">
+                      {profile?.githubUsername && (
+                        <a
+                          href={`https://github.com/${profile.githubUsername}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 font-medium text-primary-container"
+                        >
+                          GitHub profile
+                        </a>
+                      )}
+                      {profile?.cvUrl && (
+                        <a
+                          href={profile.cvUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-medium text-primary-container"
+                        >
+                          View CV
+                        </a>
+                      )}
+                    </div>
+
+                    <Button
+                      className="mt-5"
+                      loading={working === `candidate:${candidate.id}`}
+                      disabled={working !== null || !canSelect}
+                      onClick={() => void selectCandidate(candidate.id)}
+                    >
+                      {canSelect
+                        ? "Select and send invitation"
+                        : selectedMatchingRun.invitation?.candidateId ===
+                            candidate.id
+                          ? "Invitation sent"
+                          : "Not currently selectable"}
+                    </Button>
+                  </article>
+                );
+              })}
+            </div>
+
+            {selectedMatchingRun.candidates.length === 0 && (
+              <p className="mt-6 rounded-lg border border-dashed border-outline-variant p-5 text-sm text-on-surface-variant">
+                No eligible profile was ranked. Operations must resolve the
+                staffing blocker or rerun matching after the pool changes.
+              </p>
+            )}
+
+            <Button
+              className="mt-6 sm:w-auto"
+              variant="outline"
+              onClick={() => setSelectedMatchingRun(null)}
+            >
+              Close
+            </Button>
+          </div>
         </div>
       )}
 
@@ -642,6 +1174,40 @@ export default function ReviewerProjectPage() {
       )}
     </DashboardShell>
   );
+}
+
+function Metric({ icon, label }: { icon: React.ReactNode; label: string }) {
+  return (
+    <span className="flex items-center gap-1.5 rounded-lg border border-outline-variant/20 px-2.5 py-2 text-on-surface-variant">
+      {icon}
+      {label}
+    </span>
+  );
+}
+
+function roleLabel(role: string | null) {
+  const labels: Record<string, string> = {
+    architect: "Solution architect",
+    ui_ux: "UI/UX designer",
+    frontend: "Frontend developer",
+    backend: "Backend developer",
+    fullstack: "Full-stack developer",
+    qa: "Quality engineer",
+    implementation: "Implementation freelancer",
+  };
+  return labels[role ?? ""] ?? (role?.replaceAll("_", " ") || "Project role");
+}
+
+function money(value: number | null | undefined) {
+  return value == null
+    ? "Not set"
+    : new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(
+        value,
+      );
+}
+
+function score(value: number | null | undefined) {
+  return value == null ? "not scored" : `${Math.round(value)}/100`;
 }
 
 function Queue({
