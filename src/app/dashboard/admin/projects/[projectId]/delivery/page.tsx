@@ -14,6 +14,8 @@ import {
   MilestoneTimeline,
   TaskList,
 } from "@/components/delivery";
+import { ProjectRepositoryPanel } from "@/components/delivery/project-repository-panel";
+import { ImplementationMatchingPanel } from "@/components/delivery/implementation-matching-panel";
 import { toNumber } from "@/components/delivery/helpers";
 import {
   getMilestones,
@@ -38,13 +40,7 @@ import type {
   ProjectSubmission,
 } from "@/types/delivery";
 
-/**
- * Admin project delivery workspace.
- *
- * This file owns the shell, the shared status components, and sections 3, 5
- * and 6. Sections 1 and 2 (repository and implementation matching) belong to
- * other verticals and mount into the slots below.
- */
+/** Admin project delivery workspace for the complete automated lifecycle. */
 
 function Section({
   index,
@@ -77,20 +73,23 @@ function Section({
   );
 }
 
-function PanelSlot({ owner, service }: { owner: string; service: string }) {
-  return (
-    <div className="rounded-lg border border-dashed border-outline-variant/60 bg-surface-container-low p-5 text-sm text-on-surface-variant">
-      <p className="font-medium text-on-surface">Panel not mounted yet</p>
-      <p className="mt-1">
-        This section is owned by {owner} and mounts here once{" "}
-        <code className="rounded bg-surface-container-high px-1.5 py-0.5 font-mono text-xs">
-          {service}
-        </code>{" "}
-        exists.
-      </p>
-    </div>
-  );
-}
+const AUTOMATION_MESSAGES: Record<string, string> = {
+  awaiting_requirements: "Waiting for enough confirmed scope to produce a reliable quote.",
+  awaiting_quote: "Requirements changed; the client must confirm the updated quote.",
+  awaiting_funding: "Quote is ready. Staffing starts after the client funds escrow.",
+  awaiting_principal_reviewer:
+    "A principal reviewer invitation was sent and is waiting for a response.",
+  matching_planning_team:
+    "The principal reviewer accepted. UI/UX and architecture matching is starting.",
+  awaiting_planning_team:
+    "UI/UX or architecture invitations are pending; expired or declined invitations rematch automatically.",
+  awaiting_implementation_team:
+    "Implementation invitations are pending for the materialized tasks.",
+  staffing_blocked:
+    "Automatic staffing needs attention. Open the matching section for the failed or empty run.",
+  awaiting_client_acceptance:
+    "The integrated delivery is ready for the client’s final decision.",
+};
 
 export default function AdminProjectDeliveryPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -180,6 +179,11 @@ export default function AdminProjectDeliveryPage() {
       .finally(() => setLoading(false));
   }, [projectId, reloadKey]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setReloadKey((key) => key + 1), 15_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const refresh = useCallback(() => {
     setLoading(true);
     setLoadErrors([]);
@@ -241,12 +245,21 @@ export default function AdminProjectDeliveryPage() {
           )}
 
           {project && (
-            <div className="flex flex-wrap items-center gap-3">
-              <StatusBadge status={project.status} />
-              <span className="text-sm text-on-surface-variant">
-                {tasks.length} tasks · {unassigned.length} unassigned ·{" "}
-                {submissions.length} submissions
-              </span>
+            <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <StatusBadge status={project.status} />
+                {project.automationStatus && (
+                  <StatusBadge status={project.automationStatus} />
+                )}
+                <span className="text-sm text-on-surface-variant">
+                  {tasks.length} tasks · {unassigned.length} unassigned ·{" "}
+                  {submissions.length} submissions
+                </span>
+              </div>
+              <p className="mt-2 text-sm text-on-surface-variant">
+                {AUTOMATION_MESSAGES[project.automationStatus ?? ""] ??
+                  "The page refreshes automatically as invitations, reviews, planning, and matching progress."}
+              </p>
             </div>
           )}
 
@@ -255,7 +268,7 @@ export default function AdminProjectDeliveryPage() {
             title="Repository"
             description="One Nexus-owned private repository per project, plus collaborator invites."
           >
-            <PanelSlot owner="Sameh" service="src/services/repositories.ts" />
+            <ProjectRepositoryPanel projectId={projectId} />
           </Section>
 
           <Section
@@ -263,9 +276,10 @@ export default function AdminProjectDeliveryPage() {
             title="Implementation task matching"
             description="Task-level matching runs and candidate approval."
           >
-            <PanelSlot
-              owner="Sameh"
-              service="src/services/implementation-matching.ts"
+            <ImplementationMatchingPanel
+              projectId={projectId}
+              taskCount={tasks.length}
+              unassignedCount={unassigned.length}
             />
           </Section>
 

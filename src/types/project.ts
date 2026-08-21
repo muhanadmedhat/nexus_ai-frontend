@@ -77,6 +77,10 @@ export interface BriefFieldValues {
   targetUsers: string;
   coreFeatures: string;
   platforms: string;
+  solutionType: string;
+  scopeDetails: string;
+  integrations: string;
+  adminNeeds: string;
   deliverables: string;
   constraintsPreferences: string;
   clientBackground: string;

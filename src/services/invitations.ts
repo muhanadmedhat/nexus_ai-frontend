@@ -12,6 +12,8 @@ export interface ProjectInvitation {
   responseReason: string | null;
   rankSnapshot: number | null;
   scoreSnapshot: Record<string, unknown> | null;
+  githubUsername?: string | null;
+  githubReady?: boolean;
   project?: {
     id: string;
     title: string;

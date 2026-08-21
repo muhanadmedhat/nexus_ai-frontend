@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Clock3, Loader2, MailCheck } from "lucide-react";
+import Link from "next/link";
+import { Clock3, GitBranch, Loader2, MailCheck } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -151,9 +152,26 @@ export default function InvitationsPage() {
                     <Clock3 size={16} /> Respond in{" "}
                     {remaining(item.expiresAt, now)}
                   </p>
+                  {item.githubReady === false && (
+                    <div className="mt-4 rounded-lg border border-warning/40 bg-warning/5 p-3 text-sm text-on-surface-variant">
+                      <p className="flex items-center gap-2 font-medium text-on-surface">
+                        <GitBranch size={15} /> GitHub username required
+                      </p>
+                      <p className="mt-1">
+                        Add it before accepting so repository access can be sent immediately.
+                      </p>
+                      <Link
+                        href="/profile"
+                        className="mt-2 inline-block font-medium text-primary-container hover:underline"
+                      >
+                        Update freelancer profile
+                      </Link>
+                    </div>
+                  )}
                   <div className="mt-5 flex gap-3">
                     <Button
                       loading={working === item.id}
+                      disabled={item.githubReady === false}
                       onClick={() => void respond(item, "accepted")}
                     >
                       Accept
