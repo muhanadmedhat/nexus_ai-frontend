@@ -13,7 +13,7 @@ interface ProtectedRouteProps {
 const phoneVerificationRequired =
   process.env.NEXT_PUBLIC_PHONE_VERIFICATION_REQUIRED !== undefined
     ? process.env.NEXT_PUBLIC_PHONE_VERIFICATION_REQUIRED === "true"
-    : process.env.NODE_ENV === "production";
+    : false;
 
 export function ProtectedRoute({ role, children }: ProtectedRouteProps) {
   const router = useRouter();
