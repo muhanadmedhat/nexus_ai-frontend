@@ -54,6 +54,8 @@ export interface ReviewerCandidateProfile {
   githubUsername: string | null;
   cvUrl: string | null;
   hourlyRate: number | null;
+  /** Unit for hourlyRate; absent on responses from before ISSUES.md #9. */
+  hourlyRateCurrency?: string | null;
   recommendedHourlyRate: number | null;
   availabilityHours: number | null;
   yearsExperience: number | null;
@@ -106,6 +108,66 @@ export interface ReviewerMatchingRunDetail extends ReviewerMatchingRun {
   candidates: ReviewerMatchingCandidate[];
 }
 
+/** One AI check against a single project requirement. */
+export interface ReviewerEvaluationCheck {
+  key: string;
+  title: string;
+  status: "met" | "partial" | "missing" | "conflict" | "not_applicable";
+  severity?: string | null;
+  mandatory?: boolean;
+  evidence?: string | null;
+  feedback?: string | null;
+}
+
+/** What the freelancer actually wrote and attached for one requirement. */
+export interface ReviewerRequirementEvidence {
+  summary?: string | null;
+  urls?: string[];
+  disposition?: string | null;
+  notApplicableReason?: string | null;
+}
+
+/**
+ * Full planning submission as the principal reviewer needs to see it: the
+ * freelancer's own answers alongside the AI's verdict on each requirement.
+ * The endpoint already returned all of this; nothing in the UI used to ask
+ * for it, so the reviewer decided blind. See ISSUES.md #30.
+ */
+export interface ReviewerPlanningSubmissionDetail {
+  id: string;
+  projectId: string;
+  submissionType: string;
+  version: number;
+  status: string;
+  title: string | null;
+  summary: string | null;
+  submittedAt: string | null;
+  freelancer?: { name?: string | null; headline?: string | null } | null;
+  content?: {
+    requirementEvidence?: Record<string, ReviewerRequirementEvidence>;
+  } | null;
+  fileUrls?: Record<string, unknown> | null;
+  evaluationStatus?: string | null;
+  evaluationScore?: number | string | null;
+  evaluationRecommendation?: string | null;
+  evaluationRequirements?: Array<{
+    key: string;
+    title: string;
+    description?: string | null;
+    mandatory?: boolean;
+    requiresUrl?: boolean;
+  }> | null;
+  evaluationResult?: {
+    checks?: ReviewerEvaluationCheck[];
+    risks?: string[];
+    strengths?: string[];
+    summary?: string | null;
+  } | null;
+  adminNotes?: string | null;
+  aiOverride?: boolean | null;
+  aiOverrideReason?: string | null;
+}
+
 export async function getReviewerProjects() {
   return request<ReviewerProject[]>("/reviewer/projects");
 }
@@ -122,10 +184,55 @@ export async function getReviewerPlanningSubmissions(projectId: string) {
   );
 }
 
+export async function getReviewerPlanningSubmission(id: string) {
+  return request<ReviewerPlanningSubmissionDetail>(
+    `/reviewer/planning-submissions/${id}`,
+  );
+}
+
 export async function getReviewerPlans(projectId: string) {
   return requestPage<Record<string, unknown>>(
     `/reviewer/projects/${projectId}/plans`,
   );
+}
+
+/** A plan as the reviewer needs to see it before approving the build. */
+export interface ReviewerPlanDetail {
+  id: string;
+  version?: number | null;
+  status?: string | null;
+  summary?: string | null;
+  assumptions?: string[] | null;
+  milestones?: Array<{
+    // Persisted plans use `key`; the generator's own schema uses `clientKey`.
+    key?: string;
+    clientKey?: string;
+    title?: string;
+    description?: string | null;
+    startDay?: number | null;
+    estimatedDays?: number | null;
+    acceptanceCriteria?: string[] | null;
+  }> | null;
+  tasks?: Array<{
+    key?: string;
+    clientKey?: string;
+    title?: string;
+    description?: string | null;
+    milestoneKey?: string;
+    milestoneClientKey?: string;
+    roleKey?: string | null;
+    estimatedHours?: number | null;
+    durationDays?: number | null;
+    startDay?: number | null;
+    budgetAmount?: string | number | null;
+    currency?: string | null;
+    requiredSkills?: string[] | null;
+  }> | null;
+  teamPlan?: Record<string, unknown> | null;
+}
+
+export async function getReviewerPlan(id: string) {
+  return request<ReviewerPlanDetail>(`/reviewer/project-plans/${id}`);
 }
 
 export async function getReviewerMatchingRuns(projectId: string) {

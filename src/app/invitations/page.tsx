@@ -103,7 +103,7 @@ export default function InvitationsPage() {
     <DashboardShell
       role="freelancer"
       title="Invitations"
-      subtitle="Project offers expire automatically after two hours."
+      subtitle="Project offers expire automatically if you do not respond in time."
     >
       {loading ? (
         <div className="flex justify-center py-20 text-on-surface-variant">

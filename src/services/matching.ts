@@ -109,6 +109,14 @@ export interface ProjectTeam {
 }
 
 export interface FreelancerAssignedProject {
+  /** Implementation tasks in this assignment, so the row can link to the work. ISSUES.md #35. */
+  tasks?: Array<{
+    id: string;
+    title: string;
+    status?: string | null;
+    assignmentStatus?: string | null;
+    dueAt?: string | null;
+  }>;
   assignmentId: string;
   projectId: string;
   projectTitle: string | null;

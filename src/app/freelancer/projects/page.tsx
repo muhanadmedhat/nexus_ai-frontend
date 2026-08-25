@@ -78,12 +78,41 @@ export default function FreelancerProjectsPage() {
                   </span>
                 </div>
               </div>
+              {/* Link straight to the work. An implementation row names the task
+                  but used to link only to the project, so the freelancer landed
+                  on whatever the project page showed first — often the wrong
+                  deliverable entirely. See ISSUES.md #35. */}
+              {assignment.tasks?.length ? (
+                <div className="mt-4 space-y-2">
+                  {assignment.tasks.map((task) => (
+                    <Link
+                      key={task.id}
+                      href={`/freelancer/projects/${assignment.projectId}/tasks/${task.id}`}
+                      className="flex items-center justify-between gap-3 rounded-lg bg-surface-container-low px-3 py-2 text-sm hover:bg-surface-container"
+                    >
+                      <span className="font-medium text-on-surface">
+                        {task.title}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 text-primary">
+                        Open task <ArrowRight size={14} />
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              ) : null}
               <div className="mt-6 flex items-center justify-end">
                 <Link
-                  href={`/freelancer/projects/${assignment.projectId}`}
+                  href={
+                    assignment.phase === "planning"
+                      ? `/freelancer/projects/${assignment.projectId}/planning`
+                      : `/freelancer/projects/${assignment.projectId}`
+                  }
                   className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80"
                 >
-                  Manage assignment <ArrowRight size={16} />
+                  {assignment.phase === "planning"
+                    ? "Open planning deliverable"
+                    : "Open project"}{" "}
+                  <ArrowRight size={16} />
                 </Link>
               </div>
             </div>

@@ -24,6 +24,8 @@ import {
   getReviewerHandoff,
   getReviewerMatchingRun,
   getReviewerMatchingRuns,
+  getReviewerPlan,
+  getReviewerPlanningSubmission,
   getReviewerPlanningSubmissions,
   getReviewerPlans,
   getReviewerReleaseRequests,
@@ -35,6 +37,8 @@ import {
   reviewReviewerHandoff,
   reviewReviewerMatchingRun,
   reviewReviewerSubmission,
+  type ReviewerPlanDetail,
+  type ReviewerPlanningSubmissionDetail,
   type ReviewerMatchingRun,
   type ReviewerMatchingRunDetail,
 } from "@/services/reviewer";
@@ -43,6 +47,105 @@ type Row = Record<string, unknown>;
 type Criterion = { key: string; criterion: string };
 
 const text = (value: unknown) => (typeof value === "string" ? value : "");
+
+/**
+ * Strips retrieval-algorithm wording from the run summary. Reviewers were shown
+ * "vector + BM25 via reciprocal rank fusion", which means nothing to the person
+ * making the decision and crowds out what does. See ISSUES.md #24.
+ */
+function readableSummary(summary: string | null | undefined) {
+  if (!summary) return "";
+  return summary
+    .replace(
+      /\s*\((?:[^()]*(?:vector|BM25|reciprocal rank fusion|embedding)[^()]*)\)/gi,
+      "",
+    )
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+/**
+ * Pairs each project requirement with what the freelancer submitted for it and
+ * the AI's verdict on it. Requirements come from `evaluationRequirements` so
+ * every criterion appears even when the freelancer skipped it. See ISSUES.md #30.
+ */
+function requirementRows(detail: ReviewerPlanningSubmissionDetail) {
+  const checks = detail.evaluationResult?.checks ?? [];
+  const evidence = detail.content?.requirementEvidence ?? {};
+  const requirements =
+    detail.evaluationRequirements?.length
+      ? detail.evaluationRequirements
+      : checks.map((check) => ({ key: check.key, title: check.title }));
+
+  return requirements.map((requirement) => {
+    const check = checks.find((entry) => entry.key === requirement.key);
+    const submitted = evidence[requirement.key] ?? {};
+    return {
+      key: requirement.key,
+      title: requirement.title || check?.title || requirement.key,
+      status: check?.status ?? "missing",
+      evidence: check?.evidence ?? null,
+      feedback: check?.feedback ?? null,
+      submitted: (submitted.summary ?? "").trim(),
+      urls: Array.isArray(submitted.urls) ? submitted.urls : [],
+      disposition: submitted.disposition ?? null,
+      notApplicableReason: submitted.notApplicableReason ?? null,
+    };
+  });
+}
+
+function verdictLabel(status: string) {
+  switch (status) {
+    case "met":
+      return "meets requirement";
+    case "partial":
+      return "partly done";
+    case "missing":
+      return "not addressed";
+    case "conflict":
+      return "contradicts the brief";
+    case "not_applicable":
+      return "not applicable";
+    default:
+      return status;
+  }
+}
+
+function verdictTone(status: string) {
+  switch (status) {
+    case "met":
+      return "border-green-500/40 bg-green-500/5";
+    case "partial":
+      return "border-amber-500/40 bg-amber-500/5";
+    case "conflict":
+      return "border-red-500/40 bg-red-500/5";
+    case "not_applicable":
+      return "border-outline-variant/30 bg-surface-container-low";
+    default:
+      return "border-outline-variant/40 bg-surface-container-low";
+  }
+}
+
+/** Only http(s) links are rendered as links. Mirrors the server-side rule in ISSUES.md #29. */
+function isHttpUrl(value: string) {
+  try {
+    return ["http:", "https:"].includes(new URL(value.trim()).protocol);
+  } catch {
+    return false;
+  }
+}
+
+/** Plans persist milestone ids as `key`/`milestoneKey`; the generator schema uses
+ * `clientKey`/`milestoneClientKey`. Match on whichever is present. ISSUES.md #33. */
+function milestoneIdOf(milestone: { key?: string; clientKey?: string }) {
+  return milestone.clientKey ?? milestone.key ?? "";
+}
+function taskMilestoneIdOf(task: {
+  milestoneKey?: string;
+  milestoneClientKey?: string;
+}) {
+  return task.milestoneClientKey ?? task.milestoneKey ?? "";
+}
 
 export default function ReviewerProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -64,6 +167,18 @@ export default function ReviewerProjectPage() {
   );
   const [selectedMatchingRun, setSelectedMatchingRun] =
     useState<ReviewerMatchingRunDetail | null>(null);
+  // The submission the reviewer is currently reading, and the set they have
+  // opened at least once. Approve stays disabled until a submission has been
+  // read, so a deliverable cannot be waved through unseen. ISSUES.md #30.
+  const [openDeliverable, setOpenDeliverable] =
+    useState<ReviewerPlanningSubmissionDetail | null>(null);
+  const [reviewedSubmissionIds, setReviewedSubmissionIds] = useState<
+    Set<string>
+  >(new Set());
+  const [openPlan, setOpenPlan] = useState<ReviewerPlanDetail | null>(null);
+  const [reviewedPlanIds, setReviewedPlanIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const [comments, setComments] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -171,6 +286,39 @@ export default function ReviewerProjectPage() {
     });
   }, [matchingRuns]);
 
+  const openPlanningSubmission = async (submissionId: string) => {
+    setWorking(`submission:${submissionId}`);
+    try {
+      const detail = await getReviewerPlanningSubmission(submissionId);
+      setOpenDeliverable(detail);
+      setReviewedSubmissionIds((previous) =>
+        new Set(previous).add(submissionId),
+      );
+    } catch (error) {
+      toast.error(
+        "Could not open the submission",
+        error instanceof Error ? error.message : "Try again.",
+      );
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  const openProjectPlan = async (planId: string) => {
+    setWorking(`plan:${planId}`);
+    try {
+      setOpenPlan(await getReviewerPlan(planId));
+      setReviewedPlanIds((previous) => new Set(previous).add(planId));
+    } catch (error) {
+      toast.error(
+        "Could not open the plan",
+        error instanceof Error ? error.message : "Try again.",
+      );
+    } finally {
+      setWorking(null);
+    }
+  };
+
   const openMatchingRun = async (run: ReviewerMatchingRun) => {
     setWorking(`match:${run.id}`);
     try {
@@ -193,7 +341,7 @@ export default function ReviewerProjectPage() {
     const name = candidate?.freelancer?.name || "this freelancer";
     if (
       !window.confirm(
-        `Invite ${name}? They will have two hours to accept before matching moves to the next eligible candidate.`,
+        `Invite ${name}? If they do not respond within the invitation window, matching moves to the next eligible candidate.`,
       )
     )
       return;
@@ -531,7 +679,9 @@ export default function ReviewerProjectPage() {
                     onClick={() => void openMatchingRun(run)}
                   >
                     <Users size={16} />
-                    {canChoose ? "Review top 3" : "View matching"}
+                    {canChoose
+                      ? `Review ${run.candidateCount} candidate${run.candidateCount === 1 ? "" : "s"}`
+                      : "View matching"}
                   </Button>
                 </div>
               );
@@ -548,9 +698,22 @@ export default function ReviewerProjectPage() {
                 <ReviewRow
                   key={text(item.id)}
                   title={text(item.title) || text(item.submissionType)}
-                  status={text(item.evaluationStatus) || text(item.status)}
-                  detail={`AI: ${text(item.evaluationRecommendation) || "pending"}${item.evaluationScore != null ? ` · ${String(item.evaluationScore)}/100` : ""}`}
-                  working={working === item.id}
+                  // Show the AI's verdict, not the evaluation job's lifecycle
+                  // state — "Completed" on 0/100 work read as "this is done".
+                  status={
+                    text(item.evaluationRecommendation) ||
+                    text(item.evaluationStatus) ||
+                    text(item.status)
+                  }
+                  detail={`${text(item.submissionType)}${item.version != null ? ` · v${String(item.version)}` : ""}${item.evaluationScore != null ? ` · AI score ${String(item.evaluationScore)}/100` : ""}`}
+                  working={working === `submission:${text(item.id)}` || working === item.id}
+                  onOpen={() => void openPlanningSubmission(text(item.id))}
+                  openLabel="Open deliverable"
+                  approveDisabledReason={
+                    reviewedSubmissionIds.has(text(item.id))
+                      ? undefined
+                      : "Open the deliverable before approving it."
+                  }
                   onApprove={() => void decidePlanning(item, "approved")}
                   onChanges={() =>
                     void decidePlanning(item, "changes_requested")
@@ -571,7 +734,14 @@ export default function ReviewerProjectPage() {
                   title={`Plan v${String(item.version ?? "")}`}
                   status={text(item.status)}
                   detail={text(item.summary)}
-                  working={working === item.id}
+                  working={working === `plan:${text(item.id)}` || working === item.id}
+                  onOpen={() => void openProjectPlan(text(item.id))}
+                  openLabel="Open plan"
+                  approveDisabledReason={
+                    reviewedPlanIds.has(text(item.id))
+                      ? undefined
+                      : "Open the plan before approving it."
+                  }
                   onApprove={() => void decidePlan(item, "approved")}
                   onChanges={() => void decidePlan(item, "changes_requested")}
                   approveLabel="Approve and start matching"
@@ -793,6 +963,420 @@ export default function ReviewerProjectPage() {
         </div>
       )}
 
+      {openPlan && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setOpenPlan(null)}
+        >
+          <div
+            className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-surface-container-lowest p-6 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary-container">
+              Build plan awaiting your approval
+            </p>
+            <h2 className="mt-1 text-2xl font-semibold text-on-surface">
+              Plan v{openPlan.version ?? ""}
+            </h2>
+            {openPlan.summary && (
+              <p className="mt-2 max-w-3xl text-sm text-on-surface-variant">
+                {openPlan.summary}
+              </p>
+            )}
+
+            {(() => {
+              const tasks = openPlan.tasks ?? [];
+              const milestones = openPlan.milestones ?? [];
+              const totalHours = tasks.reduce(
+                (sum, task) => sum + Number(task.estimatedHours ?? 0),
+                0,
+              );
+              const emptyMilestones = milestones.filter(
+                (milestone) =>
+                  !tasks.some(
+                    (task) =>
+                      taskMilestoneIdOf(task) === milestoneIdOf(milestone),
+                  ),
+              );
+              const oversized = tasks.filter(
+                (task) => Number(task.estimatedHours ?? 0) > 40,
+              );
+              return (
+                <>
+                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {[
+                      ["Milestones", String(milestones.length)],
+                      ["Tasks", String(tasks.length)],
+                      ["Total hours", String(totalHours)],
+                      [
+                        "Milestones with no work",
+                        String(emptyMilestones.length),
+                      ],
+                    ].map(([label, value]) => (
+                      <div
+                        key={label}
+                        className={`rounded-lg border p-3 ${
+                          label === "Milestones with no work" &&
+                          emptyMilestones.length > 0
+                            ? "border-red-500/40 bg-red-500/5"
+                            : "border-outline-variant/30"
+                        }`}
+                      >
+                        <p className="text-lg font-semibold text-on-surface">
+                          {value}
+                        </p>
+                        <p className="text-xs text-on-surface-variant">
+                          {label}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {emptyMilestones.length > 0 && (
+                    <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/5 p-4">
+                      <p className="text-sm font-semibold text-red-600">
+                        Scope with no work planned
+                      </p>
+                      <p className="mt-1 text-sm text-on-surface">
+                        {emptyMilestones
+                          .map((milestone) => milestone.title)
+                          .join(", ")}{" "}
+                        — nobody will build this. Request changes rather than
+                        approving.
+                      </p>
+                    </div>
+                  )}
+
+                  {oversized.length > 0 && (
+                    <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+                      <p className="text-sm font-semibold text-amber-700">
+                        Tasks that may be too large
+                      </p>
+                      <p className="mt-1 text-sm text-on-surface">
+                        {oversized
+                          .map(
+                            (task) =>
+                              `${task.title} (${task.estimatedHours}h)`,
+                          )
+                          .join(", ")}
+                      </p>
+                    </div>
+                  )}
+
+                  <h3 className="mt-6 text-sm font-semibold uppercase tracking-wide text-on-surface-variant">
+                    The work, by milestone
+                  </h3>
+                  <div className="mt-3 space-y-4">
+                    {milestones.map((milestone) => {
+                      const milestoneTasks = tasks.filter(
+                        (task) =>
+                          taskMilestoneIdOf(task) === milestoneIdOf(milestone),
+                      );
+                      return (
+                        <div
+                          key={milestoneIdOf(milestone) || milestone.title}
+                          className={`rounded-xl border p-4 ${
+                            milestoneTasks.length
+                              ? "border-outline-variant/30"
+                              : "border-red-500/40 bg-red-500/5"
+                          }`}
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="font-medium text-on-surface">
+                              {milestone.title}
+                            </p>
+                            <span className="text-xs text-on-surface-variant">
+                              day {milestone.startDay ?? 0} ·{" "}
+                              {milestone.estimatedDays ?? 0} days ·{" "}
+                              {milestoneTasks.length} task
+                              {milestoneTasks.length === 1 ? "" : "s"}
+                            </span>
+                          </div>
+                          {milestone.description && (
+                            <p className="mt-1 text-sm text-on-surface-variant">
+                              {milestone.description}
+                            </p>
+                          )}
+                          {milestoneTasks.length === 0 ? (
+                            <p className="mt-2 text-sm font-medium text-red-600">
+                              No tasks — this scope is not planned.
+                            </p>
+                          ) : (
+                            <ul className="mt-3 space-y-2">
+                              {milestoneTasks.map((task) => (
+                                <li
+                                  key={task.clientKey ?? task.key ?? task.title}
+                                  className="rounded-lg bg-surface-container-low p-3"
+                                >
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <p className="text-sm font-medium text-on-surface">
+                                      {task.title}
+                                    </p>
+                                    <span
+                                      className={`text-xs ${
+                                        Number(task.estimatedHours ?? 0) > 40
+                                          ? "font-semibold text-amber-700"
+                                          : "text-on-surface-variant"
+                                      }`}
+                                    >
+                                      {task.roleKey ?? "unassigned role"} ·{" "}
+                                      {task.estimatedHours ?? 0}h
+                                      {task.budgetAmount != null &&
+                                        ` · ${task.budgetAmount} ${task.currency ?? ""}`}
+                                    </span>
+                                  </div>
+                                  {task.description && (
+                                    <p className="mt-1 text-sm text-on-surface-variant">
+                                      {task.description}
+                                    </p>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              );
+            })()}
+
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
+              <Button variant="outline" onClick={() => setOpenPlan(null)}>
+                Close
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const row = plans.find(
+                    (entry) => text(entry.id) === openPlan.id,
+                  );
+                  if (row) void decidePlan(row, "changes_requested");
+                  setOpenPlan(null);
+                }}
+              >
+                Request changes
+              </Button>
+              <Button
+                onClick={() => {
+                  const row = plans.find(
+                    (entry) => text(entry.id) === openPlan.id,
+                  );
+                  if (row) void decidePlan(row, "approved");
+                  setOpenPlan(null);
+                }}
+              >
+                Approve and start matching
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {openDeliverable && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setOpenDeliverable(null)}
+        >
+          <div
+            className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-surface-container-lowest p-6 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary-container">
+                  Deliverable under review
+                </p>
+                <h2 className="mt-1 text-2xl font-semibold text-on-surface">
+                  {openDeliverable.title ||
+                    openDeliverable.submissionType ||
+                    "Planning deliverable"}
+                </h2>
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  {openDeliverable.submissionType}
+                  {openDeliverable.version != null &&
+                    ` · version ${openDeliverable.version}`}
+                  {openDeliverable.freelancer?.name &&
+                    ` · ${openDeliverable.freelancer.name}`}
+                  {openDeliverable.submittedAt &&
+                    ` · submitted ${new Date(openDeliverable.submittedAt).toLocaleString()}`}
+                </p>
+              </div>
+              <div className="text-right">
+                <p
+                  className={`text-3xl font-semibold ${
+                    Number(openDeliverable.evaluationScore ?? 0) >= 80
+                      ? "text-green-600"
+                      : Number(openDeliverable.evaluationScore ?? 0) >= 50
+                        ? "text-amber-600"
+                        : "text-red-600"
+                  }`}
+                >
+                  {openDeliverable.evaluationScore != null
+                    ? `${Number(openDeliverable.evaluationScore)}`
+                    : "—"}
+                  <span className="text-base text-on-surface-variant">
+                    /100
+                  </span>
+                </p>
+                <p className="text-xs uppercase tracking-wide text-on-surface-variant">
+                  AI: {openDeliverable.evaluationRecommendation ?? "pending"}
+                </p>
+              </div>
+            </div>
+
+            {openDeliverable.summary && (
+              <div className="mt-5 rounded-xl bg-surface-container-low p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+                  Freelancer&apos;s summary
+                </p>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-on-surface">
+                  {openDeliverable.summary}
+                </p>
+              </div>
+            )}
+
+            {(openDeliverable.evaluationResult?.risks?.length ?? 0) > 0 && (
+              <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/5 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-red-600">
+                  Risks the AI raised
+                </p>
+                <ul className="mt-1 list-disc pl-5 text-sm text-on-surface">
+                  {openDeliverable.evaluationResult?.risks?.map((risk) => (
+                    <li key={risk}>{risk}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <h3 className="mt-6 text-sm font-semibold uppercase tracking-wide text-on-surface-variant">
+              Requirement by requirement
+            </h3>
+            <p className="mb-3 text-xs text-on-surface-variant">
+              What the freelancer wrote, next to the AI&apos;s verdict on it. You
+              decide — the AI only recommends.
+            </p>
+
+            <div className="space-y-3">
+              {requirementRows(openDeliverable).map((row) => (
+                <div
+                  key={row.key}
+                  className={`rounded-xl border p-4 ${verdictTone(row.status)}`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-medium text-on-surface">{row.title}</p>
+                    <span className="rounded-full bg-surface-container px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-on-surface">
+                      {verdictLabel(row.status)}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+                        Submitted
+                      </p>
+                      {row.disposition === "not_applicable" ? (
+                        <p className="mt-1 text-sm italic text-on-surface-variant">
+                          Marked not applicable
+                          {row.notApplicableReason
+                            ? `: ${row.notApplicableReason}`
+                            : "."}
+                        </p>
+                      ) : row.submitted ? (
+                        <p className="mt-1 whitespace-pre-wrap text-sm text-on-surface">
+                          {row.submitted}
+                        </p>
+                      ) : (
+                        <p className="mt-1 text-sm italic text-on-surface-variant">
+                          Nothing submitted for this requirement.
+                        </p>
+                      )}
+                      {row.urls.length > 0 && (
+                        <ul className="mt-2 space-y-1">
+                          {row.urls.map((url) => (
+                            <li key={url}>
+                              {isHttpUrl(url) ? (
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-sm text-primary-container underline break-all"
+                                >
+                                  {url}
+                                </a>
+                              ) : (
+                                <span className="text-sm text-red-600 break-all">
+                                  {url} (not a usable link)
+                                </span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+                        AI assessment
+                      </p>
+                      {row.evidence && (
+                        <p className="mt-1 text-sm text-on-surface">
+                          {row.evidence}
+                        </p>
+                      )}
+                      {row.feedback && (
+                        <p className="mt-2 text-sm text-on-surface-variant">
+                          <span className="font-medium">What to fix: </span>
+                          {row.feedback}
+                        </p>
+                      )}
+                      {!row.evidence && !row.feedback && (
+                        <p className="mt-1 text-sm italic text-on-surface-variant">
+                          No assessment recorded.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setOpenDeliverable(null)}
+              >
+                Close
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const row = planning.find(
+                    (entry) => text(entry.id) === openDeliverable.id,
+                  );
+                  if (row) void decidePlanning(row, "changes_requested");
+                  setOpenDeliverable(null);
+                }}
+              >
+                Request changes
+              </Button>
+              <Button
+                onClick={() => {
+                  const row = planning.find(
+                    (entry) => text(entry.id) === openDeliverable.id,
+                  );
+                  if (row) void decidePlanning(row, "approved");
+                  setOpenDeliverable(null);
+                }}
+              >
+                Approve
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {selectedMatchingRun && (
         <div
           className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4"
@@ -805,7 +1389,7 @@ export default function ReviewerProjectPage() {
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-primary-container">
-                  Principal reviewer selection
+                  Your decision as principal reviewer
                 </p>
                 <h2 className="mt-1 text-2xl font-semibold text-on-surface">
                   {selectedMatchingRun.targetType === "task"
@@ -813,7 +1397,7 @@ export default function ReviewerProjectPage() {
                     : roleLabel(selectedMatchingRun.targetRoleKey)}
                 </h2>
                 <p className="mt-2 max-w-3xl text-sm text-on-surface-variant">
-                  {selectedMatchingRun.summary ||
+                  {readableSummary(selectedMatchingRun.summary) ||
                     "Compare the ranked evidence and select one freelancer."}
                 </p>
               </div>
@@ -879,6 +1463,24 @@ export default function ReviewerProjectPage() {
             <div className="mt-6 grid gap-4 xl:grid-cols-3">
               {selectedMatchingRun.candidates.map((candidate) => {
                 const profile = candidate.freelancer;
+                // Which candidate leads on each scored dimension. Comparing two
+                // columns of bare numbers by eye was the hard part of this
+                // screen. See ISSUES.md #24.
+                const hasRival = selectedMatchingRun.candidates.length > 1;
+                const bestByDimension: Record<string, number> = {};
+                for (const other of selectedMatchingRun.candidates) {
+                  for (const [key, value] of Object.entries(
+                    other.scoreBreakdown ?? {},
+                  )) {
+                    const numeric =
+                      typeof value === "number" ? value : Number(value);
+                    if (!Number.isFinite(numeric)) continue;
+                    bestByDimension[key] = Math.max(
+                      bestByDimension[key] ?? Number.NEGATIVE_INFINITY,
+                      numeric,
+                    );
+                  }
+                }
                 const inviteOpen = [
                   "pending",
                   "accepting",
@@ -946,7 +1548,11 @@ export default function ReviewerProjectPage() {
                       />
                       <Metric
                         icon={<CheckCircle2 size={14} />}
-                        label={`${profile?.performanceScore ?? 0}% performance`}
+                        label={
+                          (profile?.completedTasks ?? 0) > 0
+                            ? `${profile?.performanceScore ?? 0}% performance`
+                            : "No delivery history"
+                        }
                       />
                     </div>
 
@@ -954,28 +1560,43 @@ export default function ReviewerProjectPage() {
                       <div className="mt-4 grid grid-cols-2 gap-2">
                         {Object.entries(candidate.scoreBreakdown)
                           .slice(0, 8)
-                          .map(([key, value]) => (
-                            <div
-                              key={key}
-                              className="rounded-lg border border-outline-variant/20 p-2"
-                            >
-                              <p className="text-[10px] uppercase tracking-wide text-on-surface-variant">
-                                {key.replaceAll("_", " ")}
-                              </p>
-                              <p className="mt-0.5 text-sm font-medium text-on-surface">
-                                {typeof value === "number" ||
-                                typeof value === "string"
-                                  ? String(value)
-                                  : "Available"}
-                              </p>
-                            </div>
-                          ))}
+                          .map(([key, value]) => {
+                            const numeric =
+                              typeof value === "number" ? value : Number(value);
+                            const best = bestByDimension[key];
+                            const leads =
+                              Number.isFinite(numeric) &&
+                              best != null &&
+                              numeric >= best &&
+                              hasRival;
+                            return (
+                              <div
+                                key={key}
+                                className={`rounded-lg border p-2 ${
+                                  leads
+                                    ? "border-primary-container/50 bg-primary-container/5"
+                                    : "border-outline-variant/20"
+                                }`}
+                              >
+                                <p className="text-[10px] uppercase tracking-wide text-on-surface-variant">
+                                  {key.replaceAll("_", " ")}
+                                  {leads && " · leads"}
+                                </p>
+                                <p className="mt-0.5 text-sm font-medium text-on-surface">
+                                  {Number.isFinite(numeric)
+                                    ? `${numeric} of ${Math.round(Number(candidate.score))} pts`
+                                    : "Available"}
+                                </p>
+                              </div>
+                            );
+                          })}
                       </div>
                     )}
 
                     <div className="mt-4 rounded-lg bg-surface-container-lowest p-3 text-sm text-on-surface-variant">
                       <p>
-                        Rate: {money(profile?.hourlyRate)} / hour · assessment:{" "}
+                        Rate: {money(profile?.hourlyRate)}{" "}
+                        {profile?.hourlyRateCurrency ?? ""} / hour · assessment:{" "}
                         {score(profile?.assessmentScore)}
                       </p>
                       <p className="mt-1">
@@ -1246,6 +1867,9 @@ function ReviewRow({
   working,
   onApprove,
   onChanges,
+  onOpen,
+  openLabel = "Open",
+  approveDisabledReason,
   approveLabel = "Approve",
   changesLabel = "Request changes",
 }: {
@@ -1255,6 +1879,11 @@ function ReviewRow({
   working: boolean;
   onApprove: () => void;
   onChanges: () => void;
+  /** Opens the full deliverable. Rows without it behave as before. */
+  onOpen?: () => void;
+  openLabel?: string;
+  /** When set, Approve is disabled and this explains why. ISSUES.md #30. */
+  approveDisabledReason?: string;
   approveLabel?: string;
   changesLabel?: string;
 }) {
@@ -1270,9 +1899,30 @@ function ReviewRow({
             {detail}
           </p>
         )}
+        {approveDisabledReason && (
+          <p className="mt-1 text-xs text-on-surface-variant">
+            {approveDisabledReason}
+          </p>
+        )}
       </div>
       <div className="flex gap-2">
-        <Button size="sm" loading={working} onClick={onApprove}>
+        {onOpen && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={working}
+            onClick={onOpen}
+          >
+            {openLabel}
+          </Button>
+        )}
+        <Button
+          size="sm"
+          loading={working}
+          disabled={Boolean(approveDisabledReason)}
+          title={approveDisabledReason}
+          onClick={onApprove}
+        >
           {approveLabel}
         </Button>
         <Button
