@@ -138,6 +138,16 @@ export default function AdminProjectsPage() {
                       <StatusBadge
                         status={project.automationStatus ?? "unknown"}
                       />
+                      {project.automationError && (
+                        <div className="mt-2 max-w-sm rounded-lg border border-error/20 bg-error/5 p-2 text-xs leading-5 text-error">
+                          {project.automationErrorCategory && (
+                            <p className="font-semibold uppercase tracking-wide">
+                              {project.automationErrorCategory.replace(/_/g, " ")}
+                            </p>
+                          )}
+                          <p>{project.automationError}</p>
+                        </div>
+                      )}
                     </td>
                     <td className="p-4">
                       {project.createdAt ? formatDate(project.createdAt) : "—"}

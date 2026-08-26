@@ -43,8 +43,10 @@
 
   --color-gold: #c9a227;
 
-  --font-headline: var(--font-manrope), ui-sans-serif, sans-serif;
-  --font-body: var(--font-hanken), ui-sans-serif, sans-serif;
+  /* Self-contained system stacks keep production builds deterministic and
+     preserve Arabic/Latin coverage without runtime font downloads. */
+  --font-headline: "Avenir Next", Avenir, "Segoe UI", Arial, ui-sans-serif, sans-serif;
+  --font-body: Inter, "Noto Sans Arabic", "Segoe UI", Tahoma, Arial, ui-sans-serif, sans-serif;
 }
 
 body {

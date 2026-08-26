@@ -20,6 +20,7 @@ import {
   Star,
   MailCheck,
   UserCheck,
+  AlertTriangle,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Logo } from "@/components/common/logo";
@@ -148,6 +149,11 @@ const NAV_ITEMS: Record<UserRole, NavItem[]> = {
       label: "Agent Jobs",
       href: "/dashboard/admin/agent-jobs",
       icon: <ListChecks size={20} />,
+    },
+    {
+      label: "Automation Issues",
+      href: "/dashboard/admin/automation-incidents",
+      icon: <AlertTriangle size={20} />,
     },
     {
       label: "Reviews",

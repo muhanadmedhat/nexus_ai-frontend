@@ -92,6 +92,26 @@ interface BackendReopenBriefResponse {
   messages: BackendBriefMessage[];
 }
 
+export interface BriefDocument {
+  id: string;
+  briefId: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  sha256: string;
+  status: "queued" | "processing" | "processed" | "failed";
+  scanStatus: "clean" | "skipped";
+  processingAttempts: number;
+  processedAt: string | null;
+  extractedFields: Record<string, unknown> | null;
+  summary: string | null;
+  warnings: string[] | null;
+  error: string | null;
+  downloadAvailable: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 function humanizeField(field: string): string {
   return field
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
@@ -337,6 +357,62 @@ export async function getBriefMessages(projectId: string): Promise<BriefMessage[
     return data.map(toBriefMessage);
   } catch (error) {
     throw new Error(getApiErrorMessage(error, "Could not load brief messages"));
+  }
+}
+
+export async function getBriefDocuments(
+  projectId: string,
+): Promise<BriefDocument[]> {
+  try {
+    const { data } = await api.get<BriefDocument[]>(
+      API_ENDPOINTS.projects.briefDocuments(projectId),
+    );
+    return data;
+  } catch (error) {
+    throw new Error(
+      getApiErrorMessage(error, "Could not load requirements documents"),
+    );
+  }
+}
+
+export async function uploadBriefDocument(
+  projectId: string,
+  file: File,
+): Promise<{
+  brief: Brief;
+  messages: BriefMessage[];
+  documents: BriefDocument[];
+}> {
+  const form = new FormData();
+  form.append("file", file);
+  try {
+    await api.post(API_ENDPOINTS.projects.briefDocuments(projectId), form);
+    const [brief, messages, documents] = await Promise.all([
+      getBrief(projectId),
+      getBriefMessages(projectId),
+      getBriefDocuments(projectId),
+    ]);
+    return { brief, messages, documents };
+  } catch (error) {
+    throw new Error(
+      getApiErrorMessage(error, "Could not import requirements document"),
+    );
+  }
+}
+
+export async function getBriefDocumentDownload(
+  projectId: string,
+  documentId: string,
+): Promise<{ url: string; expiresAt: string }> {
+  try {
+    const { data } = await api.get<{ url: string; expiresAt: string }>(
+      API_ENDPOINTS.projects.briefDocumentDownload(projectId, documentId),
+    );
+    return data;
+  } catch (error) {
+    throw new Error(
+      getApiErrorMessage(error, "Could not download requirements document"),
+    );
   }
 }
 

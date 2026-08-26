@@ -168,6 +168,31 @@ export interface ProjectPaymentSummary {
     isOutOfBudget: boolean;
   };
   budgetAllocation: ProjectBudgetAllocation | null;
+  quoteEvidence: {
+    schemaVersion: number;
+    estimatorVersion: string;
+    generatedAt: string;
+    source: string;
+    currency: string;
+    confidence: number;
+    complexity: string;
+    scopeHash: string;
+    roleEstimates: Array<{
+      roleKey: string;
+      people: number;
+      hoursEach: number;
+      hourlyRate: number;
+      subtotal: number;
+    }>;
+    assumptions: string[];
+    pricingSignals: string[];
+    sources: Array<{
+      reference: string;
+      domain: string | null;
+      capturedAt: string;
+      evidenceType: string;
+    }>;
+  } | null;
   totals: {
     paidAmount: number;
     pendingAmount: number;

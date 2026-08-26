@@ -33,6 +33,10 @@ export const API_ENDPOINTS = {
     brief: (projectId: string) => `/projects/${projectId}/brief`,
     briefMessages: (projectId: string) =>
       `/projects/${projectId}/brief/messages`,
+    briefDocuments: (projectId: string) =>
+      `/projects/${projectId}/brief/documents`,
+    briefDocumentDownload: (projectId: string, documentId: string) =>
+      `/projects/${projectId}/brief/documents/${documentId}/download`,
     briefReopen: (projectId: string) => `/projects/${projectId}/brief/reopen`,
     briefConfirm: (projectId: string) => `/projects/${projectId}/brief/confirm`,
   },
@@ -68,6 +72,7 @@ export const API_ENDPOINTS = {
     agentsOverview: "/admin/agents/overview",
     agentJobs: "/admin/agent-jobs",
     agentJobDetail: (id: string) => `/admin/agent-jobs/${id}`,
+    automationIncidents: "/admin/automation/incidents",
     assessmentDetail: (id: string) => `/admin/assessments/${id}`,
     assessmentReview: (id: string) => `/admin/assessments/${id}/review`,
   },
@@ -135,6 +140,7 @@ export const sprint4Endpoints = {
   },
   adminSprint4: {
     matchingRuns: "/admin/matching/runs",
+    matchingDiagnostics: "/admin/matching/diagnostics",
     planningSubmissions: "/admin/planning/submissions",
     projectPlans: "/admin/project-plans",
     payments: "/admin/payments",

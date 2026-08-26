@@ -12,11 +12,14 @@ import {
   CheckCircle2,
   Circle,
   CreditCard,
+  Download,
   Edit3,
+  FileText,
   Loader2,
   RefreshCcw,
   Save,
   Send,
+  Upload,
   X,
 } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
@@ -24,10 +27,14 @@ import { useAuth } from "@/hooks/use-auth";
 import {
   confirmBrief,
   getBrief,
+  getBriefDocuments,
+  getBriefDocumentDownload,
   getBriefMessages,
   reopenBriefAiHelp,
   sendBriefMessage,
   updateBrief,
+  uploadBriefDocument,
+  type BriefDocument,
 } from "@/services/brief";
 import { getProject } from "@/services/projects";
 import type {
@@ -88,6 +95,18 @@ const EMPTY_BRIEF_FIELDS: BriefFieldValues = {
 };
 
 const BRIEF_CHANGE_LOCKED_STATUSES: ProjectStatus[] = [
+  "planning_matching",
+  "planning_assigned",
+  "planning_in_progress",
+  "planning_review",
+  "implementation_ready",
+  "matching",
+  "matched",
+  "in_review",
+  "spec_in_progress",
+  "spec_under_review",
+  "spec_complete",
+  "scoped",
   "assigned",
   "active",
   "under_review",
@@ -117,17 +136,21 @@ export default function RequirementsPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [uploadingDocument, setUploadingDocument] = useState(false);
+  const [documents, setDocuments] = useState<BriefDocument[]>([]);
   const [editingBrief, setEditingBrief] = useState(false);
   const [savingBrief, setSavingBrief] = useState(false);
   const [formFields, setFormFields] =
     useState<BriefFieldValues>(EMPTY_BRIEF_FIELDS);
   const [loadError, setLoadError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const documentInputRef = useRef<HTMLInputElement>(null);
 
   const progress = brief?.completionPercent ?? 0;
   const missingFields = useMemo(() => brief?.missingFields ?? [], [brief]);
   const canChangeBrief = project
-    ? !BRIEF_CHANGE_LOCKED_STATUSES.includes(project.status)
+    ? project.quoteStatus !== "accepted" &&
+      !BRIEF_CHANGE_LOCKED_STATUSES.includes(project.status)
     : true;
   const chatLocked = Boolean(brief?.isComplete && !brief.aiRevisionOpen);
 
@@ -144,14 +167,18 @@ export default function RequirementsPage() {
     getProject(id)
       .then(async (nextProject) => {
         const nextBrief = await getBrief(id);
-        const nextMessages = await getBriefMessages(id);
-        return { nextProject, nextBrief, nextMessages };
+        const [nextMessages, nextDocuments] = await Promise.all([
+          getBriefMessages(id),
+          getBriefDocuments(id),
+        ]);
+        return { nextProject, nextBrief, nextMessages, nextDocuments };
       })
-      .then(({ nextProject, nextMessages, nextBrief }) => {
+      .then(({ nextProject, nextMessages, nextBrief, nextDocuments }) => {
         if (!active) return;
         setProject(nextProject);
         setMessages(nextMessages);
         setBrief(nextBrief);
+        setDocuments(nextDocuments);
         setFormFields(nextBrief.fields);
       })
       .catch((error) => {
@@ -170,6 +197,28 @@ export default function RequirementsPage() {
       active = false;
     };
   }, [id, user?.role]);
+
+  useEffect(() => {
+    if (!id || !documents.some((document) => ["queued", "processing"].includes(document.status))) {
+      return;
+    }
+    let active = true;
+    const timer = window.setInterval(() => {
+      Promise.all([getBriefDocuments(id), getBriefMessages(id), getBrief(id)])
+        .then(([nextDocuments, nextMessages, nextBrief]) => {
+          if (!active) return;
+          setDocuments(nextDocuments);
+          setMessages(nextMessages);
+          setBrief(nextBrief);
+          if (!editingBrief) setFormFields(nextBrief.fields);
+        })
+        .catch(() => undefined);
+    }, 3_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [documents, editingBrief, id]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
@@ -224,6 +273,42 @@ export default function RequirementsPage() {
       );
     } finally {
       setSending(false);
+    }
+  };
+
+  const onDocumentSelected = async (file: File | undefined) => {
+    if (!file || uploadingDocument || !canChangeBrief) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Document is too large", "Choose a file smaller than 10 MB.");
+      return;
+    }
+
+    setUploadingDocument(true);
+    try {
+      const result = await uploadBriefDocument(id, file);
+      setBrief(result.brief);
+      setMessages(result.messages);
+      setDocuments(result.documents);
+      setFormFields(result.brief.fields);
+      toast.success(
+        result.documents.some((document) => ["queued", "processing"].includes(document.status))
+          ? "Document queued securely"
+          : "Requirements imported",
+        "The page will update automatically after secure background processing.",
+      );
+    } catch (error) {
+      try {
+        setDocuments(await getBriefDocuments(id));
+      } catch {
+        // Keep the original upload error visible even if status refresh fails.
+      }
+      toast.error(
+        "Could not import document",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+    } finally {
+      setUploadingDocument(false);
+      if (documentInputRef.current) documentInputRef.current.value = "";
     }
   };
 
@@ -407,6 +492,33 @@ export default function RequirementsPage() {
             </div>
 
             <div className="border-t border-outline-variant/30 bg-surface-container-lowest p-3 md:p-4">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs leading-5 text-on-surface-variant">
+                  Have an SRS or notes? Import them and I’ll ask only what is missing.
+                </p>
+                <input
+                  ref={documentInputRef}
+                  type="file"
+                  accept=".pdf,.docx,.txt,.md,.json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,application/json"
+                  className="hidden"
+                  onChange={(event) =>
+                    onDocumentSelected(event.target.files?.[0])
+                  }
+                />
+                <button
+                  type="button"
+                  onClick={() => documentInputRef.current?.click()}
+                  disabled={uploadingDocument || loading || !canChangeBrief}
+                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-outline-variant px-3 text-xs font-semibold text-on-surface hover:border-primary-container hover:text-primary-container disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {uploadingDocument ? (
+                    <Loader2 size={15} className="animate-spin" />
+                  ) : (
+                    <Upload size={15} />
+                  )}
+                  Import document
+                </button>
+              </div>
               <div className="grid grid-cols-[minmax(0,4fr)_minmax(3.75rem,1fr)] items-end gap-2 sm:gap-3">
                 <textarea
                   value={input}
@@ -498,6 +610,85 @@ export default function RequirementsPage() {
               )}
             </section>
 
+            {documents.length > 0 && (
+              <section className="min-w-0 rounded-lg border border-outline-variant/30 bg-surface-container-lowest p-4 card-shadow sm:p-5">
+                <h3 className="mb-3 font-headline text-base font-semibold text-on-surface">
+                  Imported documents
+                </h3>
+                <div className="space-y-3">
+                  {documents.map((document) => (
+                    <div
+                      key={document.id}
+                      className="rounded-lg border border-outline-variant/30 bg-surface-container-low p-3"
+                    >
+                      <div className="flex min-w-0 items-center gap-2">
+                        <FileText
+                          size={16}
+                          className="shrink-0 text-primary-container"
+                        />
+                        <span className="min-w-0 truncate text-sm font-semibold text-on-surface">
+                          {document.fileName}
+                        </span>
+                        {document.downloadAvailable && (
+                          <button
+                            type="button"
+                            className="shrink-0 text-primary-container hover:text-primary"
+                            aria-label={`Download ${document.fileName}`}
+                            onClick={() => {
+                              void getBriefDocumentDownload(id, document.id)
+                                .then(({ url }) => {
+                                  const link = window.document.createElement("a");
+                                  link.href = url;
+                                  link.target = "_blank";
+                                  link.rel = "noopener noreferrer";
+                                  link.click();
+                                })
+                                .catch((error) =>
+                                  toast.error(
+                                    "Could not download document",
+                                    error instanceof Error ? error.message : "Please try again.",
+                                  ),
+                                );
+                            }}
+                          >
+                            <Download size={15} />
+                          </button>
+                        )}
+                        <span
+                          className={clsx(
+                            "ml-auto shrink-0 text-[11px] font-semibold uppercase",
+                            document.status === "failed"
+                              ? "text-error"
+                              : "text-primary-container",
+                          )}
+                        >
+                          {document.status}
+                        </span>
+                      </div>
+                      {document.summary && (
+                        <p className="mt-2 text-xs leading-5 text-on-surface-variant">
+                          {document.summary}
+                        </p>
+                      )}
+                      {document.warnings?.map((warning) => (
+                        <p
+                          key={warning}
+                          className="mt-1 text-xs leading-5 text-tertiary"
+                        >
+                          {warning}
+                        </p>
+                      ))}
+                      {document.error && (
+                        <p className="mt-1 text-xs leading-5 text-error">
+                          {document.error}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
             {brief?.isComplete && (
               <section className="min-w-0 rounded-lg border border-outline-variant/30 bg-surface-container-lowest p-4 card-shadow sm:p-5">
                 <div className="mb-4 flex items-start justify-between gap-3">
@@ -539,8 +730,9 @@ export default function RequirementsPage() {
 
                 {!canChangeBrief && (
                   <p className="mb-3 rounded-lg border border-outline-variant/30 bg-surface-container-high px-3 py-2 text-xs leading-5 text-on-surface-variant">
-                    This brief is locked because the project has moved past
-                    assignment.
+                    {project?.quoteStatus === "accepted"
+                      ? "This brief is locked because it defines the funded scope. Later changes need a reviewed scope and budget adjustment."
+                      : "This brief is locked because the project has moved into planning or delivery."}
                   </p>
                 )}
 

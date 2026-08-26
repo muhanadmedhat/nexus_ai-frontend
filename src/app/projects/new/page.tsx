@@ -14,12 +14,17 @@ import { useToast } from "@/components/ui/toast";
 
 const schema = z
   .object({
-    title: z.string().min(1, "Project title is required"),
-    description: z.string().min(1, "Add a short description"),
-    budgetMin: z.number({ message: "Enter a number" }).min(0, "Must be ≥ 0"),
-    budgetMax: z.number({ message: "Enter a number" }).min(0, "Must be ≥ 0"),
+    title: z.string().trim().min(1, "Project title is required").max(255),
+    description: z.string().trim().min(1, "Add a short description").max(2000),
+    budgetMin: z.number({ message: "Enter a number" }).min(0, "Must be ≥ 0").max(9_999_999_999.99),
+    budgetMax: z.number({ message: "Enter a number" }).positive("Must be greater than 0").max(9_999_999_999.99),
     currency: z.enum(["EGP", "USD", "EUR"]),
-    deadline: z.string().min(1, "Pick a deadline"),
+    deadline: z.string().min(1, "Pick a deadline").refine((value) => {
+      const selected = new Date(`${value}T00:00:00Z`);
+      const today = new Date();
+      const minimum = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + 3));
+      return !Number.isNaN(selected.getTime()) && selected >= minimum;
+    }, "Deadline must be at least 3 days from today"),
     isDeadlineFlexible: z.boolean(),
   })
   .refine((v) => v.budgetMax >= v.budgetMin, {
@@ -32,6 +37,11 @@ type FormValues = z.infer<typeof schema>;
 export default function NewProjectPage() {
   const router = useRouter();
   const toast = useToast();
+  const minimumDeadline = (() => {
+    const value = new Date();
+    value.setUTCDate(value.getUTCDate() + 3);
+    return value.toISOString().slice(0, 10);
+  })();
 
   const {
     register,
@@ -125,6 +135,7 @@ export default function NewProjectPage() {
         <Input
           label="Deadline"
           type="date"
+          min={minimumDeadline}
           {...register("deadline")}
           error={errors.deadline?.message}
         />

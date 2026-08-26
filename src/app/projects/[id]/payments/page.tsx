@@ -304,6 +304,41 @@ export default function ProjectPaymentsPage() {
             </section>
           )}
 
+          {summary.quoteEvidence && (
+            <details className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 card-shadow">
+              <summary className="font-headline text-lg font-semibold text-on-surface">
+                Pricing evidence and assumptions
+              </summary>
+              <p className="mt-2 text-sm text-on-surface-variant">
+                Immutable quote snapshot · {summary.quoteEvidence.estimatorVersion} · {Math.round(summary.quoteEvidence.confidence * 100)}% confidence
+              </p>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {summary.quoteEvidence.roleEstimates.map((role) => (
+                  <div key={role.roleKey} className="rounded-lg bg-surface-container-low p-3 text-sm text-on-surface">
+                    <span className="font-semibold">{role.roleKey.replaceAll("_", " ")}</span>
+                    <span className="block text-on-surface-variant">
+                      {role.people} × {role.hoursEach}h × {formatMoney(role.hourlyRate, summary.quoteEvidence?.currency)}/h
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-on-surface-variant">
+                {summary.quoteEvidence.pricingSignals.map((signal) => <li key={signal}>{signal}</li>)}
+              </ul>
+              <div className="mt-4 flex flex-wrap gap-3 text-sm">
+                {summary.quoteEvidence.sources.map((source) =>
+                  source.domain ? (
+                    <a key={source.reference} href={source.reference} target="_blank" rel="noreferrer" className="font-semibold text-primary-container hover:underline">
+                      {source.domain}
+                    </a>
+                  ) : (
+                    <span key={source.reference} className="text-on-surface-variant">{source.reference}</span>
+                  ),
+                )}
+              </div>
+            </details>
+          )}
+
           {summary.totals.paidAmount <= 0 &&
             summary.totals.pendingAmount <= 0 && (
               <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 card-shadow">

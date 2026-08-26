@@ -336,6 +336,9 @@ export interface AdminProjectSummary {
   title: string;
   status: string;
   automationStatus?: string;
+  automationError?: string | null;
+  automationErrorCategory?: string | null;
+  automationErrorAt?: string | null;
   createdAt?: string;
   deadline?: string | null;
   budgetMin?: string | number | null;
@@ -671,6 +674,25 @@ export async function getAdminMatchingRuns(params?: {
   const { data } = await api.get<AdminQueueResponse<AdminQueueItem>>(
     `${sprint4Endpoints.adminSprint4.matchingRuns}?${query.toString()}`,
   );
+  return data;
+}
+
+export interface AdminMatchingDiagnostic {
+  projectId: string;
+  projectTitle: string | null;
+  projectStatus: string;
+  automationStatus: string;
+  category: string | null;
+  error: string | null;
+  actionRequired: string | null;
+  occurredAt: string | null;
+  updatedAt: string;
+}
+
+export async function getAdminMatchingDiagnostics() {
+  const { data } = await api.get<
+    AdminQueueResponse<AdminMatchingDiagnostic>
+  >(sprint4Endpoints.adminSprint4.matchingDiagnostics);
   return data;
 }
 

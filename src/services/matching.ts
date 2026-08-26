@@ -14,6 +14,12 @@ export interface MatchingRun {
   targetRoleKey: string;
   status: string;
   summary: string;
+  error?: string | null;
+  failureCategory?: string | null;
+  actionRequired?: string | null;
+  projectAutomationStatus?: string | null;
+  projectAutomationError?: string | null;
+  projectAutomationErrorCategory?: string | null;
   candidateCount: number;
   selectedCandidateId?: string | null;
   reviewedBy?: string | null;
