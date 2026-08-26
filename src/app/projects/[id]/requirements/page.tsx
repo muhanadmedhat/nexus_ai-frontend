@@ -16,6 +16,7 @@ import {
   Edit3,
   FileText,
   Loader2,
+  MessageCircle,
   RefreshCcw,
   Save,
   Send,
@@ -138,6 +139,9 @@ export default function RequirementsPage() {
   const [sending, setSending] = useState(false);
   const [uploadingDocument, setUploadingDocument] = useState(false);
   const [documents, setDocuments] = useState<BriefDocument[]>([]);
+  const [intakeChoice, setIntakeChoice] = useState<
+    "document" | "chat" | null
+  >(null);
   const [editingBrief, setEditingBrief] = useState(false);
   const [savingBrief, setSavingBrief] = useState(false);
   const [formFields, setFormFields] =
@@ -153,6 +157,40 @@ export default function RequirementsPage() {
       !BRIEF_CHANGE_LOCKED_STATUSES.includes(project.status)
     : true;
   const chatLocked = Boolean(brief?.isComplete && !brief.aiRevisionOpen);
+  const guidedChatStarted = useMemo(
+    () =>
+      messages.some(
+        (message) =>
+          message.senderType === "customer" &&
+          !message.metadata?.briefDocumentId,
+      ),
+    [messages],
+  );
+  const documentIntakeStarted = documents.length > 0;
+  const activeDocumentIntake = documents.some(
+    (document) => document.status !== "failed",
+  );
+  const pendingDocument = documents.some((document) =>
+    ["queued", "processing"].includes(document.status),
+  );
+  const processedDocument = documents.some(
+    (document) => document.status === "processed",
+  );
+  const failedDocumentOnly =
+    documentIntakeStarted &&
+    documents.every((document) => document.status === "failed");
+  const intakeMode = guidedChatStarted
+    ? "chat"
+    : activeDocumentIntake
+      ? "document"
+      : intakeChoice;
+  const showIntakeChoice = !loading && intakeMode === null;
+  const showDocumentStage =
+    !loading && intakeMode === "document" && !processedDocument;
+  const showChatStage =
+    !loading &&
+    (intakeMode === "chat" ||
+      (intakeMode === "document" && processedDocument && !pendingDocument));
 
   useEffect(() => {
     if (!id || user?.role !== "customer") return;
@@ -229,7 +267,7 @@ export default function RequirementsPage() {
 
   const onSend = async () => {
     const text = input.trim();
-    if (!text || sending || chatLocked) return;
+    if (!text || sending || chatLocked || !showChatStage || pendingDocument) return;
 
     const optimisticId = `optimistic-${Date.now()}`;
     const optimisticMessage: BriefMessage = {
@@ -237,6 +275,7 @@ export default function RequirementsPage() {
       briefId: brief?.id ?? id,
       senderType: "customer",
       message: text,
+      metadata: null,
       createdAt: new Date().toISOString(),
     };
 
@@ -261,6 +300,7 @@ export default function RequirementsPage() {
         return [...withoutOptimistic, ...newMessages];
       });
       setBrief(nextBrief);
+      setIntakeChoice("chat");
       if (!editingBrief) setFormFields(nextBrief.fields);
     } catch (err) {
       setMessages((current) =>
@@ -284,6 +324,7 @@ export default function RequirementsPage() {
     }
 
     setUploadingDocument(true);
+    setIntakeChoice("document");
     try {
       const result = await uploadBriefDocument(id, file);
       setBrief(result.brief);
@@ -425,6 +466,14 @@ export default function RequirementsPage() {
               </h2>
             </div>
 
+            <input
+              ref={documentInputRef}
+              type="file"
+              accept=".pdf,.docx,.txt,.md,.json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,application/json"
+              className="hidden"
+              onChange={(event) => onDocumentSelected(event.target.files?.[0])}
+            />
+
             <div
               ref={scrollRef}
               className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3 sm:p-4 md:p-6"
@@ -432,6 +481,115 @@ export default function RequirementsPage() {
               {loading ? (
                 <div className="flex h-full min-h-[360px] items-center justify-center text-on-surface-variant">
                   <Loader2 size={24} className="animate-spin" />
+                </div>
+              ) : showIntakeChoice ? (
+                <div className="mx-auto flex h-full w-full max-w-3xl flex-col justify-center py-6">
+                  <div className="text-center">
+                    <h3 className="font-headline text-xl font-semibold text-on-surface sm:text-2xl">
+                      How would you like to start?
+                    </h3>
+                    <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-on-surface-variant sm:text-base sm:leading-7">
+                      Import an existing brief first, or let the requirements agent
+                      guide you from the beginning. Document import is only available
+                      before the chat starts.
+                    </p>
+                  </div>
+
+                  <div className="mt-6 grid gap-3 sm:grid-cols-2 sm:gap-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIntakeChoice("document");
+                        documentInputRef.current?.click();
+                      }}
+                      disabled={!canChangeBrief}
+                      className="group rounded-xl border border-outline-variant/50 bg-surface-container-low p-5 text-left transition hover:border-primary-container hover:bg-primary-container/5 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary-container/10 text-primary-container">
+                        <Upload size={21} />
+                      </span>
+                      <span className="mt-4 block font-headline text-base font-semibold text-on-surface">
+                        Import a document
+                      </span>
+                      <span className="mt-1.5 block text-sm leading-6 text-on-surface-variant">
+                        Upload PDF, DOCX, TXT, Markdown, or JSON. We extract what is
+                        clear and ask only about missing details.
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setIntakeChoice("chat")}
+                      className="group rounded-xl border border-outline-variant/50 bg-surface-container-low p-5 text-left transition hover:border-primary-container hover:bg-primary-container/5"
+                    >
+                      <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary-container/10 text-primary-container">
+                        <MessageCircle size={21} />
+                      </span>
+                      <span className="mt-4 block font-headline text-base font-semibold text-on-surface">
+                        Start guided chat
+                      </span>
+                      <span className="mt-1.5 block text-sm leading-6 text-on-surface-variant">
+                        Describe the idea naturally. The agent explains product
+                        choices in plain language and builds the brief with you.
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              ) : showDocumentStage ? (
+                <div className="mx-auto flex h-full w-full max-w-2xl flex-col items-center justify-center py-6 text-center">
+                  <span className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-container/10 text-primary-container">
+                    {pendingDocument || uploadingDocument ? (
+                      <Loader2 size={25} className="animate-spin" />
+                    ) : (
+                      <FileText size={25} />
+                    )}
+                  </span>
+                  <h3 className="mt-4 font-headline text-xl font-semibold text-on-surface">
+                    {pendingDocument || uploadingDocument
+                      ? "Reading your requirements"
+                      : failedDocumentOnly
+                        ? "We could not read that document"
+                        : "Import your requirements first"}
+                  </h3>
+                  <p className="mt-2 max-w-xl text-sm leading-6 text-on-surface-variant sm:text-base sm:leading-7">
+                    {pendingDocument || uploadingDocument
+                      ? "We’ll bring you into the chat only if the document leaves important scope details unanswered. This page updates automatically."
+                      : failedDocumentOnly
+                        ? "You can try another file or continue with guided chat. A failed import does not change your brief."
+                        : "Choose one project-related document. After it is processed, the agent will ask only for information that is still missing."}
+                  </p>
+                  {!pendingDocument && !uploadingDocument && (
+                    <div className="mt-5 flex flex-wrap justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => documentInputRef.current?.click()}
+                        disabled={!canChangeBrief}
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-primary-container px-4 text-sm font-semibold text-on-primary hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Upload size={17} />
+                        {failedDocumentOnly ? "Try another document" : "Choose document"}
+                      </button>
+                      {failedDocumentOnly && (
+                        <button
+                          type="button"
+                          onClick={() => setIntakeChoice("chat")}
+                          className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-outline-variant px-4 text-sm font-semibold text-on-surface hover:border-primary-container hover:text-primary-container"
+                        >
+                          <MessageCircle size={17} />
+                          Continue with chat
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {!documentIntakeStarted && !uploadingDocument && (
+                    <button
+                      type="button"
+                      onClick={() => setIntakeChoice(null)}
+                      className="mt-3 text-sm font-semibold text-primary-container hover:text-primary"
+                    >
+                      Back to choices
+                    </button>
+                  )}
                 </div>
               ) : (
                 messages.map((message) => {
@@ -459,7 +617,7 @@ export default function RequirementsPage() {
                       >
                         <div
                           className={clsx(
-                            "max-w-full whitespace-pre-wrap break-words rounded-lg px-3 py-2.5 text-sm leading-6 shadow-sm [overflow-wrap:anywhere] sm:px-4 sm:py-3",
+                            "max-w-full whitespace-pre-wrap break-words rounded-lg px-3 py-2.5 text-[15px] leading-7 shadow-sm [overflow-wrap:anywhere] sm:px-4 sm:py-3 sm:text-base",
                             isAgent
                               ? "bg-surface-container-high text-on-surface"
                               : "bg-primary-container text-on-primary",
@@ -478,7 +636,7 @@ export default function RequirementsPage() {
                 })
               )}
 
-              {sending && (
+              {showChatStage && sending && (
                 <div className="flex min-w-0 gap-2 sm:gap-3">
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-container/10 text-primary-container sm:h-9 sm:w-9">
                     <Bot size={18} />
@@ -491,78 +649,53 @@ export default function RequirementsPage() {
               )}
             </div>
 
-            <div className="border-t border-outline-variant/30 bg-surface-container-lowest p-3 md:p-4">
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs leading-5 text-on-surface-variant">
-                  Have an SRS or notes? Import them and I’ll ask only what is missing.
-                </p>
-                <input
-                  ref={documentInputRef}
-                  type="file"
-                  accept=".pdf,.docx,.txt,.md,.json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,application/json"
-                  className="hidden"
-                  onChange={(event) =>
-                    onDocumentSelected(event.target.files?.[0])
-                  }
-                />
-                <button
-                  type="button"
-                  onClick={() => documentInputRef.current?.click()}
-                  disabled={uploadingDocument || loading || !canChangeBrief}
-                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-outline-variant px-3 text-xs font-semibold text-on-surface hover:border-primary-container hover:text-primary-container disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {uploadingDocument ? (
-                    <Loader2 size={15} className="animate-spin" />
-                  ) : (
-                    <Upload size={15} />
-                  )}
-                  Import document
-                </button>
-              </div>
-              <div className="grid grid-cols-[minmax(0,4fr)_minmax(3.75rem,1fr)] items-end gap-2 sm:gap-3">
-                <textarea
-                  value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      onSend();
+            {showChatStage && (
+              <div className="border-t border-outline-variant/30 bg-surface-container-lowest p-3 md:p-4">
+                <div className="grid grid-cols-[minmax(0,4fr)_minmax(3.75rem,1fr)] items-end gap-2 sm:gap-3">
+                  <textarea
+                    value={input}
+                    onChange={(event) => setInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault();
+                        onSend();
+                      }
+                    }}
+                    disabled={chatLocked || loading}
+                    placeholder={
+                      chatLocked
+                        ? "Brief complete. Edit fields or reopen AI help."
+                        : "Type your answer..."
                     }
-                  }}
-                  disabled={chatLocked || loading}
-                  placeholder={
-                    chatLocked
-                      ? "Brief complete. Edit fields or reopen AI help."
-                      : "Type your answer..."
-                  }
-                  rows={1}
-                  className="input-halo min-h-12 max-h-32 min-w-0 resize-none overflow-y-auto rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-3 text-sm leading-6 text-on-surface outline-none transition-all placeholder:text-outline/60 disabled:opacity-60 sm:px-4"
-                />
-                <button
-                  type="button"
-                  onClick={onSend}
-                  disabled={chatLocked || loading || sending || !input.trim()}
-                  aria-label="Send answer"
-                  title="Send answer"
-                  className="flex h-12 min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-lg bg-primary-container px-2 text-on-primary shadow-sm transition-all hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {sending ? (
-                    <Loader2 size={18} className="shrink-0 animate-spin" />
-                  ) : (
-                    <Send size={18} className="shrink-0" />
-                  )}
-                  <span className="hidden truncate text-sm font-semibold sm:inline">
-                    Send
-                  </span>
-                </button>
+                    rows={3}
+                    className="input-halo min-h-24 max-h-56 min-w-0 resize-y overflow-y-auto rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-3 text-base leading-7 text-on-surface outline-none transition-all placeholder:text-outline/60 disabled:opacity-60 sm:px-4"
+                  />
+                  <button
+                    type="button"
+                    onClick={onSend}
+                    disabled={chatLocked || loading || sending || !input.trim()}
+                    aria-label="Send answer"
+                    title="Send answer"
+                    className="flex h-14 min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-lg bg-primary-container px-2 text-on-primary shadow-sm transition-all hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {sending ? (
+                      <Loader2 size={18} className="shrink-0 animate-spin" />
+                    ) : (
+                      <Send size={18} className="shrink-0" />
+                    )}
+                    <span className="hidden truncate text-sm font-semibold sm:inline">
+                      Send
+                    </span>
+                  </button>
+                </div>
+                {chatLocked && (
+                  <p className="mt-2 text-xs leading-5 text-on-surface-variant">
+                    Chat is paused to avoid extra AI usage. You can edit the brief
+                    directly or reopen AI help for a focused revision.
+                  </p>
+                )}
               </div>
-              {chatLocked && (
-                <p className="mt-2 text-xs leading-5 text-on-surface-variant">
-                  Chat is paused to avoid extra AI usage. You can edit the brief
-                  directly or reopen AI help for a focused revision.
-                </p>
-              )}
-            </div>
+            )}
           </section>
 
           <aside className="min-w-0 space-y-4 xl:sticky xl:top-20 xl:self-start">

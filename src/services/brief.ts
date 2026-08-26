@@ -72,6 +72,7 @@ interface BackendBriefMessage {
   briefId: string;
   senderType: string;
   message: string;
+  metadata?: Record<string, unknown> | null;
   createdAt: string;
 }
 
@@ -332,6 +333,7 @@ function toBriefMessage(message: BackendBriefMessage): BriefMessage {
     briefId: message.briefId,
     senderType: toSenderType(message.senderType),
     message: message.message,
+    metadata: message.metadata ?? null,
     createdAt: message.createdAt,
   };
 }

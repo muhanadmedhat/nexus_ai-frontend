@@ -95,6 +95,7 @@ export interface BriefMessage {
   briefId: string;
   senderType: BriefSender;
   message: string;
+  metadata: Record<string, unknown> | null;
   createdAt: string;
 }
 
