@@ -286,6 +286,13 @@ export interface ReviewProjectPlanResult {
     matchingDispatch?: ImplementationMatchingDispatch;
     [key: string]: unknown;
   };
+  regeneration?: {
+    queued: boolean;
+    reason?: string;
+    agentJobId?: string;
+    queueName?: string;
+    error?: string;
+  };
   [key: string]: unknown;
 }
 

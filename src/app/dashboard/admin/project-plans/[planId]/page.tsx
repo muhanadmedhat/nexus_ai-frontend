@@ -79,6 +79,13 @@ export default function AdminProjectPlanDetail() {
     materialize = false,
   ) {
     if (!planId) return;
+    if (status === "changes_requested" && !notes.trim()) {
+      toast.error(
+        "Feedback is required",
+        "Describe what the revised plan must change.",
+      );
+      return;
+    }
     const key = materialize ? "approved_materialize" : status;
     setActionLoading(key);
     try {
@@ -88,11 +95,18 @@ export default function AdminProjectPlanDetail() {
         materialize,
       });
       const matching = result.materialization?.matchingDispatch;
+      const regeneration = result.regeneration;
       toast.success(
-        materialize
+        status === "changes_requested"
+          ? "Plan revision requested"
+          : materialize
           ? "Plan materialized and matching started"
           : "Plan reviewed",
-        materialize
+        status === "changes_requested"
+          ? regeneration?.queued === false
+            ? "The feedback was saved. Automatic recovery will retry plan generation shortly."
+            : "A revised plan was queued with your feedback and will return for review automatically."
+          : materialize
           ? matching?.triggered
             ? `${matching.runs?.length ?? 0} task matching runs were created. Review the ranked candidates before assigning freelancers.`
             : "Tasks were created. Matching was already started or there were no unmatched tasks."
@@ -323,21 +337,42 @@ export default function AdminProjectPlanDetail() {
             />
 
             <div className="mt-5 grid gap-2">
-              <Button
-                type="button"
-                loading={actionLoading === "approved_materialize"}
-                onClick={() => review("approved", true)}
-              >
-                <ClipboardCheck size={16} /> Approve and materialize
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                loading={actionLoading === "approved"}
-                onClick={() => review("approved")}
-              >
-                <CheckCircle2 size={16} /> Approve only
-              </Button>
+              {plan.status === "generated" && (
+                <>
+                  <Button
+                    type="button"
+                    loading={actionLoading === "approved_materialize"}
+                    onClick={() => review("approved", true)}
+                  >
+                    <ClipboardCheck size={16} /> Approve and materialize
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    loading={actionLoading === "approved"}
+                    onClick={() => review("approved")}
+                  >
+                    <CheckCircle2 size={16} /> Approve only
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    loading={actionLoading === "changes_requested"}
+                    onClick={() => review("changes_requested")}
+                  >
+                    <MessageSquareWarning size={16} /> Request changes
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-error/30 text-error hover:bg-error/10"
+                    loading={actionLoading === "rejected"}
+                    onClick={() => review("rejected")}
+                  >
+                    <XCircle size={16} /> Reject
+                  </Button>
+                </>
+              )}
               {plan.status === "approved" && (
                 <Button
                   type="button"
@@ -348,23 +383,12 @@ export default function AdminProjectPlanDetail() {
                   <ClipboardCheck size={16} /> Materialize approved plan
                 </Button>
               )}
-              <Button
-                type="button"
-                variant="outline"
-                loading={actionLoading === "changes_requested"}
-                onClick={() => review("changes_requested")}
-              >
-                <MessageSquareWarning size={16} /> Request changes
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="border-error/30 text-error hover:bg-error/10"
-                loading={actionLoading === "rejected"}
-                onClick={() => review("rejected")}
-              >
-                <XCircle size={16} /> Reject
-              </Button>
+              {plan.status === "changes_requested" && (
+                <p className="rounded-lg bg-surface-container-low p-3 text-sm text-on-surface-variant">
+                  A revised plan is being generated automatically from these
+                  notes.
+                </p>
+              )}
             </div>
           </aside>
         </div>

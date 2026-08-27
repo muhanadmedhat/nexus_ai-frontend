@@ -229,6 +229,20 @@ export interface ReviewerPlanDetail {
     requiredSkills?: string[] | null;
   }> | null;
   teamPlan?: Record<string, unknown> | null;
+  adminNotes?: string | null;
+}
+
+export interface ReviewerPlanReviewResult {
+  id?: string;
+  status?: string;
+  regeneration?: {
+    queued: boolean;
+    reason?: string;
+    agentJobId?: string;
+    queueName?: string;
+    error?: string;
+  };
+  [key: string]: unknown;
 }
 
 export async function getReviewerPlan(id: string) {
@@ -304,7 +318,11 @@ export async function reviewReviewerPlan(
   id: string,
   payload: Record<string, unknown>,
 ) {
-  return mutate(`/reviewer/project-plans/${id}/review`, "patch", payload);
+  return mutate(
+    `/reviewer/project-plans/${id}/review`,
+    "patch",
+    payload,
+  ) as Promise<ReviewerPlanReviewResult>;
 }
 
 export async function reviewReviewerSubmission(

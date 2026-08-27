@@ -417,6 +417,20 @@ export default function ReviewerProjectPage() {
         adminNotes: notes || undefined,
         materialize: status === "approved",
       }),
+      status === "changes_requested"
+        ? (result) =>
+            result.regeneration?.queued === false
+              ? {
+                  title: "Changes saved",
+                  message:
+                    "Plan generation is temporarily delayed. Automatic recovery will retry it shortly.",
+                }
+              : {
+                  title: "Changes requested",
+                  message:
+                    "Your feedback was sent to plan generation. A revised version will appear here automatically.",
+                }
+        : undefined,
     );
   };
 
@@ -568,13 +582,22 @@ export default function ReviewerProjectPage() {
     );
   };
 
-  const act = async (id: string, operation: () => Promise<unknown>) => {
+  const act = async <T,>(
+    id: string,
+    operation: () => Promise<T>,
+    success?:
+      | { title: string; message: string }
+      | ((result: T) => { title: string; message: string }),
+  ) => {
     setWorking(id);
     try {
-      await operation();
+      const result = await operation();
+      const successMessage =
+        typeof success === "function" ? success(result) : success;
       toast.success(
-        "Decision saved",
-        "The freelancer and project stakeholders were notified.",
+        successMessage?.title ?? "Decision saved",
+        successMessage?.message ??
+          "The freelancer and project stakeholders were notified.",
       );
       await load();
       return true;
@@ -743,31 +766,73 @@ export default function ReviewerProjectPage() {
 
           <Queue
             title="Generated Scrum plans"
-            empty="No generated plan awaits approval."
+            empty="No Scrum plan awaits review or regeneration."
           >
             {plans
-              .filter((item) => text(item.status) === "generated")
-              .map((item) => (
-                <ReviewRow
-                  key={text(item.id)}
-                  title={`Plan v${String(item.version ?? "")}`}
-                  status={text(item.status)}
-                  detail={text(item.summary)}
-                  working={
-                    working === `plan:${text(item.id)}` || working === item.id
-                  }
-                  onOpen={() => void openProjectPlan(text(item.id))}
-                  openLabel="Open plan"
-                  approveDisabledReason={
-                    reviewedPlanIds.has(text(item.id))
-                      ? undefined
-                      : "Open the plan before approving it."
-                  }
-                  onApprove={() => void decidePlan(item, "approved")}
-                  onChanges={() => void decidePlan(item, "changes_requested")}
-                  approveLabel="Approve and start matching"
-                />
-              ))}
+              .filter(
+                (item) =>
+                  item.isCurrent !== false &&
+                  ["generated", "changes_requested"].includes(
+                    text(item.status),
+                  ),
+              )
+              .map((item) => {
+                const status = text(item.status);
+                if (status === "changes_requested") {
+                  return (
+                    <div
+                      key={text(item.id)}
+                      className="flex items-start gap-3 rounded-lg bg-surface-container-low p-4"
+                    >
+                      <Clock3
+                        size={18}
+                        className="mt-0.5 shrink-0 text-primary-container"
+                      />
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium text-on-surface">
+                            Plan v{String(item.version ?? "")}
+                          </p>
+                          <StatusBadge status={status} />
+                        </div>
+                        <p className="mt-1 text-sm text-on-surface-variant">
+                          A revised plan is being generated automatically from
+                          your feedback.
+                        </p>
+                        {text(item.adminNotes) && (
+                          <p className="mt-2 text-sm text-on-surface-variant">
+                            Feedback: {text(item.adminNotes)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+                return (
+                  <ReviewRow
+                    key={text(item.id)}
+                    title={`Plan v${String(item.version ?? "")}`}
+                    status={status}
+                    detail={text(item.summary)}
+                    working={
+                      working === `plan:${text(item.id)}` ||
+                      working === item.id
+                    }
+                    onOpen={() => void openProjectPlan(text(item.id))}
+                    openLabel="Open plan"
+                    approveDisabledReason={
+                      reviewedPlanIds.has(text(item.id))
+                        ? undefined
+                        : "Open the plan before approving it."
+                    }
+                    onApprove={() => void decidePlan(item, "approved")}
+                    onChanges={() =>
+                      void decidePlan(item, "changes_requested")
+                    }
+                    approveLabel="Approve and start matching"
+                  />
+                );
+              })}
           </Queue>
 
           <Queue
