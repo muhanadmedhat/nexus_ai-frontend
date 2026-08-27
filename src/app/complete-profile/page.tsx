@@ -8,15 +8,18 @@ import { clsx } from "clsx";
 import { Briefcase, UserRoundSearch } from "lucide-react";
 import { AuthVisualPanel } from "@/components/layout/auth-visual-panel";
 import { PhoneNumberInput } from "@/components/ui/phone-number-input";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { completeProfile } from "@/services/auth";
 import { DASHBOARD_BY_ROLE } from "@/types/auth";
 import { useToast } from "@/components/ui/toast";
+import { isValidGithubUsername } from "@/lib/github-username";
 
 type CompleteProfileValues = {
   phoneNumber: string;
   role: "customer" | "freelancer";
+  githubUsername: string;
 };
 
 const ROLE_CARDS = [
@@ -49,11 +52,12 @@ export default function CompleteProfilePage() {
 
   const {
     control,
+    register,
     handleSubmit,
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<CompleteProfileValues>({
-    defaultValues: { phoneNumber: "", role: defaultRole },
+    defaultValues: { phoneNumber: "", role: defaultRole, githubUsername: "" },
   });
 
   const onSubmit = async (values: CompleteProfileValues) => {
@@ -61,6 +65,9 @@ export default function CompleteProfilePage() {
       const user = await completeProfile({
         phoneNumber: values.phoneNumber,
         role: values.role,
+        ...(values.role === "freelancer"
+          ? { githubUsername: values.githubUsername.trim() }
+          : {}),
       });
       window.localStorage.removeItem("nexus_google_signup_role");
       await refresh();
@@ -164,6 +171,20 @@ export default function CompleteProfilePage() {
                 />
               )}
             />
+            {role === "freelancer" ? (
+              <Input
+                label="GitHub username"
+                placeholder="octocat"
+                autoComplete="username"
+                {...register("githubUsername", {
+                  validate: (value) =>
+                    role !== "freelancer" ||
+                    isValidGithubUsername(value) ||
+                    "Enter a valid GitHub username",
+                })}
+                error={errors.githubUsername?.message}
+              />
+            ) : null}
             <Button type="submit" loading={isSubmitting}>
               Continue
             </Button>

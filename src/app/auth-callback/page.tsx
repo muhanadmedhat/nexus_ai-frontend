@@ -37,8 +37,6 @@ export default function AuthCallbackPage() {
   const [message, setMessage] = useState("Completing sign in...");
 
   useEffect(() => {
-    let active = true;
-
     async function completeAuth() {
       if (hasExchangedRef.current) return;
       hasExchangedRef.current = true;
@@ -51,18 +49,20 @@ export default function AuthCallbackPage() {
       window.history.replaceState(null, "", "/auth-callback");
 
       if (error || !code) {
-        if (active) setMessage("Sign in failed. Please try again.");
+        setMessage(
+          error === "access_denied"
+            ? "Google sign in was cancelled. Please try again."
+            : "Google sign in failed. Please try again.",
+        );
         return;
       }
 
       try {
-        if (active) setMessage("Securing your session...");
+        setMessage("Securing your session...");
         const exchange = await exchangeAuthCode(code);
-        if (active) setMessage("Loading your account...");
+        setMessage("Loading your account...");
         const user = await getMeWithRetry();
         await refresh();
-
-        if (!active) return;
 
         if (!user) {
           setMessage("We could not load your account yet. Please refresh and try again.");
@@ -78,17 +78,12 @@ export default function AuthCallbackPage() {
         setMessage("Signed in. Redirecting...");
         router.replace(DASHBOARD_BY_ROLE[user.role]);
       } catch (err) {
-        if (active) {
-          setMessage(err instanceof Error ? err.message : "Sign in failed. Please try again.");
-        }
+        setMessage(err instanceof Error ? err.message : "Sign in failed. Please try again.");
       }
     }
 
     void completeAuth();
 
-    return () => {
-      active = false;
-    };
   }, [refresh, router]);
 
   return (

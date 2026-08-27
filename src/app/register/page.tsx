@@ -17,6 +17,7 @@ import { GoogleAuthButton } from "@/components/auth/google-auth-button";
 import { useAuth } from "@/hooks/use-auth";
 import { signUp } from "@/services/auth";
 import { useToast } from "@/components/ui/toast";
+import { isValidGithubUsername } from "@/lib/github-username";
 
 const schema = z
   .object({
@@ -31,6 +32,7 @@ const schema = z
         "Enter a valid Egyptian phone number",
       ),
     role: z.enum(["customer", "freelancer"]),
+    githubUsername: z.string().trim().optional(),
     password: z
       .string()
       .min(8, "At least 8 characters")
@@ -39,6 +41,18 @@ const schema = z
       .regex(/[0-9]/, "Add a number")
       .regex(/[^A-Za-z0-9]/, "Add a symbol"),
     confirmPassword: z.string(),
+  })
+  .superRefine((values, context) => {
+    if (
+      values.role === "freelancer" &&
+      !isValidGithubUsername(values.githubUsername ?? "")
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["githubUsername"],
+        message: "Enter a valid GitHub username",
+      });
+    }
   })
   .refine((v) => v.password === v.confirmPassword, {
     message: "Passwords do not match",
@@ -77,7 +91,7 @@ export default function RegisterPage() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { role: "customer", phoneNumber: "" },
+    defaultValues: { role: "customer", phoneNumber: "", githubUsername: "" },
   });
 
   const [role, setRole] = useState<FormValues["role"]>("customer");
@@ -91,6 +105,9 @@ export default function RegisterPage() {
         phoneNumber: values.phoneNumber,
         password: values.password,
         role: values.role,
+        ...(values.role === "freelancer"
+          ? { githubUsername: values.githubUsername?.trim() }
+          : {}),
       });
       await refresh();
       toast.success(
@@ -251,6 +268,15 @@ export default function RegisterPage() {
                   />
                 )}
               />
+              {role === "freelancer" ? (
+                <Input
+                  label="GitHub username"
+                  placeholder="octocat"
+                  autoComplete="username"
+                  {...register("githubUsername")}
+                  error={errors.githubUsername?.message}
+                />
+              ) : null}
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Input
                   label="Password"

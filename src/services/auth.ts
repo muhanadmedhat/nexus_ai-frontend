@@ -124,6 +124,7 @@ export async function completeProfile(input: {
   lastName?: string;
   phoneNumber: string;
   role: Exclude<AuthUser["role"], "admin">;
+  githubUsername?: string;
 }): Promise<AuthUser> {
   try {
     const { data } = await api.post<TokenResponse & { user: BackendUser }>(

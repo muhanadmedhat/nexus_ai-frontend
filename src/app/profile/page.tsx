@@ -32,6 +32,7 @@ import {
 } from "@/services/freelancers";
 import { uploadProfileImage, uploadCv } from "@/services/uploads";
 import { useToast } from "@/components/ui/toast";
+import { isValidGithubUsername } from "@/lib/github-username";
 
 interface ProfileFormValues {
   firstName: string;
@@ -40,10 +41,6 @@ interface ProfileFormValues {
   availabilityHoursPerWeek: string;
   githubUsername: string;
 }
-
-// GitHub username rules: letters, numbers and single hyphens, no leading or
-// trailing hyphen. Required before repository invites, not for verification.
-const GITHUB_USERNAME_PATTERN = /^(?!.*--)[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
 
 function isEgyptianPhoneNumber(value: string) {
   return value.startsWith("+20") && isValidPhoneNumber(value);
@@ -156,6 +153,13 @@ export default function ProfilePage() {
     );
 
     if (role === "freelancer") {
+      if (!isValidGithubUsername(nextValues.githubUsername)) {
+        toast.error(
+          "GitHub username required",
+          "Enter a valid GitHub username before saving your profile.",
+        );
+        return;
+      }
       if (Number.isNaN(availabilityHoursPerWeek)) {
         toast.error(
           "Invalid availability",
@@ -176,9 +180,7 @@ export default function ProfilePage() {
       if (role === "freelancer") {
         updatedFreelancer = await updateMyFreelancerProfile({
           availabilityHoursPerWeek,
-          ...(nextValues.githubUsername
-            ? { githubUsername: nextValues.githubUsername }
-            : {}),
+          githubUsername: nextValues.githubUsername,
         });
         setFreelancerProfile(updatedFreelancer);
         setCvUrl(updatedFreelancer.cvUrl);
@@ -616,10 +618,8 @@ export default function ProfilePage() {
                   }
                   {...register("githubUsername", {
                     validate: (value) =>
-                      !value.trim() ||
-                      (value.trim().length <= 120 &&
-                        GITHUB_USERNAME_PATTERN.test(value.trim())) ||
-                      "Letters, numbers and single hyphens only",
+                      isValidGithubUsername(value) ||
+                      "A valid GitHub username is required",
                   })}
                   error={errors.githubUsername?.message}
                 />

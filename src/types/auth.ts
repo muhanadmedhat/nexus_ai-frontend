@@ -25,6 +25,7 @@ export interface RegisterInput {
   phoneNumber: string;
   password: string;
   role: Exclude<UserRole, "admin">;
+  githubUsername?: string;
 }
 
 export const DASHBOARD_BY_ROLE: Record<UserRole, string> = {
