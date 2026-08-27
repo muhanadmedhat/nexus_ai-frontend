@@ -16,6 +16,7 @@ import type { DeliveryTask } from "@/types/delivery";
 /** Project statuses the delivery control room covers. */
 export const DELIVERY_STATUSES = [
   "implementation_ready",
+  "ready_for_implementation_funding",
   "matching",
   "matched",
   "assigned",

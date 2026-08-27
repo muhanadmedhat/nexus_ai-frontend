@@ -2,11 +2,14 @@ export type ProjectStatus =
   | "draft"
   | "brief_pending"
   | "brief_complete"
+  | "waiting_for_pr"
   | "planning_matching"
+  | "ready_for_funding"
   | "planning_assigned"
   | "planning_in_progress"
   | "planning_review"
   | "implementation_ready"
+  | "ready_for_implementation_funding"
   | "matching"
   | "matched"
   | "in_progress"
@@ -30,6 +33,7 @@ export interface Project {
   budgetMax: number | null;
   currency: string;
   deadline: string | null; // ISO date
+  staffingDeadline?: string | null;
   isDeadlineFlexible: boolean;
   status: ProjectStatus;
   quotedAmount?: number | null;
@@ -47,6 +51,7 @@ export const PROJECT_DELETION_BLOCKED_STATUSES: ProjectStatus[] = [
   "planning_in_progress",
   "planning_review",
   "implementation_ready",
+  "ready_for_implementation_funding",
   "matched",
   "spec_in_progress",
   "spec_under_review",
@@ -126,11 +131,14 @@ export const PROJECT_STATUS_LABEL: Record<ProjectStatus, string> = {
   draft: "Draft",
   brief_pending: "Brief pending",
   brief_complete: "Brief complete",
+  waiting_for_pr: "Waiting for reviewer",
   planning_matching: "Planning matching",
+  ready_for_funding: "Team ready for funding",
   planning_assigned: "Planning assigned",
   planning_in_progress: "Planning in progress",
   planning_review: "Planning review",
   implementation_ready: "Implementation ready",
+  ready_for_implementation_funding: "Implementation team ready for funding",
   matching: "Matching",
   matched: "Matched",
   in_progress: "In progress",

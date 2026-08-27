@@ -26,7 +26,21 @@ export default function CustomerDashboardPage() {
   }, []);
 
   const active = projects.filter((p) =>
-    ["in_progress", "assigned", "active"].includes(p.status),
+    [
+      "waiting_for_pr",
+      "planning_matching",
+      "ready_for_funding",
+      "planning_assigned",
+      "planning_in_progress",
+      "planning_review",
+      "implementation_ready",
+      "ready_for_implementation_funding",
+      "matching",
+      "matched",
+      "in_progress",
+      "assigned",
+      "active",
+    ].includes(p.status),
   ).length;
   const draft = projects.filter((p) =>
     ["draft", "brief_pending", "brief_complete", "scoped"].includes(p.status),

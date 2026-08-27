@@ -96,11 +96,14 @@ const EMPTY_BRIEF_FIELDS: BriefFieldValues = {
 };
 
 const BRIEF_CHANGE_LOCKED_STATUSES: ProjectStatus[] = [
+  "waiting_for_pr",
   "planning_matching",
+  "ready_for_funding",
   "planning_assigned",
   "planning_in_progress",
   "planning_review",
   "implementation_ready",
+  "ready_for_implementation_funding",
   "matching",
   "matched",
   "in_review",
@@ -409,7 +412,7 @@ export default function RequirementsPage() {
       setEditingBrief(false);
       toast.success(
         "Brief confirmed",
-        "The final price is ready. Fund escrow to start matching.",
+        "The final price is ready. Nexus will confirm the reviewer, planning team, and likely implementation capacity before asking you to fund the planning package.",
       );
     } catch (error) {
       toast.error(
@@ -957,7 +960,7 @@ export default function RequirementsPage() {
                         className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-primary-container/40 bg-primary-container/10 px-3 text-sm font-semibold text-primary-container hover:bg-primary-container/15"
                       >
                         <CreditCard size={16} />
-                        View final price and fund escrow
+                        View staged price and funding readiness
                       </Link>
                     )}
 

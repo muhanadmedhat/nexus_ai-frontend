@@ -76,7 +76,8 @@ function Section({
 const AUTOMATION_MESSAGES: Record<string, string> = {
   awaiting_requirements: "Waiting for enough confirmed scope to produce a reliable quote.",
   awaiting_quote: "Requirements changed; the client must confirm the updated quote.",
-  awaiting_funding: "Quote is ready. Staffing starts after the client funds escrow.",
+  awaiting_funding:
+    "Quote is ready. Reviewer and planning-team matching happen before the planning package can be funded.",
   awaiting_principal_reviewer:
     "A principal reviewer invitation was sent and is waiting for a response.",
   matching_planning_team:

@@ -27,6 +27,7 @@ const STATUS_FILTERS = ["all", "running", "completed", "reviewed", "failed"] as 
 // Matching can only start once the Scrum plan has been materialized into tasks.
 const MATCHABLE_PROJECT_STATUSES = [
   "implementation_ready",
+  "ready_for_implementation_funding",
   "matching",
   "matched",
   "assigned",

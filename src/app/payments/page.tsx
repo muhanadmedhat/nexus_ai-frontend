@@ -61,15 +61,15 @@ export default function PaymentsPage() {
   const handlePay = async (project: ProjectPaymentSummary) => {
     const amount = project.actions.suggestedPaymentAmount;
     const currency = project.quote.currency ?? project.project.currency;
-    if (!amount || amount <= 0 || !project.actions.canPay) return;
+    const purpose = project.actions.suggestedPaymentPurpose;
+    if (!amount || amount <= 0 || !project.actions.canPay || !purpose) return;
 
     setPayingProjectId(project.project.id);
     try {
       const checkout = await createEscrowCheckoutSession(project.project.id, {
         amount,
         currency,
-        purpose:
-          project.actions.suggestedPaymentPurpose ?? "full_project_deposit",
+        purpose,
       });
 
       if (!checkout.checkoutUrl) {
@@ -90,7 +90,7 @@ export default function PaymentsPage() {
     <DashboardShell
       role="customer"
       title="Payments"
-      subtitle="Review final project prices and fund escrow after requirements are confirmed."
+      subtitle="Planning and implementation are funded separately, only when each stage is ready."
     >
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <StatCard

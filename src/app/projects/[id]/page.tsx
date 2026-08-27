@@ -38,7 +38,7 @@ export default function ProjectDetailsPage() {
         ? "Continue requirements"
         : "Start requirements";
   const nextActionText = briefConfirmed
-    ? "Your requirements are confirmed. Review the final price and fund escrow when you are ready."
+    ? "Your requirements are confirmed. Review the staged price while Nexus confirms the reviewer, planning team, and implementation capacity."
     : briefComplete
       ? "The brief details are captured. Review and confirm them to generate the final price."
       : "Define your requirements with the AI agent.";

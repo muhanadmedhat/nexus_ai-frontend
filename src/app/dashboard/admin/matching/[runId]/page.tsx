@@ -1205,7 +1205,7 @@ function EscrowPanel({ locked }: { locked: boolean }) {
     return (
       <LockedPanel
         title="Escrow is locked"
-        description="Approve and materialize the Scrum Master plan before asking the customer to fund escrow."
+        description="Customer funding unlocks only at a valid stage: planning after team and capacity confirmation, then implementation after exact task staffing."
       />
     );
   }
@@ -1216,8 +1216,8 @@ function EscrowPanel({ locked }: { locked: boolean }) {
         Escrow and customer funding
       </h3>
       <p className="mt-1 max-w-3xl text-sm text-on-surface-variant">
-        The project can now move into customer funding. Review the final quote,
-        payment state, and escrow holds before implementation starts.
+        The current project stage can move into customer funding. Verify the
+        stage amount, accepted team, and escrow state before work starts.
       </p>
       <div className="mt-5 flex flex-wrap gap-3">
         <Link href="/dashboard/admin/payments">

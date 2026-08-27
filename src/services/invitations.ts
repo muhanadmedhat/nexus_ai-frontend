@@ -4,7 +4,7 @@ export interface ProjectInvitation {
   id: string;
   projectId: string;
   taskId: string | null;
-  phase: "governance" | "planning" | "implementation";
+  phase: "governance" | "planning" | "staffing" | "implementation";
   roleKey: string;
   status: "pending" | "accepted" | "declined" | "expired" | "cancelled";
   expiresAt: string;

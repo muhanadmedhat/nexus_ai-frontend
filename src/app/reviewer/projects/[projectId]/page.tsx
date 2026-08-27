@@ -44,7 +44,13 @@ import {
 } from "@/services/reviewer";
 
 type Row = Record<string, unknown>;
-type Criterion = { key: string; criterion: string };
+type Criterion = {
+  key: string;
+  criterion: string;
+  category: string;
+  status: string;
+  evidence: string;
+};
 
 const text = (value: unknown) => (typeof value === "string" ? value : "");
 
@@ -72,10 +78,9 @@ function readableSummary(summary: string | null | undefined) {
 function requirementRows(detail: ReviewerPlanningSubmissionDetail) {
   const checks = detail.evaluationResult?.checks ?? [];
   const evidence = detail.content?.requirementEvidence ?? {};
-  const requirements =
-    detail.evaluationRequirements?.length
-      ? detail.evaluationRequirements
-      : checks.map((check) => ({ key: check.key, title: check.title }));
+  const requirements = detail.evaluationRequirements?.length
+    ? detail.evaluationRequirements
+    : checks.map((check) => ({ key: check.key, title: check.title }));
 
   return requirements.map((requirement) => {
     const check = checks.find((entry) => entry.key === requirement.key);
@@ -275,6 +280,18 @@ export default function ReviewerProjectPage() {
     () => submissionCriteria(selectedSubmission),
     [selectedSubmission],
   );
+  const selectedSubmissionRecord = useMemo(
+    () => submissionRecord(selectedSubmission),
+    [selectedSubmission],
+  );
+  const selectedEvaluation = useMemo(
+    () => latestEvaluation(selectedSubmission),
+    [selectedSubmission],
+  );
+  const selectedSubmissionNeedsManualReview = useMemo(
+    () => evaluationNeedsManualReview(selectedEvaluation),
+    [selectedEvaluation],
+  );
   const currentMatchingRuns = useMemo(() => {
     const seen = new Set<string>();
     return matchingRuns.filter((run) => {
@@ -423,7 +440,7 @@ export default function ReviewerProjectPage() {
   const decideSubmission = async (
     decision: "approved" | "changes_requested" | "rejected",
   ) => {
-    if (!selectedSubmission) return;
+    if (!selectedSubmission || !selectedSubmissionRecord) return;
     const feedback =
       window
         .prompt(
@@ -443,8 +460,7 @@ export default function ReviewerProjectPage() {
       );
       return;
     }
-    const evaluation = latestEvaluation(selectedSubmission);
-    const manualReview = text(evaluation?.recommendation) === "manual_review";
+    const manualReview = selectedSubmissionNeedsManualReview;
     if (manualReview && feedback.length < 20) {
       toast.error(
         "Manual review evidence required",
@@ -452,8 +468,8 @@ export default function ReviewerProjectPage() {
       );
       return;
     }
-    await act(text(selectedSubmission.id), () =>
-      reviewReviewerSubmission(text(selectedSubmission.id), {
+    await act(text(selectedSubmissionRecord.id), () =>
+      reviewReviewerSubmission(text(selectedSubmissionRecord.id), {
         decision,
         feedback: feedback || undefined,
         createRevisionRequest: decision === "changes_requested",
@@ -706,7 +722,10 @@ export default function ReviewerProjectPage() {
                     text(item.status)
                   }
                   detail={`${text(item.submissionType)}${item.version != null ? ` · v${String(item.version)}` : ""}${item.evaluationScore != null ? ` · AI score ${String(item.evaluationScore)}/100` : ""}`}
-                  working={working === `submission:${text(item.id)}` || working === item.id}
+                  working={
+                    working === `submission:${text(item.id)}` ||
+                    working === item.id
+                  }
                   onOpen={() => void openPlanningSubmission(text(item.id))}
                   openLabel="Open deliverable"
                   approveDisabledReason={
@@ -734,7 +753,9 @@ export default function ReviewerProjectPage() {
                   title={`Plan v${String(item.version ?? "")}`}
                   status={text(item.status)}
                   detail={text(item.summary)}
-                  working={working === `plan:${text(item.id)}` || working === item.id}
+                  working={
+                    working === `plan:${text(item.id)}` || working === item.id
+                  }
                   onOpen={() => void openProjectPlan(text(item.id))}
                   openLabel="Open plan"
                   approveDisabledReason={
@@ -754,9 +775,13 @@ export default function ReviewerProjectPage() {
             empty="No implementation work awaits review."
           >
             {submissions
-              .filter((item) =>
-                ["submitted", "under_review"].includes(text(item.status)),
-              )
+              .filter((item) => {
+                const status = text(item.status);
+                return (
+                  ["submitted", "under_review"].includes(status) ||
+                  (status === "changes_requested" && !item.reviewedBy)
+                );
+              })
               .map((item) => (
                 <div
                   key={text(item.id)}
@@ -1055,8 +1080,7 @@ export default function ReviewerProjectPage() {
                       <p className="mt-1 text-sm text-on-surface">
                         {oversized
                           .map(
-                            (task) =>
-                              `${task.title} (${task.estimatedHours}h)`,
+                            (task) => `${task.title} (${task.estimatedHours}h)`,
                           )
                           .join(", ")}
                       </p>
@@ -1254,8 +1278,8 @@ export default function ReviewerProjectPage() {
               Requirement by requirement
             </h3>
             <p className="mb-3 text-xs text-on-surface-variant">
-              What the freelancer wrote, next to the AI&apos;s verdict on it. You
-              decide — the AI only recommends.
+              What the freelancer wrote, next to the AI&apos;s verdict on it.
+              You decide — the AI only recommends.
             </p>
 
             <div className="space-y-3">
@@ -1701,7 +1725,7 @@ export default function ReviewerProjectPage() {
         </div>
       )}
 
-      {selectedSubmission && (
+      {selectedSubmission && selectedSubmissionRecord && (
         <div
           className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4"
           onClick={() => setSelectedSubmission(null)}
@@ -1716,23 +1740,47 @@ export default function ReviewerProjectPage() {
                   Implementation review
                 </p>
                 <h2 className="mt-1 text-xl font-semibold text-on-surface">
-                  {text(selectedSubmission.title) || "Submission"}
+                  {text(selectedSubmissionRecord.title) || "Submission"}
                 </h2>
               </div>
-              <StatusBadge status={text(selectedSubmission.status)} />
+              <StatusBadge status={text(selectedSubmissionRecord.status)} />
             </div>
             <p className="mt-3 whitespace-pre-wrap text-sm text-on-surface-variant">
-              {text(selectedSubmission.summary)}
+              {text(selectedSubmissionRecord.summary) ||
+                "No freelancer summary was supplied."}
             </p>
+            <SubmissionWorkEvidence
+              detail={selectedSubmission}
+              submission={selectedSubmissionRecord}
+            />
+            {selectedSubmissionNeedsManualReview && (
+              <div className="mt-5 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm text-on-surface">
+                <p className="font-semibold">Human verification required</p>
+                <p className="mt-1 text-on-surface-variant">
+                  Automation could not inspect every relevant source file. This
+                  is not automatically a freelancer defect. Inspect the exact
+                  pull request and commit, then record at least 20 characters of
+                  review evidence before approving.
+                </p>
+              </div>
+            )}
             <div className="mt-5 space-y-3">
               {criteria.map((criterion, index) => (
                 <div
                   key={criterion.key}
                   className="rounded-lg border border-outline-variant/30 p-4"
                 >
-                  <p className="text-sm font-medium text-on-surface">
-                    {index + 1}. {criterion.criterion}
-                  </p>
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <p className="text-sm font-medium text-on-surface">
+                      {index + 1}. {criterion.criterion}
+                    </p>
+                    <StatusBadge status={criterion.status || "unmet"} />
+                  </div>
+                  {criterion.evidence && (
+                    <p className="mt-2 text-xs leading-relaxed text-on-surface-variant">
+                      {criterion.evidence}
+                    </p>
+                  )}
                   <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                     <select
                       value={ratings[criterion.key] ?? ""}
@@ -1807,6 +1855,12 @@ function Metric({ icon, label }: { icon: React.ReactNode; label: string }) {
 }
 
 function roleLabel(role: string | null) {
+  if (role?.startsWith("implementation_")) {
+    const position = Number(role.slice("implementation_".length));
+    return Number.isFinite(position)
+      ? `Implementation freelancer ${position}`
+      : "Implementation freelancer";
+  }
   const labels: Record<string, string> = {
     architect: "Solution architect",
     ui_ux: "UI/UX designer",
@@ -1957,6 +2011,36 @@ function latestEvaluation(submission: Row | null): Row | null {
   );
 }
 
+function submissionRecord(detail: Row | null): Row | null {
+  if (!detail) return null;
+  return detail.submission && typeof detail.submission === "object"
+    ? (detail.submission as Row)
+    : detail;
+}
+
+function evaluationNeedsManualReview(evaluation: Row | null) {
+  if (!evaluation) return false;
+  if (text(evaluation.recommendation) === "manual_review") return true;
+  if (text(evaluation.recommendation) !== "changes_requested") return false;
+  const coverage =
+    evaluation.acceptanceCoverage &&
+    typeof evaluation.acceptanceCoverage === "object"
+      ? (evaluation.acceptanceCoverage as Row)
+      : null;
+  const items = Array.isArray(coverage?.items) ? (coverage.items as Row[]) : [];
+  const unresolved = items.filter(
+    (item) => item.met !== true && text(item.status) !== "not_applicable",
+  );
+  return (
+    unresolved.length > 0 &&
+    unresolved.every(
+      (item) =>
+        text(item.status) === "unverified" ||
+        text(item.key) === "verification_observed_1",
+    )
+  );
+}
+
 function submissionCriteria(submission: Row | null): Criterion[] {
   const evaluation = latestEvaluation(submission);
   const coverage =
@@ -1972,7 +2056,91 @@ function submissionCriteria(submission: Row | null): Criterion[] {
       {
         key: text(item.key) || `criterion_${index + 1}`,
         criterion: text(item.criterion),
+        category: text(item.category),
+        status: text(item.status),
+        evidence: text(item.evidence),
       },
     ];
   });
+}
+
+function SubmissionWorkEvidence({
+  detail,
+  submission,
+}: {
+  detail: Row;
+  submission: Row;
+}) {
+  const repository =
+    detail.repository && typeof detail.repository === "object"
+      ? (detail.repository as Row)
+      : null;
+  const pullRequestUrl = text(submission.pullRequestUrl);
+  const repositoryUrl = text(submission.repoUrl) || text(repository?.repoUrl);
+  const commitSha = text(submission.commitSha);
+  const branchName = text(submission.branchName);
+  const hasEvidence = Boolean(
+    pullRequestUrl || repositoryUrl || commitSha || branchName,
+  );
+
+  return (
+    <section className="mt-5 rounded-lg border border-outline-variant/30 bg-surface-container-low p-4">
+      <h3 className="text-sm font-semibold text-on-surface">The work</h3>
+      {hasEvidence ? (
+        <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+          {isHttpUrl(pullRequestUrl) && (
+            <div>
+              <dt className="text-xs text-on-surface-variant">Pull request</dt>
+              <dd>
+                <a
+                  href={pullRequestUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-semibold text-primary-container hover:underline"
+                >
+                  Open exact pull request
+                </a>
+              </dd>
+            </div>
+          )}
+          {isHttpUrl(repositoryUrl) && (
+            <div>
+              <dt className="text-xs text-on-surface-variant">Repository</dt>
+              <dd>
+                <a
+                  href={repositoryUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-semibold text-primary-container hover:underline"
+                >
+                  Open repository
+                </a>
+              </dd>
+            </div>
+          )}
+          {commitSha && (
+            <div>
+              <dt className="text-xs text-on-surface-variant">Commit</dt>
+              <dd className="break-all font-mono text-xs text-on-surface">
+                {commitSha}
+              </dd>
+            </div>
+          )}
+          {branchName && (
+            <div>
+              <dt className="text-xs text-on-surface-variant">Branch</dt>
+              <dd className="break-all font-mono text-xs text-on-surface">
+                {branchName}
+              </dd>
+            </div>
+          )}
+        </dl>
+      ) : (
+        <p className="mt-2 text-sm text-on-surface-variant">
+          This submission does not include repository, pull-request, commit, or
+          branch evidence.
+        </p>
+      )}
+    </section>
+  );
 }

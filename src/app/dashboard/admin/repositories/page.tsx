@@ -31,14 +31,20 @@ import {
 const STATUS_FILTERS = [
   "all",
   "active",
-  "pending",
+  "creating",
   "failed",
   "archived",
 ] as const;
 
 // Projects far enough along to own an implementation repository.
 const REPOSITORY_READY_STATUSES = [
+  "planning_matching",
+  "ready_for_funding",
+  "planning_assigned",
+  "planning_in_progress",
+  "planning_review",
   "implementation_ready",
+  "ready_for_implementation_funding",
   "matching",
   "matched",
   "assigned",

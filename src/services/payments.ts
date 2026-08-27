@@ -168,6 +168,37 @@ export interface ProjectPaymentSummary {
     isOutOfBudget: boolean;
   };
   budgetAllocation: ProjectBudgetAllocation | null;
+  funding: {
+    stage:
+      | "matching"
+      | "planning"
+      | "planning_active"
+      | "implementation"
+      | "funded";
+    planningAmount: number | null;
+    planningRemainingAmount: number | null;
+    implementationAmount: number | null;
+    implementationRemainingAmount: number | null;
+    planningIncludes: {
+      platformFee: string;
+      principalReviewer: string;
+      architect: string;
+      uiUx: string;
+    } | null;
+    capacitySnapshot: {
+      status?: "viable" | "at_risk" | "unavailable";
+      checkedAt?: string;
+      expiresAt?: string;
+      requiredPeople?: number;
+      eligibleCandidates?: number;
+      workableCandidates?: number;
+      immediatelyAvailableCandidates?: number;
+      blockingReasons?: string[];
+      disclaimer?: string;
+    } | null;
+    planningFundedAt: string | null;
+    implementationFundedAt: string | null;
+  };
   quoteEvidence: {
     schemaVersion: number;
     estimatorVersion: string;
@@ -205,7 +236,10 @@ export interface ProjectPaymentSummary {
     canPay: boolean;
     payBlockedReason: string | null;
     suggestedPaymentAmount: number | null;
-    suggestedPaymentPurpose?: string;
+    suggestedPaymentPurpose:
+      | "planning_deposit"
+      | "implementation_deposit"
+      | null;
     payButtonLabel?: string;
   };
   milestones: ProjectPaymentMilestoneSummary[];
@@ -256,6 +290,17 @@ function toSummary(summary: ProjectPaymentSummary): ProjectPaymentSummary {
       heldAmount: toNumber(summary.totals.heldAmount) ?? 0,
       releasedAmount: toNumber(summary.totals.releasedAmount) ?? 0,
       remainingAmount: toNumber(summary.totals.remainingAmount),
+    },
+    funding: {
+      ...summary.funding,
+      planningAmount: toNumber(summary.funding.planningAmount),
+      planningRemainingAmount: toNumber(
+        summary.funding.planningRemainingAmount,
+      ),
+      implementationAmount: toNumber(summary.funding.implementationAmount),
+      implementationRemainingAmount: toNumber(
+        summary.funding.implementationRemainingAmount,
+      ),
     },
     milestones: summary.milestones.map((milestone) => ({
       ...milestone,

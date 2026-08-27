@@ -10,7 +10,7 @@ export interface EvaluationRubricItem {
   key?: string;
   criterion: string;
   category?: string;
-  status?: "met" | "not_applicable" | "unmet";
+  status?: "met" | "not_applicable" | "unmet" | "unverified";
   met: boolean;
   evidence: string;
 }

@@ -124,15 +124,18 @@ export default function ProjectPaymentsPage() {
   }, [id, user?.role, paymentState, checkoutSessionId]);
 
   const handlePay = async () => {
-    if (!summary?.actions.canPay || !summary.actions.suggestedPaymentAmount)
+    if (
+      !summary?.actions.canPay ||
+      !summary.actions.suggestedPaymentAmount ||
+      !summary.actions.suggestedPaymentPurpose
+    )
       return;
     setPaying(true);
     try {
       const checkout = await createEscrowCheckoutSession(summary.project.id, {
         amount: summary.actions.suggestedPaymentAmount,
         currency: summary.quote.currency ?? summary.project.currency,
-        purpose:
-          summary.actions.suggestedPaymentPurpose ?? "full_project_deposit",
+        purpose: summary.actions.suggestedPaymentPurpose,
       });
 
       if (!checkout.checkoutUrl) {
@@ -153,7 +156,7 @@ export default function ProjectPaymentsPage() {
     <DashboardShell
       role="customer"
       title="Project payments"
-      subtitle="Review the final estimate and fund escrow securely."
+      subtitle="Fund planning first, then implementation only after every exact task is staffed."
     >
       <Link
         href={`/projects/${id}`}
@@ -226,15 +229,76 @@ export default function ProjectPaymentsPage() {
             </div>
           </section>
 
+          <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 card-shadow">
+            <h3 className="font-headline text-lg font-semibold text-on-surface">
+              Two-stage protection
+            </h3>
+            <p className="mt-1 max-w-4xl text-sm leading-relaxed text-on-surface-variant">
+              The planning package pays for reviewed architecture, UI/UX, and
+              the executable Scrum plan. You keep those deliverables even if
+              exact implementation staffing later fails. Nexus does not charge
+              the implementation balance until every materialized task has an
+              accepted freelancer; task deadlines and repository access start
+              only after that second payment.
+            </p>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <FundingStage
+                label="1. Planning package"
+                amount={summary.funding.planningAmount}
+                currency={summary.quote.currency ?? summary.project.currency}
+                state={
+                  summary.funding.planningFundedAt
+                    ? "Funded"
+                    : summary.funding.stage === "planning"
+                      ? "Ready to fund"
+                      : "Team confirmation in progress"
+                }
+              />
+              <FundingStage
+                label="2. Implementation balance"
+                amount={summary.funding.implementationAmount}
+                currency={summary.quote.currency ?? summary.project.currency}
+                state={
+                  summary.funding.implementationFundedAt
+                    ? "Funded"
+                    : summary.funding.stage === "implementation"
+                      ? "Exact team accepted — ready to fund"
+                      : "Locked until exact task staffing"
+                }
+              />
+            </div>
+            {summary.funding.capacitySnapshot && (
+              <div className="mt-4 rounded-lg bg-surface-container-low p-4 text-sm text-on-surface-variant">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-semibold text-on-surface">
+                    Implementation capacity preflight
+                  </span>
+                  <StatusBadge
+                    status={
+                      summary.funding.capacitySnapshot.status ?? "unknown"
+                    }
+                  />
+                </div>
+                <p className="mt-1">
+                  {summary.funding.capacitySnapshot.workableCandidates ?? 0}
+                  {" workable candidates for an estimated "}
+                  {summary.funding.capacitySnapshot.requiredPeople ?? 0}-person
+                  implementation team. This is a capacity check, not an early
+                  task assignment.
+                </p>
+              </div>
+            )}
+          </section>
+
           {summary.budgetAllocation && (
             <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 card-shadow">
               <h3 className="font-headline text-lg font-semibold text-on-surface">
                 How the project price is allocated
               </h3>
               <p className="mt-1 text-sm text-on-surface-variant">
-                Reserved before matching so every freelancer and development
-                task has covered compensation. Task amounts are refined by
-                effort and complexity when the Scrum Master plan is generated.
+                Planning compensation is reserved first. Implementation stays
+                locked until the approved Scrum plan defines exact tasks and
+                each one has an accepted freelancer.
               </p>
               <div className="mt-4 grid gap-3 md:grid-cols-3">
                 {[
@@ -285,17 +349,13 @@ export default function ProjectPaymentsPage() {
                     {"maxHourlyRate" in allocation &&
                       "estimatedHours" in allocation && (
                         <p className="mt-1 text-xs text-on-surface-variant">
-                          Covers {Number(allocation.estimatedHours)} estimated
-                          hours
+                          Internal capacity estimate:{" "}
+                          {Number(allocation.estimatedHours)} hours
                           {"people" in allocation && allocation.people
                             ? ` across ${Number(allocation.people)} ${Number(allocation.people) === 1 ? "person" : "people"}`
-                            : ""}{" "}
-                          up to{" "}
-                          {formatMoney(
-                            Number(allocation.maxHourlyRate),
-                            summary.budgetAllocation?.currency,
-                          )}
-                          /hour
+                            : ""}
+                          . Actual freelancer compensation uses the accepted
+                          contract and cannot exceed this allocation.
                         </p>
                       )}
                   </div>
@@ -310,29 +370,58 @@ export default function ProjectPaymentsPage() {
                 Pricing evidence and assumptions
               </summary>
               <p className="mt-2 text-sm text-on-surface-variant">
-                Immutable quote snapshot · {summary.quoteEvidence.estimatorVersion} · {Math.round(summary.quoteEvidence.confidence * 100)}% confidence
+                Immutable quote snapshot ·{" "}
+                {summary.quoteEvidence.estimatorVersion} ·{" "}
+                {Math.round(summary.quoteEvidence.confidence * 100)}% confidence
               </p>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 {summary.quoteEvidence.roleEstimates.map((role) => (
-                  <div key={role.roleKey} className="rounded-lg bg-surface-container-low p-3 text-sm text-on-surface">
-                    <span className="font-semibold">{role.roleKey.replaceAll("_", " ")}</span>
+                  <div
+                    key={role.roleKey}
+                    className="rounded-lg bg-surface-container-low p-3 text-sm text-on-surface"
+                  >
+                    <span className="font-semibold">
+                      {role.roleKey.replaceAll("_", " ")}
+                    </span>
                     <span className="block text-on-surface-variant">
-                      {role.people} × {role.hoursEach}h × {formatMoney(role.hourlyRate, summary.quoteEvidence?.currency)}/h
+                      Fixed package share:{" "}
+                      {formatMoney(
+                        role.subtotal,
+                        summary.quoteEvidence?.currency,
+                      )}
+                    </span>
+                    <span className="block text-xs text-on-surface-variant">
+                      Internal capacity estimate: {role.people}{" "}
+                      {role.people === 1 ? "person" : "people"},{" "}
+                      {role.hoursEach}h each
                     </span>
                   </div>
                 ))}
               </div>
               <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-on-surface-variant">
-                {summary.quoteEvidence.pricingSignals.map((signal) => <li key={signal}>{signal}</li>)}
+                {summary.quoteEvidence.pricingSignals.map((signal) => (
+                  <li key={signal}>{signal}</li>
+                ))}
               </ul>
               <div className="mt-4 flex flex-wrap gap-3 text-sm">
                 {summary.quoteEvidence.sources.map((source) =>
                   source.domain ? (
-                    <a key={source.reference} href={source.reference} target="_blank" rel="noreferrer" className="font-semibold text-primary-container hover:underline">
+                    <a
+                      key={source.reference}
+                      href={source.reference}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-semibold text-primary-container hover:underline"
+                    >
                       {source.domain}
                     </a>
                   ) : (
-                    <span key={source.reference} className="text-on-surface-variant">{source.reference}</span>
+                    <span
+                      key={source.reference}
+                      className="text-on-surface-variant"
+                    >
+                      {source.reference}
+                    </span>
                   ),
                 )}
               </div>
@@ -532,6 +621,28 @@ function Metric({
       <p className="mt-1 font-headline text-xl font-semibold text-on-surface">
         {value}
       </p>
+    </div>
+  );
+}
+
+function FundingStage({
+  label,
+  amount,
+  currency,
+  state,
+}: {
+  label: string;
+  amount: number | null;
+  currency: string;
+  state: string;
+}) {
+  return (
+    <div className="rounded-lg border border-outline-variant/20 bg-surface-container-low p-4">
+      <p className="text-sm font-semibold text-on-surface">{label}</p>
+      <p className="mt-1 font-headline text-2xl font-semibold text-on-surface">
+        {formatMoney(amount, currency)}
+      </p>
+      <p className="mt-1 text-xs text-on-surface-variant">{state}</p>
     </div>
   );
 }

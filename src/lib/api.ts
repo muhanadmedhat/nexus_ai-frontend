@@ -73,6 +73,11 @@ export const API_ENDPOINTS = {
     agentJobs: "/admin/agent-jobs",
     agentJobDetail: (id: string) => `/admin/agent-jobs/${id}`,
     automationIncidents: "/admin/automation/incidents",
+    automationIncidentSummary: "/admin/automation/incidents/summary",
+    automationIncidentDetail: (id: string) =>
+      `/admin/automation/incidents/${id}`,
+    resolveAutomationIncident: (id: string) =>
+      `/admin/automation/incidents/${id}/resolve`,
     assessmentDetail: (id: string) => `/admin/assessments/${id}`,
     assessmentReview: (id: string) => `/admin/assessments/${id}/review`,
   },
