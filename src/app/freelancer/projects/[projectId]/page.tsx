@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   CheckCircle,
   ClipboardCheck,
+  Clock3,
   FileText,
   ListChecks,
   XCircle,
@@ -655,7 +656,8 @@ export default function FreelancerProjectDetailPage() {
                     </div>
                   ) : null}
 
-                  {assignment.status === "accepted" ? (
+                  {assignment.status === "accepted" &&
+                  detail.project.planningFundedAt ? (
                     <Button
                       onClick={() =>
                         handleStatusChange(assignment, "in_progress")
@@ -666,6 +668,20 @@ export default function FreelancerProjectDetailPage() {
                       <ListChecks size={15} />
                       Start work
                     </Button>
+                  ) : null}
+
+                  {assignment.status === "accepted" &&
+                  !detail.project.planningFundedAt ? (
+                    <div className="mt-5 rounded-lg border border-outline-variant/30 bg-surface-container-low p-3 text-sm text-on-surface-variant">
+                      <p className="flex items-center gap-2 font-semibold text-on-surface">
+                        <Clock3 size={16} /> Waiting for planning funding
+                      </p>
+                      <p className="mt-1 leading-5">
+                        Your place is accepted. The client can fund planning
+                        once every planning invitation is accepted. Start work
+                        becomes available immediately after escrow is funded.
+                      </p>
+                    </div>
                   ) : null}
 
                   {["in_progress", "completed"].includes(assignment.status) ? (

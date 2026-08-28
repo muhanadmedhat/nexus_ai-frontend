@@ -7,7 +7,7 @@ import {
   LayoutDashboard,
   FolderOpen,
   CheckSquare,
-  MessageSquare,
+  Bell,
   CreditCard,
   ShieldCheck,
   Users,
@@ -41,7 +41,7 @@ const NAV_ITEMS: Record<UserRole, NavItem[]> = {
     },
     { label: "Projects", href: "/projects", icon: <FolderOpen size={20} /> },
     { label: "Tasks", href: "/tasks", icon: <CheckSquare size={20} /> },
-    { label: "Messages", href: "/messages", icon: <MessageSquare size={20} /> },
+    { label: "Activity", href: "/messages", icon: <Bell size={20} /> },
     { label: "Payments", href: "/payments", icon: <CreditCard size={20} /> },
   ],
   freelancer: [
@@ -60,14 +60,18 @@ const NAV_ITEMS: Record<UserRole, NavItem[]> = {
       href: "/invitations",
       icon: <MailCheck size={20} />,
     },
-    { label: "Reviewer", href: "/reviewer", icon: <UserCheck size={20} /> },
+    {
+      label: "Reviewer work",
+      href: "/reviewer",
+      icon: <UserCheck size={20} />,
+    },
     {
       label: "Projects",
       href: "/freelancer/projects",
       icon: <FolderOpen size={20} />,
     },
     { label: "Tasks", href: "/tasks", icon: <CheckSquare size={20} /> },
-    { label: "Messages", href: "/messages", icon: <MessageSquare size={20} /> },
+    { label: "Activity", href: "/messages", icon: <Bell size={20} /> },
     {
       label: "Payments",
       href: "/freelancer/payments",
@@ -85,6 +89,7 @@ const NAV_ITEMS: Record<UserRole, NavItem[]> = {
       href: "/dashboard/admin/projects",
       icon: <FolderOpen size={20} />,
     },
+    { label: "Activity", href: "/messages", icon: <Bell size={20} /> },
     {
       label: "Submissions",
       href: "/dashboard/admin/planning/submissions",

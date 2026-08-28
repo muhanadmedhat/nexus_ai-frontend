@@ -16,6 +16,17 @@ export interface ReviewerProject {
     automationStatus?: string;
     deadline?: string | null;
   };
+  attention: ReviewerAttention;
+}
+
+export interface ReviewerAttention {
+  planningAwaitingReview: number;
+  generatedPlans: number;
+  matchingRuns: number;
+  submissionsAwaitingReview: number;
+  releaseRequests: number;
+  openTasks: number;
+  finalHandoffsAwaitingReview: number;
 }
 
 export interface ReviewerMatchingInvitation {

@@ -25,6 +25,18 @@ export type ProjectStatus =
   | "cancelled"
   | "disputed";
 
+export interface ImplementationCapacitySnapshot {
+  status?: "viable" | "at_risk" | "unavailable";
+  checkedAt?: string;
+  expiresAt?: string;
+  requiredPeople?: number;
+  eligibleCandidates?: number;
+  workableCandidates?: number;
+  immediatelyAvailableCandidates?: number;
+  blockingReasons?: string[];
+  disclaimer?: string;
+}
+
 export interface Project {
   id: string;
   title: string;
@@ -43,6 +55,8 @@ export interface Project {
   quoteNotes?: string | null;
   quoteEvidence?: Record<string, unknown> | null;
   automationStatus?: string | null;
+  principalReviewerAssignmentId?: string | null;
+  implementationCapacitySnapshot?: ImplementationCapacitySnapshot | null;
   createdAt: string;
 }
 
@@ -63,6 +77,13 @@ export const PROJECT_DELETION_BLOCKED_STATUSES: ProjectStatus[] = [
   "completed",
   "disputed",
 ];
+
+export function isProjectDeletionBlocked(project: Project) {
+  return (
+    Boolean(project.principalReviewerAssignmentId) ||
+    PROJECT_DELETION_BLOCKED_STATUSES.includes(project.status)
+  );
+}
 
 export interface CreateProjectInput {
   title: string;

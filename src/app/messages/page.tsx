@@ -66,7 +66,7 @@ export default function MessagesPage() {
       setError(
         loadError instanceof Error
           ? loadError.message
-          : "Could not load your messages.",
+          : "Could not load your activity.",
       );
     } finally {
       inFlightRef.current = false;
@@ -132,7 +132,7 @@ export default function MessagesPage() {
       setError(
         markError instanceof Error
           ? markError.message
-          : "Could not mark messages as read.",
+          : "Could not mark activity as read.",
       );
     }
   };
@@ -140,13 +140,13 @@ export default function MessagesPage() {
   return (
     <DashboardShell
       role={role}
-      title="Messages"
-      subtitle="Decisions, revision requests, evaluation results, and their reasons appear here automatically."
+      title="Activity"
+      subtitle="Every invitation, decision, staffing update, revision request, and recovery action remains available here."
     >
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-on-surface-variant" aria-live="polite">
           {unreadCount > 0
-            ? `${unreadCount} unread ${unreadCount === 1 ? "message" : "messages"}`
+            ? `${unreadCount} unread ${unreadCount === 1 ? "update" : "updates"}`
             : "You are all caught up."}
         </p>
         <div className="flex gap-2">
@@ -185,7 +185,7 @@ export default function MessagesPage() {
             className="mx-auto animate-spin text-primary-container"
           />
           <p className="mt-3 text-sm text-on-surface-variant">
-            Loading messages...
+            Loading activity...
           </p>
         </div>
       ) : messages.length === 0 ? (
@@ -194,10 +194,11 @@ export default function MessagesPage() {
             <Inbox size={32} className="text-outline" />
           </div>
           <h3 className="text-lg font-semibold text-on-surface">
-            No messages yet
+            No activity yet
           </h3>
           <p className="mt-1 text-sm text-on-surface-variant">
-            Submission decisions and revision reasons will appear here.
+            Invitations, project decisions, and workflow updates will appear
+            here.
           </p>
         </div>
       ) : (
@@ -237,7 +238,7 @@ export default function MessagesPage() {
                     )}
                     {href && (
                       <span className="text-on-surface-variant">
-                        Open related submission →
+                        Open related work →
                       </span>
                     )}
                   </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import {
@@ -44,19 +44,53 @@ export default function PaymentsPage() {
     [projects],
   );
 
+  const loadProjects = useCallback(
+    (showLoading = false) => {
+      if (user?.role !== "customer") return;
+      if (showLoading) setLoading(true);
+      getCustomerPaymentProjects()
+        .then(setProjects)
+        .catch((error) => {
+          if (!showLoading) return;
+          const message =
+            error instanceof Error ? error.message : "Could not load payments";
+          toast.error("Payments unavailable", message);
+          setProjects([]);
+        })
+        .finally(() => setLoading(false));
+    },
+    [toast, user?.role],
+  );
+
   useEffect(() => {
     if (user?.role !== "customer") return;
-
-    getCustomerPaymentProjects()
-      .then(setProjects)
-      .catch((error) => {
-        const message =
-          error instanceof Error ? error.message : "Could not load payments";
-        toast.error("Payments unavailable", message);
-        setProjects([]);
-      })
-      .finally(() => setLoading(false));
-  }, [toast, user?.role]);
+    const initialLoad = window.setTimeout(() => loadProjects(true), 0);
+    const interval = window.setInterval(() => loadProjects(), 15_000);
+    const onNotification = (event: Event) => {
+      const notification = (
+        event as CustomEvent<{ projectId?: string; type?: string }>
+      ).detail;
+      if (
+        ![
+          "implementation_capacity_update",
+          "implementation_funding_ready",
+        ].includes(notification?.type ?? "")
+      )
+        return;
+      loadProjects();
+      if (notification?.type !== "implementation_funding_ready") return;
+      toast.info(
+        "Implementation payment unlocked",
+        "A project has a complete implementation team and is ready to fund.",
+      );
+    };
+    window.addEventListener("nexus:notification", onNotification);
+    return () => {
+      window.clearTimeout(initialLoad);
+      window.clearInterval(interval);
+      window.removeEventListener("nexus:notification", onNotification);
+    };
+  }, [loadProjects, toast, user?.role]);
 
   const handlePay = async (project: ProjectPaymentSummary) => {
     const amount = project.actions.suggestedPaymentAmount;

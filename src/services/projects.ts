@@ -28,6 +28,8 @@ interface BackendProject {
   quoteNotes?: string | null;
   quoteEvidence?: Record<string, unknown> | null;
   automationStatus?: string | null;
+  principalReviewerAssignmentId?: string | null;
+  implementationCapacitySnapshot?: Project["implementationCapacitySnapshot"];
   createdAt: string;
 }
 
@@ -57,6 +59,10 @@ function toProject(row: BackendProject): Project {
     quoteNotes: row.quoteNotes ?? null,
     quoteEvidence: row.quoteEvidence ?? null,
     automationStatus: row.automationStatus ?? null,
+    principalReviewerAssignmentId:
+      row.principalReviewerAssignmentId ?? null,
+    implementationCapacitySnapshot:
+      row.implementationCapacitySnapshot ?? null,
     createdAt: row.createdAt,
   };
 }

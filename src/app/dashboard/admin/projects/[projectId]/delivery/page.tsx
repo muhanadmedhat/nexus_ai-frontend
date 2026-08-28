@@ -86,6 +86,14 @@ const AUTOMATION_MESSAGES: Record<string, string> = {
     "UI/UX or architecture invitations are pending; expired or declined invitations rematch automatically.",
   awaiting_implementation_team:
     "Implementation invitations are pending for the materialized tasks.",
+  ready_for_funding_capacity_at_risk:
+    "The planning team accepted, but planning payment is locked because the latest capacity sweep found too few available implementation freelancers.",
+  ready_for_funding_capacity_at_risk_notified:
+    "Planning payment is capacity-blocked. The client has been notified and the automatic sweep continues.",
+  ready_for_funding_capacity_available:
+    "The capacity sweep passed. Planning payment is unlocked and the client notification is being delivered.",
+  ready_for_funding_capacity_available_notified:
+    "The capacity sweep passed. Planning payment is unlocked and the client was emailed a payment link.",
   staffing_blocked:
     "Automatic staffing needs attention. Open the matching section for the failed or empty run.",
   awaiting_client_acceptance:
@@ -246,7 +254,7 @@ export default function AdminProjectDeliveryPage() {
           )}
 
           {project && (
-            <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-4">
+            <div className="rounded-lg border border-outline-variant/30 bg-surface-container-lowest p-4">
               <div className="flex flex-wrap items-center gap-3">
                 <StatusBadge status={project.status} />
                 {project.automationStatus && (
@@ -261,6 +269,37 @@ export default function AdminProjectDeliveryPage() {
                 {AUTOMATION_MESSAGES[project.automationStatus ?? ""] ??
                   "The page refreshes automatically as invitations, reviews, planning, and matching progress."}
               </p>
+              {project.implementationCapacitySnapshot && (
+                <div className="mt-4 border-t border-outline-variant/30 pt-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-semibold text-on-surface">
+                      Implementation capacity sweep
+                    </span>
+                    <StatusBadge
+                      status={
+                        project.implementationCapacitySnapshot.status ??
+                        "unknown"
+                      }
+                    />
+                  </div>
+                  <p className="mt-2 text-sm text-on-surface-variant">
+                    {project.implementationCapacitySnapshot.workableCandidates ?? 0}{" "}
+                    workable candidates for an estimated{" "}
+                    {project.implementationCapacitySnapshot.requiredPeople ?? 0}-person
+                    team.
+                    {project.implementationCapacitySnapshot.checkedAt
+                      ? ` Last checked ${formatDate(project.implementationCapacitySnapshot.checkedAt)}.`
+                      : ""}
+                  </p>
+                  {project.implementationCapacitySnapshot.blockingReasons?.map(
+                    (reason) => (
+                      <p key={reason} className="mt-2 text-sm text-error">
+                        {reason}
+                      </p>
+                    ),
+                  )}
+                </div>
+              )}
             </div>
           )}
 

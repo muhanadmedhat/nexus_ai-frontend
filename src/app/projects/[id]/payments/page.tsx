@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
@@ -43,35 +43,39 @@ export default function ProjectPaymentsPage() {
   const [budgetMin, setBudgetMin] = useState("");
   const [budgetMax, setBudgetMax] = useState("");
 
-  const loadSummary = (syncSessionId?: string | null) => {
-    if (!id || user?.role !== "customer") return;
-    setLoading(true);
-    const request = syncSessionId
-      ? syncEscrowCheckoutSession(id, syncSessionId)
-      : getProjectPaymentSummary(id);
+  const loadSummary = useCallback(
+    (syncSessionId?: string | null, showLoading = true) => {
+      if (!id || user?.role !== "customer") return;
+      if (showLoading) setLoading(true);
+      const request = syncSessionId
+        ? syncEscrowCheckoutSession(id, syncSessionId)
+        : getProjectPaymentSummary(id);
 
-    request
-      .then((nextSummary) => {
-        setSummary(nextSummary);
-        setBudgetMin(String(nextSummary.project.budgetMin ?? ""));
-        setBudgetMax(String(nextSummary.project.budgetMax ?? ""));
-        if (syncSessionId) {
-          toast.success(
-            "Escrow funded",
-            "Stripe confirmed the payment and the project balance is updated.",
-          );
-        }
-      })
-      .catch((error) => {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Could not load project payments";
-        toast.error("Payments unavailable", message);
-        setSummary(null);
-      })
-      .finally(() => setLoading(false));
-  };
+      request
+        .then((nextSummary) => {
+          setSummary(nextSummary);
+          setBudgetMin(String(nextSummary.project.budgetMin ?? ""));
+          setBudgetMax(String(nextSummary.project.budgetMax ?? ""));
+          if (syncSessionId) {
+            toast.success(
+              "Escrow funded",
+              "Stripe confirmed the payment and the project balance is updated.",
+            );
+          }
+        })
+        .catch((error) => {
+          if (!showLoading) return;
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Could not load project payments";
+          toast.error("Payments unavailable", message);
+          setSummary(null);
+        })
+        .finally(() => setLoading(false));
+    },
+    [id, toast, user?.role],
+  );
 
   const handleBudgetUpdate = async () => {
     if (!id || !summary) return;
@@ -120,8 +124,37 @@ export default function ProjectPaymentsPage() {
     if (paymentState === "cancelled") {
       toast.error("Payment cancelled", "No escrow was funded.");
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, user?.role, paymentState, checkoutSessionId]);
+  }, [checkoutSessionId, loadSummary, paymentState, toast]);
+
+  useEffect(() => {
+    if (!id || user?.role !== "customer") return;
+    const refresh = () => loadSummary(null, false);
+    const onNotification = (event: Event) => {
+      const notification = (
+        event as CustomEvent<{ projectId?: string; type?: string }>
+      ).detail;
+      if (notification?.projectId !== id) return;
+      if (
+        ![
+          "implementation_capacity_update",
+          "implementation_funding_ready",
+        ].includes(notification.type ?? "")
+      )
+        return;
+      refresh();
+      if (notification.type !== "implementation_funding_ready") return;
+      toast.info(
+        "Implementation payment unlocked",
+        "Every task has an accepted freelancer. You can fund implementation now.",
+      );
+    };
+    const interval = window.setInterval(refresh, 15_000);
+    window.addEventListener("nexus:notification", onNotification);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("nexus:notification", onNotification);
+    };
+  }, [id, loadSummary, toast, user?.role]);
 
   const handlePay = async () => {
     if (
@@ -271,7 +304,7 @@ export default function ProjectPaymentsPage() {
               <div className="mt-4 rounded-lg bg-surface-container-low p-4 text-sm text-on-surface-variant">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-semibold text-on-surface">
-                    Implementation capacity preflight
+                    Implementation capacity sweep
                   </span>
                   <StatusBadge
                     status={
@@ -283,9 +316,24 @@ export default function ProjectPaymentsPage() {
                   {summary.funding.capacitySnapshot.workableCandidates ?? 0}
                   {" workable candidates for an estimated "}
                   {summary.funding.capacitySnapshot.requiredPeople ?? 0}-person
-                  implementation team. This is a capacity check, not an early
-                  task assignment.
+                  implementation team. This sweep gates planning payment but
+                  does not assign freelancers before the exact tasks exist.
                 </p>
+                {summary.funding.capacitySnapshot.status === "unavailable" && (
+                  <p className="mt-2 text-sm font-medium text-on-surface">
+                    Planning payment is temporarily locked. Nexus AI keeps
+                    sweeping the freelancer pool and will unlock this button and
+                    email you a payment link as soon as enough implementation
+                    freelancers are available.
+                  </p>
+                )}
+                {summary.funding.capacitySnapshot.blockingReasons?.map(
+                  (reason) => (
+                    <p key={reason} className="mt-2 text-xs">
+                      {reason}
+                    </p>
+                  ),
+                )}
               </div>
             )}
           </section>

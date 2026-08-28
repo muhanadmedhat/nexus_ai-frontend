@@ -228,7 +228,7 @@ export function NotificationDropdown() {
                           </p>
                         )}
                         <p className="text-xs text-on-surface-variant line-clamp-2">
-                          {n.body || "Open Messages for more details."}
+                          {n.body || "Open Activity for more details."}
                         </p>
                         <p className="mt-1 text-[10px] text-on-surface-variant/60">
                           {formatTime(n.createdAt)}
@@ -256,7 +256,7 @@ export function NotificationDropdown() {
                 onClick={() => setIsOpen(false)}
                 className="block rounded-md px-3 py-2 text-center text-sm font-semibold text-primary-container hover:bg-surface-container-low"
               >
-                View all messages
+                View all activity
               </Link>
             </div>
           </div>

@@ -12,7 +12,7 @@ import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/hooks/use-auth";
 import { deleteProject, getProject } from "@/services/projects";
 import { getBrief } from "@/services/brief";
-import { PROJECT_DELETION_BLOCKED_STATUSES, type Brief, type Project } from "@/types/project";
+import { isProjectDeletionBlocked, type Brief, type Project } from "@/types/project";
 import { formatBudget, formatDate } from "@/utils/format";
 
 export default function ProjectDetailsPage() {
@@ -58,7 +58,7 @@ export default function ProjectDetailsPage() {
   }, [id, user?.role]);
 
   const handleDeleteProject = async () => {
-    if (!project || PROJECT_DELETION_BLOCKED_STATUSES.includes(project.status)) return;
+    if (!project || isProjectDeletionBlocked(project)) return;
 
     setDeleting(true);
     try {
@@ -249,15 +249,16 @@ export default function ProjectDetailsPage() {
                 variant="outline"
                 onClick={() => setIsDeleteDialogOpen(true)}
                 loading={deleting}
-                disabled={PROJECT_DELETION_BLOCKED_STATUSES.includes(project.status)}
+                disabled={isProjectDeletionBlocked(project)}
                 className="mt-4 inline-flex items-center justify-center border-error/30 px-4 py-2.5 text-error hover:bg-error/5"
               >
                 <Trash2 size={18} className="mr-2" />
                 Delete project
               </Button>
-              {PROJECT_DELETION_BLOCKED_STATUSES.includes(project.status) && (
+              {isProjectDeletionBlocked(project) && (
                 <p className="mt-2 text-xs text-on-surface-variant">
-                  Projects cannot be deleted after they are assigned to freelancers.
+                  Projects cannot be deleted after the principal reviewer or
+                  another freelancer accepts the assignment.
                 </p>
               )}
             </div>

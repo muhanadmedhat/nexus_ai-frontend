@@ -339,6 +339,14 @@ export interface AdminProjectSummary {
   automationError?: string | null;
   automationErrorCategory?: string | null;
   automationErrorAt?: string | null;
+  implementationCapacitySnapshot?: {
+    status?: "viable" | "at_risk" | "unavailable";
+    checkedAt?: string;
+    requiredPeople?: number;
+    workableCandidates?: number;
+    immediatelyAvailableCandidates?: number;
+    blockingReasons?: string[];
+  } | null;
   createdAt?: string;
   deadline?: string | null;
   budgetMin?: string | number | null;
@@ -352,6 +360,7 @@ export async function getAdminProjects(params?: {
   limit?: number;
   status?: string;
   automationStatus?: string;
+  capacityStatus?: string;
   search?: string;
   customerId?: string;
   dateFrom?: string;
@@ -363,6 +372,8 @@ export async function getAdminProjects(params?: {
   if (params?.status) query.append("status", params.status);
   if (params?.automationStatus)
     query.append("automationStatus", params.automationStatus);
+  if (params?.capacityStatus)
+    query.append("capacityStatus", params.capacityStatus);
   if (params?.search) query.append("search", params.search);
   if (params?.customerId) query.append("customerId", params.customerId);
   if (params?.dateFrom) query.append("dateFrom", params.dateFrom);

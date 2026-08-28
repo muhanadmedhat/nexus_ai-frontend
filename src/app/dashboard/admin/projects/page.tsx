@@ -14,18 +14,20 @@ export default function AdminProjectsPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [automationStatus, setAutomationStatus] = useState("");
+  const [capacityStatus, setCapacityStatus] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const result = await getAdminProjects({
         limit: 100,
         search: search || undefined,
         status: status || undefined,
         automationStatus: automationStatus || undefined,
+        capacityStatus: capacityStatus || undefined,
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
       });
@@ -33,11 +35,15 @@ export default function AdminProjectsPage() {
     } finally {
       setLoading(false);
     }
-  }, [automationStatus, dateFrom, dateTo, search, status]);
+  }, [automationStatus, capacityStatus, dateFrom, dateTo, search, status]);
 
   useEffect(() => {
     const initial = window.setTimeout(() => void load(), 0);
-    return () => window.clearTimeout(initial);
+    const interval = window.setInterval(() => void load(false), 15_000);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(interval);
+    };
   }, [load]);
 
   return (
@@ -47,7 +53,7 @@ export default function AdminProjectsPage() {
       subtitle="Search operational state and intervene only when automation needs help."
     >
       <form
-        className="mb-5 grid gap-3 rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-4 md:grid-cols-2 xl:grid-cols-6"
+        className="mb-5 grid gap-3 rounded-lg border border-outline-variant/30 bg-surface-container-lowest p-4 md:grid-cols-2 xl:grid-cols-7"
         onSubmit={(event) => {
           event.preventDefault();
           void load();
@@ -71,6 +77,17 @@ export default function AdminProjectsPage() {
           placeholder="Automation status"
           className="rounded-lg border border-outline-variant bg-transparent px-3 py-2 text-sm"
         />
+        <select
+          value={capacityStatus}
+          onChange={(event) => setCapacityStatus(event.target.value)}
+          className="rounded-lg border border-outline-variant bg-transparent px-3 py-2 text-sm"
+          aria-label="Capacity status"
+        >
+          <option value="">All capacity states</option>
+          <option value="unavailable">Payment blocked</option>
+          <option value="at_risk">At risk</option>
+          <option value="viable">Viable</option>
+        </select>
         <input
           type="date"
           value={dateFrom}
@@ -103,6 +120,7 @@ export default function AdminProjectsPage() {
                   <th className="p-4">Customer</th>
                   <th className="p-4">Status</th>
                   <th className="p-4">Automation</th>
+                  <th className="p-4">Capacity sweep</th>
                   <th className="p-4">Created</th>
                   <th className="p-4">Budget</th>
                 </tr>
@@ -147,6 +165,43 @@ export default function AdminProjectsPage() {
                           )}
                           <p>{project.automationError}</p>
                         </div>
+                      )}
+                    </td>
+                    <td className="p-4">
+                      {project.implementationCapacitySnapshot ? (
+                        <div className="max-w-sm whitespace-normal">
+                          <StatusBadge
+                            status={
+                              project.implementationCapacitySnapshot.status ??
+                              "unknown"
+                            }
+                          />
+                          <p className="mt-2 text-xs text-on-surface-variant">
+                            {project.implementationCapacitySnapshot
+                              .workableCandidates ?? 0}
+                            /{project.implementationCapacitySnapshot
+                              .requiredPeople ?? 0}{" "}
+                            workable
+                          </p>
+                          {project.implementationCapacitySnapshot.checkedAt && (
+                            <p className="mt-1 text-xs text-on-surface-variant">
+                              Checked{" "}
+                              {formatDate(
+                                project.implementationCapacitySnapshot.checkedAt,
+                              )}
+                            </p>
+                          )}
+                          {project.implementationCapacitySnapshot.status ===
+                            "unavailable" && (
+                            <p className="mt-2 text-xs leading-5 text-error">
+                              Planning payment locked; automatic sweep active.
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-on-surface-variant">
+                          Not checked
+                        </span>
                       )}
                     </td>
                     <td className="p-4">

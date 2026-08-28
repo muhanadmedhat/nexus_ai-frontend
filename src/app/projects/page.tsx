@@ -10,7 +10,7 @@ import { useToast } from "@/components/ui/toast";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useAuth } from "@/hooks/use-auth";
 import { deleteProject, listProjects } from "@/services/projects";
-import { PROJECT_DELETION_BLOCKED_STATUSES, type Project } from "@/types/project";
+import { isProjectDeletionBlocked, type Project } from "@/types/project";
 import { formatBudget, formatDate } from "@/utils/format";
 
 export default function ProjectsPage() {
@@ -42,7 +42,7 @@ export default function ProjectsPage() {
   const handleDeleteProject = async () => {
     const project = projectPendingDelete;
     if (!project) return;
-    if (PROJECT_DELETION_BLOCKED_STATUSES.includes(project.status)) return;
+    if (isProjectDeletionBlocked(project)) return;
 
     setDeletingId(project.id);
     try {
@@ -108,7 +108,7 @@ export default function ProjectsPage() {
         <>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {projects.map((p) => {
-              const deleteBlocked = PROJECT_DELETION_BLOCKED_STATUSES.includes(p.status);
+              const deleteBlocked = isProjectDeletionBlocked(p);
               const deleting = deletingId === p.id;
 
               return (
@@ -145,7 +145,7 @@ export default function ProjectsPage() {
                     disabled={deleteBlocked || deleting}
                     title={
                       deleteBlocked
-                        ? "Projects cannot be deleted after assignment"
+                        ? "Projects cannot be deleted after a freelancer accepts"
                         : "Delete project"
                     }
                     className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-error/20 px-3 py-2 text-sm font-semibold text-error transition-colors hover:bg-error/5 disabled:cursor-not-allowed disabled:opacity-50"

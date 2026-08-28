@@ -145,6 +145,7 @@ export interface FreelancerProjectAssignmentDetail {
     description: string | null;
     status: string;
     planningStatus: string;
+    planningFundedAt: string | null;
     currency: string | null;
     deadline: string | null;
     isDeadlineFlexible: boolean;
