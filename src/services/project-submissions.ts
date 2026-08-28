@@ -114,6 +114,7 @@ export interface SubmissionDetail extends ProjectSubmission {
       baseRef: string | null;
       requiredBaseRef: string;
       targetReady: boolean;
+      historyReady: boolean;
       evaluationCurrent: boolean;
       canRetarget: boolean;
       blocker: string | null;

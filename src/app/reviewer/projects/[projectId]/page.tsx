@@ -315,6 +315,7 @@ export default function ReviewerProjectPage() {
   const selectedApprovalBranchReady =
     !selectedPullRequestReadiness ||
     (selectedPullRequestReadiness.targetReady === true &&
+      selectedPullRequestReadiness.historyReady === true &&
       selectedPullRequestReadiness.evaluationCurrent === true);
 
   useEffect(() => {
@@ -2012,6 +2013,7 @@ export default function ReviewerProjectPage() {
                     </Button>
                   )}
                   {selectedPullRequestReadiness.targetReady === true &&
+                    selectedPullRequestReadiness.historyReady === true &&
                     selectedPullRequestReadiness.evaluationCurrent !== true && (
                       <Button
                         className="mt-3 w-auto"
