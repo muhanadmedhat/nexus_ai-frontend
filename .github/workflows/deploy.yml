@@ -48,6 +48,9 @@ jobs:
               docker login --username AWS --password-stdin "$ECR_REGISTRY"
             sed -i '/^FRONTEND_TAG=/d' .env
             echo "FRONTEND_TAG=$GITHUB_SHA" >> .env
+            # Compose prefers an exported shell value over the updated .env file.
+            # Refresh it here so this run cannot silently redeploy the old tag.
+            export FRONTEND_TAG="$GITHUB_SHA"
             docker compose pull frontend
             docker compose up -d --no-deps frontend
             # Drop images no longer referenced by a container so the disk
