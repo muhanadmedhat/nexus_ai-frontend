@@ -11,6 +11,7 @@ import {
   ExternalLink,
   Loader2,
   RefreshCw,
+  Send,
 } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,10 @@ import {
   type AutomationIncident,
   type AutomationIncidentEvent,
 } from "@/services/automation-incidents";
+import {
+  syncRepositoryCollaborators,
+  syncRepositoryEvaluationWebhook,
+} from "@/services/repositories";
 
 function JsonBlock({ value }: { value: Record<string, unknown> | null }) {
   if (!value || Object.keys(value).length === 0) {
@@ -87,6 +92,9 @@ export default function AutomationIncidentDetailPage() {
   const [events, setEvents] = useState<AutomationIncidentEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [resolving, setResolving] = useState(false);
+  const [recovering, setRecovering] = useState<
+    "webhook" | "collaborators" | null
+  >(null);
   const [resolutionNote, setResolutionNote] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -126,6 +134,66 @@ export default function AutomationIncidentDetailPage() {
       toast.error("Resolution failed", message);
     } finally {
       setResolving(false);
+    }
+  };
+
+  const retryRepositoryWebhook = async () => {
+    if (!incident?.projectId) return;
+    setRecovering("webhook");
+    try {
+      const repository = await syncRepositoryEvaluationWebhook(
+        incident.projectId,
+      );
+      if (repository.evaluationWebhook?.status !== "active") {
+        throw new Error(
+          repository.evaluationWebhook?.error ??
+            "The evaluation webhook is still unavailable.",
+        );
+      }
+      toast.success("Webhook synchronized", "The incident was resolved automatically.");
+      await load();
+    } catch (retryError) {
+      const message =
+        retryError instanceof Error
+          ? retryError.message
+          : "Could not retry the webhook";
+      setError(message);
+      toast.error("Webhook retry failed", message);
+    } finally {
+      setRecovering(null);
+    }
+  };
+
+  const retryRepositoryCollaborators = async () => {
+    if (!incident?.projectId) return;
+    setRecovering("collaborators");
+    try {
+      const result = await syncRepositoryCollaborators(incident.projectId, {
+        includeTaskAssignees: true,
+        includePlanningAssignees: true,
+      });
+      const failed = result.collaborators.filter(
+        (collaborator) => collaborator.inviteStatus === "failed",
+      );
+      if (failed.length) {
+        throw new Error(
+          `${failed.length} collaborator invitation${failed.length === 1 ? "" : "s"} still failed. Open the repository workspace for details.`,
+        );
+      }
+      toast.success(
+        "Collaborator access synchronized",
+        `${result.invited} invitation${result.invited === 1 ? "" : "s"} sent.`,
+      );
+      await load();
+    } catch (retryError) {
+      const message =
+        retryError instanceof Error
+          ? retryError.message
+          : "Could not sync collaborator access";
+      setError(message);
+      toast.error("Collaborator sync failed", message);
+    } finally {
+      setRecovering(null);
     }
   };
 
@@ -251,6 +319,39 @@ export default function AutomationIncidentDetailPage() {
             <h2 className="font-headline text-lg font-semibold text-on-surface">
               Suggested recovery
             </h2>
+            {incident.subsystem === "repositories" && incident.projectId &&
+            incident.status === "open" ? (
+              <div className="mt-4 border-b border-outline-variant/30 pb-4">
+                {incident.errorCode === "webhook_sync_failed" ? (
+                  <p className="mb-3 text-sm leading-6 text-on-surface-variant">
+                    Webhook access and collaborator invitations are independent.
+                    The GitHub token needs repository permission Webhooks: Read
+                    and write before the webhook retry can succeed.
+                  </p>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    loading={recovering === "webhook"}
+                    disabled={recovering !== null}
+                    onClick={() => void retryRepositoryWebhook()}
+                    className="!w-auto px-3 py-2 text-sm"
+                  >
+                    <RefreshCw size={15} /> Retry webhook
+                  </Button>
+                  <Button
+                    type="button"
+                    loading={recovering === "collaborators"}
+                    disabled={recovering !== null}
+                    onClick={() => void retryRepositoryCollaborators()}
+                    className="!w-auto px-3 py-2 text-sm"
+                  >
+                    <Send size={15} /> Sync collaborator access
+                  </Button>
+                </div>
+              </div>
+            ) : null}
             <div className="mt-4 space-y-3">
               {incident.suggestedActions.map((action, index) => (
                 <div key={action.key} className="rounded-lg bg-surface-container-low p-4">

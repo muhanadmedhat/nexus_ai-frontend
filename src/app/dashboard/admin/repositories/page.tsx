@@ -173,6 +173,7 @@ export default function AdminRepositoriesPage() {
     try {
       const result = await syncRepositoryCollaborators(repository.projectId, {
         includeTaskAssignees: true,
+        includePlanningAssignees: true,
       });
       setCollaborators(result.collaborators ?? []);
       toast.success(
@@ -336,6 +337,13 @@ export default function AdminRepositoriesPage() {
                         <AlertCircle size={14} /> {repository.error}
                       </p>
                     )}
+                    {repository.evaluationWebhook?.status === "failed" && (
+                      <p className="mt-1 flex items-center gap-1 text-sm text-error">
+                        <AlertCircle size={14} />
+                        {repository.evaluationWebhook.error ??
+                          'Webhook sync failed. The GitHub token needs repository permission "Webhooks: Read and write".'}
+                      </p>
+                    )}
                   </div>
                 </button>
 
@@ -356,7 +364,7 @@ export default function AdminRepositoriesPage() {
                     disabled={repository.status !== "active"}
                     onClick={() => void handleWebhookSync(repository)}
                   >
-                    <RefreshCw size={15} /> Webhook
+                    <RefreshCw size={15} /> Retry webhook
                   </Button>
                   <Button
                     size="sm"
@@ -364,7 +372,7 @@ export default function AdminRepositoriesPage() {
                     disabled={repository.status !== "active"}
                     onClick={() => void handleSync(repository)}
                   >
-                    <Users size={15} /> Sync
+                    <Users size={15} /> Sync access
                   </Button>
                 </div>
               </div>
