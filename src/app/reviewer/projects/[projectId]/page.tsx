@@ -294,6 +294,9 @@ export default function ReviewerProjectPage() {
     [selectedEvaluation],
   );
   const selectedEvaluationStatus = text(selectedEvaluation?.status);
+  const selectedEvaluationRecommendation = text(
+    selectedEvaluation?.recommendation,
+  );
   const selectedEvaluationPending = ["queued", "running"].includes(
     selectedEvaluationStatus,
   );
@@ -1972,10 +1975,9 @@ export default function ReviewerProjectPage() {
               <div className="mt-5 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm text-on-surface">
                 <p className="font-semibold">Human verification required</p>
                 <p className="mt-1 text-on-surface-variant">
-                  Automation could not inspect every relevant source file. This
-                  is not automatically a freelancer defect. Inspect the exact
-                  pull request and commit, then record at least 20 characters of
-                  review evidence before approving.
+                  {selectedEvaluationRecommendation === "changes_requested"
+                    ? "AI requested changes. If you disagree after rating every rubric row, inspect the exact pull request and commit, then record at least 20 characters explaining your approval evidence."
+                    : "Automation could not inspect every relevant source file. This is not automatically a freelancer defect. Inspect the exact pull request and commit, then record at least 20 characters of review evidence before approving."}
                 </p>
               </div>
             )}
@@ -2242,24 +2244,8 @@ function submissionRecord(detail: Row | null): Row | null {
 
 function evaluationNeedsManualReview(evaluation: Row | null) {
   if (!evaluation) return false;
-  if (text(evaluation.recommendation) === "manual_review") return true;
-  if (text(evaluation.recommendation) !== "changes_requested") return false;
-  const coverage =
-    evaluation.acceptanceCoverage &&
-    typeof evaluation.acceptanceCoverage === "object"
-      ? (evaluation.acceptanceCoverage as Row)
-      : null;
-  const items = Array.isArray(coverage?.items) ? (coverage.items as Row[]) : [];
-  const unresolved = items.filter(
-    (item) => item.met !== true && text(item.status) !== "not_applicable",
-  );
-  return (
-    unresolved.length > 0 &&
-    unresolved.every(
-      (item) =>
-        text(item.status) === "unverified" ||
-        text(item.key) === "verification_observed_1",
-    )
+  return ["manual_review", "changes_requested"].includes(
+    text(evaluation.recommendation),
   );
 }
 
