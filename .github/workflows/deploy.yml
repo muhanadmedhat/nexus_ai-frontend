@@ -53,7 +53,11 @@ jobs:
             export FRONTEND_TAG="$GITHUB_SHA"
             docker compose pull frontend
             docker compose up -d --no-deps frontend
-            # Drop images no longer referenced by a container so the disk
-            # does not fill up with one image per deploy.
-            docker image prune -af
+            expected_image="$ECR_REGISTRY/nexus-ai-frontend:$GITHUB_SHA"
+            actual_image="$(docker inspect --format '{{.Config.Image}}' "$(docker compose ps -q frontend)")"
+            test "$actual_image" = "$expected_image"
+            # Concurrent repo deploys may have pulled a tagged image that is not
+            # running yet. Only prune dangling layers here so one deploy cannot
+            # delete another deploy's image between pull and up.
+            docker image prune -f
             docker compose ps
