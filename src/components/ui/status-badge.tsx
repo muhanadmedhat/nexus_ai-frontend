@@ -71,6 +71,7 @@ const STYLES: Record<string, string> = {
 
   // Sprint 5 delivery — payment release requests
   pending: "bg-surface-container-high text-on-surface-variant",
+  sending: "bg-secondary-container/20 text-secondary",
   released: "bg-primary-container/15 text-primary-container",
 
   // Sprint 5 delivery — repositories and collaborator invites

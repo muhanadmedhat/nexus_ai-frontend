@@ -37,6 +37,7 @@ export interface RepositoryCollaborator {
   permission: string;
   inviteStatus:
     | "pending"
+    | "sending"
     | "missing_username"
     | "invited"
     | "accepted"
