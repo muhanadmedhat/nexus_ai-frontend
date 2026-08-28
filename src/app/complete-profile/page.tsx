@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { isValidPhoneNumber } from "react-phone-number-input";
 import { clsx } from "clsx";
 import { Briefcase, UserRoundSearch } from "lucide-react";
@@ -47,8 +47,6 @@ export default function CompleteProfilePage() {
   const router = useRouter();
   const { refresh } = useAuth();
   const toast = useToast();
-  const defaultRole = useMemo(() => getStoredGoogleRole(), []);
-  const [role, setRole] = useState<CompleteProfileValues["role"]>(defaultRole);
 
   const {
     control,
@@ -57,8 +55,13 @@ export default function CompleteProfilePage() {
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<CompleteProfileValues>({
-    defaultValues: { phoneNumber: "", role: defaultRole, githubUsername: "" },
+    defaultValues: { phoneNumber: "", role: "customer", githubUsername: "" },
   });
+  const role = useWatch({ control, name: "role" });
+
+  useEffect(() => {
+    setValue("role", getStoredGoogleRole());
+  }, [setValue]);
 
   const onSubmit = async (values: CompleteProfileValues) => {
     try {
@@ -119,8 +122,10 @@ export default function CompleteProfilePage() {
                       key={value}
                       aria-pressed={active}
                       onClick={() => {
-                        setRole(value);
-                        setValue("role", value, { shouldDirty: true, shouldValidate: true });
+                        setValue("role", value, {
+                          shouldDirty: true,
+                          shouldValidate: true,
+                        });
                       }}
                       className={clsx(
                         "group flex min-h-[104px] flex-col items-start rounded-lg border p-3 text-left transition-all",

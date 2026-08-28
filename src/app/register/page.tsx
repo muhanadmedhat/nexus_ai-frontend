@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { isValidPhoneNumber } from "react-phone-number-input";
@@ -87,6 +86,7 @@ export default function RegisterPage() {
     register,
     control,
     handleSubmit,
+    getValues,
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
@@ -94,7 +94,7 @@ export default function RegisterPage() {
     defaultValues: { role: "customer", phoneNumber: "", githubUsername: "" },
   });
 
-  const [role, setRole] = useState<FormValues["role"]>("customer");
+  const role = useWatch({ control, name: "role" });
 
   const onSubmit = async (values: FormValues) => {
     try {
@@ -197,7 +197,6 @@ export default function RegisterPage() {
                           key={value}
                           aria-pressed={active}
                           onClick={() => {
-                            setRole(value);
                             setValue("role", value, {
                               shouldDirty: true,
                               shouldValidate: true,
@@ -311,7 +310,10 @@ export default function RegisterPage() {
 
             <GoogleAuthButton
               onBeforeRedirect={() => {
-                window.localStorage.setItem("nexus_google_signup_role", role);
+                window.localStorage.setItem(
+                  "nexus_google_signup_role",
+                  getValues("role"),
+                );
               }}
             />
 
