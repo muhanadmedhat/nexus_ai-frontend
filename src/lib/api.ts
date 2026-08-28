@@ -241,6 +241,30 @@ interface RetryableRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
 }
 
+const AUTH_REQUESTS_THAT_MUST_PRESERVE_401 = new Set([
+  API_ENDPOINTS.auth.signup,
+  API_ENDPOINTS.auth.login,
+  API_ENDPOINTS.auth.refresh,
+  API_ENDPOINTS.auth.google,
+  API_ENDPOINTS.auth.googleCallback,
+  API_ENDPOINTS.auth.exchange,
+]);
+
+function isPublicAuthRequest(url?: string): boolean {
+  if (!url) return false;
+  try {
+    const pathname = new URL(url, "http://nexus.local").pathname.replace(
+      /\/$/,
+      "",
+    );
+    return [...AUTH_REQUESTS_THAT_MUST_PRESERVE_401].some((endpoint) =>
+      pathname.endsWith(endpoint),
+    );
+  } catch {
+    return false;
+  }
+}
+
 export const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
@@ -276,7 +300,9 @@ api.interceptors.response.use(
     if (
       error.response?.status !== 401 ||
       !originalRequest ||
-      originalRequest._retry
+      originalRequest._retry ||
+      !getAccessToken() ||
+      isPublicAuthRequest(originalRequest.url)
     ) {
       throw error;
     }
@@ -295,9 +321,11 @@ api.interceptors.response.use(
       });
 
       return api(originalRequest);
-    } catch (refreshError) {
+    } catch {
       clearAuthTokens();
-      throw refreshError;
+      // Keep the API operation's original 401. Refresh failures are an
+      // implementation detail and should never replace the useful user error.
+      throw error;
     }
   },
 );
