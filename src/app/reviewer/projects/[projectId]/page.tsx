@@ -500,7 +500,9 @@ export default function ReviewerProjectPage() {
       window
         .prompt(
           decision === "approved"
-            ? "Optional overall comments"
+            ? selectedSubmissionNeedsManualReview
+              ? "Required: explain what you verified and why you are overriding the AI recommendation"
+              : "Optional overall comments"
             : "Explain the requested changes or rejection",
         )
         ?.trim() ?? "";
