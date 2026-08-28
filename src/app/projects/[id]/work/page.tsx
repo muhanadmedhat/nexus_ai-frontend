@@ -65,6 +65,8 @@ type HumanCriterionReview = {
 function submissionReviewCriteria(
   detail: SubmissionDetail,
 ): Array<Pick<HumanCriterionReview, "criterionKey" | "criterion">> {
+  const canonical = detail.reviewRequirements?.criteria ?? [];
+  if (canonical.length) return canonical;
   const coverage =
     (detail.latestEvaluationRun ?? detail.evaluationRun)?.acceptanceCoverage ??
     null;

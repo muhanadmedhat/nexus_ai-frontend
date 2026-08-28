@@ -33,6 +33,13 @@ type CriterionInput = {
 };
 
 function applicableCriteria(detail: SubmissionDetail) {
+  const canonical = detail.reviewRequirements?.criteria ?? [];
+  if (canonical.length) {
+    return canonical.map(({ criterionKey, criterion }) => ({
+      key: criterionKey,
+      criterion,
+    }));
+  }
   const evaluation = detail.latestEvaluationRun ?? detail.evaluationRun;
   const coverage = evaluation?.acceptanceCoverage;
   if (!coverage) return [];

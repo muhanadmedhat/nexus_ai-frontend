@@ -106,6 +106,26 @@ export interface SubmissionDetail extends ProjectSubmission {
   reviews?: ProjectSubmissionReview[];
   revisionRequests?: ProjectRevisionRequest[];
   openRevisionRequests?: ProjectRevisionRequest[];
+  reviewRequirements?: {
+    criteria: Array<{ criterionKey: string; criterion: string }>;
+    pullRequest: {
+      number: number;
+      headRef: string | null;
+      baseRef: string | null;
+      requiredBaseRef: string;
+      targetReady: boolean;
+      evaluationCurrent: boolean;
+      canRetarget: boolean;
+      blocker: string | null;
+      error: string | null;
+      prerequisiteSubmission: {
+        id: string;
+        title: string | null;
+        status: string;
+        integrationStatus: string | null;
+      } | null;
+    } | null;
+  };
 }
 
 interface SubmissionDetailResponse {
@@ -114,6 +134,7 @@ interface SubmissionDetailResponse {
   latestEvaluationRun?: EvaluationRun | null;
   reviews?: ProjectSubmissionReview[];
   openRevisionRequests?: ProjectRevisionRequest[];
+  reviewRequirements?: SubmissionDetail["reviewRequirements"];
 }
 
 export interface ReviewSubmissionResult {
@@ -251,6 +272,7 @@ export async function getDeliverySubmission(
         latestEvaluationRun: detail.latestEvaluationRun ?? null,
         reviews: detail.reviews ?? [],
         openRevisionRequests: detail.openRevisionRequests ?? [],
+        reviewRequirements: detail.reviewRequirements,
       };
     }
     return detail;

@@ -37,6 +37,7 @@ import {
   reviewReviewerHandoff,
   reviewReviewerMatchingRun,
   reviewReviewerSubmission,
+  retargetReviewerSubmissionPullRequest,
   retryReviewerSubmissionEvaluation,
   type ReviewerPlanDetail,
   type ReviewerPlanningSubmissionDetail,
@@ -307,6 +308,14 @@ export default function ReviewerProjectPage() {
   const selectedEvaluationRetryable =
     selectedEvaluationFailed ||
     (selectedEvaluationReady && criteria.length === 0);
+  const selectedPullRequestReadiness = useMemo(
+    () => submissionPullRequestReadiness(selectedSubmission),
+    [selectedSubmission],
+  );
+  const selectedApprovalBranchReady =
+    !selectedPullRequestReadiness ||
+    (selectedPullRequestReadiness.targetReady === true &&
+      selectedPullRequestReadiness.evaluationCurrent === true);
 
   useEffect(() => {
     const submissionId = text(selectedSubmissionRecord?.id);
@@ -489,6 +498,14 @@ export default function ReviewerProjectPage() {
     decision: "approved" | "changes_requested" | "rejected",
   ) => {
     if (!selectedSubmission || !selectedSubmissionRecord) return;
+    if (decision === "approved" && !selectedApprovalBranchReady) {
+      toast.error(
+        "Pull request is not ready",
+        text(selectedPullRequestReadiness?.blocker) ||
+          "Resolve the pull-request base and run a fresh evaluation first.",
+      );
+      return;
+    }
     if (decision === "approved" && !selectedEvaluationReady) {
       toast.error(
         "AI evaluation is not complete",
@@ -507,10 +524,7 @@ export default function ReviewerProjectPage() {
         )
         ?.trim() ?? "";
     if (decision !== "approved" && !feedback) return;
-    if (
-      decision === "approved" &&
-      criteria.some((criterion) => !ratings[criterion.key])
-    ) {
+    if (criteria.some((criterion) => !ratings[criterion.key])) {
       toast.error(
         "Rate every criterion",
         "Each applicable criterion needs a rating from 1 to 5.",
@@ -518,7 +532,7 @@ export default function ReviewerProjectPage() {
       return;
     }
     const manualReview = selectedSubmissionNeedsManualReview;
-    if (manualReview && feedback.length < 20) {
+    if (decision === "approved" && manualReview && feedback.length < 20) {
       toast.error(
         "Manual review evidence required",
         "Add at least 20 characters explaining your verification.",
@@ -530,15 +544,12 @@ export default function ReviewerProjectPage() {
         decision,
         feedback: feedback || undefined,
         createRevisionRequest: decision === "changes_requested",
-        manualReviewAcknowledged: manualReview,
-        criteriaReviews:
-          decision === "approved"
-            ? criteria.map((criterion) => ({
-                criterionKey: criterion.key,
-                rating: ratings[criterion.key],
-                comment: comments[criterion.key]?.trim() || undefined,
-              }))
-            : undefined,
+        manualReviewAcknowledged: decision === "approved" && manualReview,
+        criteriaReviews: criteria.map((criterion) => ({
+          criterionKey: criterion.key,
+          rating: ratings[criterion.key],
+          comment: comments[criterion.key]?.trim() || undefined,
+        })),
       }),
     );
     if (saved) setSelectedSubmission(null);
@@ -559,6 +570,30 @@ export default function ReviewerProjectPage() {
     } catch (error) {
       toast.error(
         "Could not retry evaluation",
+        error instanceof Error ? error.message : "Try again.",
+      );
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  const retargetSelectedSubmissionPullRequest = async () => {
+    if (!selectedSubmissionRecord) return;
+    const submissionId = text(selectedSubmissionRecord.id);
+    const actionId = `retarget:${submissionId}`;
+    setWorking(actionId);
+    try {
+      await retargetReviewerSubmissionPullRequest(submissionId);
+      setRatings({});
+      setComments({});
+      setSelectedSubmission(await getReviewerSubmission(submissionId));
+      toast.success(
+        "Pull request retargeted",
+        "A fresh evaluation was queued against the project default branch.",
+      );
+    } catch (error) {
+      toast.error(
+        "Could not retarget pull request",
         error instanceof Error ? error.message : "Try again.",
       );
     } finally {
@@ -1938,6 +1973,63 @@ export default function ReviewerProjectPage() {
               detail={selectedSubmission}
               submission={selectedSubmissionRecord}
             />
+            {selectedPullRequestReadiness &&
+              !selectedApprovalBranchReady && (
+                <div className="mt-5 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm text-on-surface">
+                  <p className="flex items-center gap-2 font-semibold">
+                    <ShieldAlert size={16} /> Pull request needs integration
+                    preparation
+                  </p>
+                  <p className="mt-1 text-on-surface-variant">
+                    Current base: {text(selectedPullRequestReadiness.baseRef) ||
+                      "unknown"}
+                    {" · "}Required base: {text(
+                      selectedPullRequestReadiness.requiredBaseRef,
+                    )}
+                  </p>
+                  <p className="mt-2 text-on-surface-variant">
+                    {text(selectedPullRequestReadiness.blocker)}
+                  </p>
+                  {Boolean(selectedPullRequestReadiness.error) && (
+                    <p className="mt-2 text-xs text-error">
+                      {text(selectedPullRequestReadiness.error)}
+                    </p>
+                  )}
+                  {selectedPullRequestReadiness.canRetarget === true && (
+                    <Button
+                      className="mt-3 w-auto"
+                      size="sm"
+                      variant="outline"
+                      loading={
+                        working ===
+                        `retarget:${text(selectedSubmissionRecord.id)}`
+                      }
+                      onClick={() =>
+                        void retargetSelectedSubmissionPullRequest()
+                      }
+                    >
+                      <RefreshCw size={16} /> Retarget and re-evaluate
+                    </Button>
+                  )}
+                  {selectedPullRequestReadiness.targetReady === true &&
+                    selectedPullRequestReadiness.evaluationCurrent !== true && (
+                      <Button
+                        className="mt-3 w-auto"
+                        size="sm"
+                        variant="outline"
+                        loading={
+                          working ===
+                          `evaluation:${text(selectedSubmissionRecord.id)}`
+                        }
+                        onClick={() =>
+                          void retrySelectedSubmissionEvaluation()
+                        }
+                      >
+                        <RefreshCw size={16} /> Re-evaluate current base
+                      </Button>
+                    )}
+                </div>
+              )}
             {selectedEvaluationPending && (
               <div className="mt-5 rounded-lg border border-outline-variant/40 bg-surface-container-low p-4 text-sm text-on-surface">
                 <p className="flex items-center gap-2 font-semibold">
@@ -2041,11 +2133,17 @@ export default function ReviewerProjectPage() {
             </div>
             <div className="mt-6 flex flex-wrap gap-3">
               <Button
-                disabled={!selectedEvaluationReady || working !== null}
+                disabled={
+                  !selectedEvaluationReady ||
+                  !selectedApprovalBranchReady ||
+                  working !== null
+                }
                 title={
-                  selectedEvaluationReady
-                    ? undefined
-                    : "Approval becomes available when AI evaluation completes"
+                  !selectedApprovalBranchReady
+                    ? text(selectedPullRequestReadiness?.blocker)
+                    : selectedEvaluationReady
+                      ? undefined
+                      : "Approval becomes available when AI evaluation completes"
                 }
                 onClick={() => void decideSubmission("approved")}
               >
@@ -2251,6 +2349,15 @@ function evaluationNeedsManualReview(evaluation: Row | null) {
   );
 }
 
+function submissionPullRequestReadiness(submission: Row | null): Row | null {
+  if (!submission?.reviewRequirements) return null;
+  const requirements = submission.reviewRequirements as Row;
+  return requirements.pullRequest &&
+    typeof requirements.pullRequest === "object"
+    ? (requirements.pullRequest as Row)
+    : null;
+}
+
 function submissionCriteria(submission: Row | null): Criterion[] {
   const evaluation = latestEvaluation(submission);
   const coverage =
@@ -2266,6 +2373,31 @@ function submissionCriteria(submission: Row | null): Criterion[] {
   const frozenCriteria = Array.isArray(rubricSnapshot?.criteria)
     ? (rubricSnapshot.criteria as Row[])
     : [];
+  const requirements =
+    submission?.reviewRequirements &&
+    typeof submission.reviewRequirements === "object"
+      ? (submission.reviewRequirements as Row)
+      : null;
+  const canonicalCriteria = Array.isArray(requirements?.criteria)
+    ? (requirements.criteria as Row[])
+    : [];
+  if (canonicalCriteria.length) {
+    return canonicalCriteria.flatMap((criterion) => {
+      const key = text(criterion.criterionKey);
+      const label = text(criterion.criterion);
+      if (!key || !label) return [];
+      const evaluated = items.find((item) => text(item.key) === key);
+      return [
+        {
+          key,
+          criterion: label,
+          category: text(evaluated?.category),
+          status: text(evaluated?.status) || "pending",
+          evidence: text(evaluated?.evidence),
+        },
+      ];
+    });
+  }
   const rows: Row[] = items.length
     ? items
     : frozenCriteria.map((criterion) => ({

@@ -408,6 +408,14 @@ export async function retryReviewerSubmissionEvaluation(id: string) {
   return mutate(`/reviewer/submissions/${id}/evaluation/retry`, "post", {});
 }
 
+export async function retargetReviewerSubmissionPullRequest(id: string) {
+  return mutate(
+    `/reviewer/submissions/${id}/pull-request/retarget`,
+    "post",
+    {},
+  );
+}
+
 export async function reviewReviewerRelease(
   id: string,
   payload: Record<string, unknown>,
