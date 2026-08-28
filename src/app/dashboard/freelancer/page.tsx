@@ -26,6 +26,10 @@ import {
   type FreelancerAssignedProject,
 } from "@/services/matching";
 import { StatusBadge } from "@/components/ui/status-badge";
+import {
+  freelancerAssignmentActionLabel,
+  freelancerAssignmentHref,
+} from "@/utils/assignment-navigation";
 
 export default function FreelancerDashboardPage() {
   const { user } = useAuth();
@@ -54,9 +58,8 @@ export default function FreelancerDashboardPage() {
       });
 
     getFreelancerAssignedProjects({
-      phase: "planning",
       status: "assigned,accepted,in_progress",
-      limit: 3,
+      limit: 6,
     })
       .then((result) => {
         if (active) {
@@ -245,7 +248,8 @@ export default function FreelancerDashboardPage() {
               Assigned project work
             </h3>
             <p className="mt-1 text-sm text-on-surface-variant">
-              Planning roles and active assignments from the matching flow.
+              Planning, implementation, and reviewer assignments from the
+              matching flow.
             </p>
           </div>
           <Link
@@ -265,7 +269,7 @@ export default function FreelancerDashboardPage() {
             {assignedProjects.map((assignment) => (
               <Link
                 key={assignment.assignmentId}
-                href={`/freelancer/projects/${assignment.projectId}`}
+                href={freelancerAssignmentHref(assignment)}
                 className="group rounded-xl border border-outline-variant/30 bg-surface-container-low p-4 transition hover:border-primary-container/40 hover:bg-primary-container/5"
               >
                 <div className="flex items-start justify-between gap-3">
@@ -285,7 +289,8 @@ export default function FreelancerDashboardPage() {
                     "Your role brief is being prepared."}
                 </p>
                 <span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-primary-container group-hover:underline">
-                  Open assignment <ArrowRight size={14} />
+                  {freelancerAssignmentActionLabel(assignment)}{" "}
+                  <ArrowRight size={14} />
                 </span>
               </Link>
             ))}

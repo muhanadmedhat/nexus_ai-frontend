@@ -1,4 +1,5 @@
 import { api, getApiErrorMessage } from "@/lib/api";
+import { getFreelancerAssignedProjects } from "@/services/matching";
 
 type ApiData<T> = { status: string; data: T };
 type Paged<T> = { data: T[]; total?: number };
@@ -180,7 +181,52 @@ export interface ReviewerPlanningSubmissionDetail {
 }
 
 export async function getReviewerProjects() {
-  return request<ReviewerProject[]>("/reviewer/projects");
+  try {
+    return await request<ReviewerProject[]>("/reviewer/projects");
+  } catch (reviewerDirectoryError) {
+    try {
+      const fallback = await getFreelancerAssignedProjects({
+        phase: "governance",
+        status: "accepted,in_progress,completed",
+        limit: 100,
+      });
+      return fallback.data
+        .filter((assignment) => assignment.roleKey === "principal_reviewer")
+        .map(
+          (assignment): ReviewerProject => ({
+            assignmentId: assignment.assignmentId,
+            status: assignment.status,
+            acceptedAt: null,
+            budgetAmount:
+              assignment.allocatedAmount == null
+                ? null
+                : String(assignment.allocatedAmount),
+            currency: assignment.currency,
+            project: {
+              id: assignment.projectId,
+              title: assignment.projectTitle || "Assigned project",
+              status: assignment.status,
+              deadline: assignment.deadline,
+            },
+            attention: emptyReviewerAttention(),
+          }),
+        );
+    } catch {
+      throw reviewerDirectoryError;
+    }
+  }
+}
+
+function emptyReviewerAttention(): ReviewerAttention {
+  return {
+    planningAwaitingReview: 0,
+    generatedPlans: 0,
+    matchingRuns: 0,
+    submissionsAwaitingReview: 0,
+    releaseRequests: 0,
+    openTasks: 0,
+    finalHandoffsAwaitingReview: 0,
+  };
 }
 
 export async function getReviewerOverview(projectId: string) {

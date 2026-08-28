@@ -10,6 +10,10 @@ import {
 } from "@/services/matching";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatMoney } from "@/utils/format";
+import {
+  freelancerAssignmentActionLabel,
+  freelancerAssignmentHref,
+} from "@/utils/assignment-navigation";
 
 export default function FreelancerProjectsPage() {
   const [projects, setProjects] = useState<FreelancerAssignedProject[]>([]);
@@ -102,16 +106,10 @@ export default function FreelancerProjectsPage() {
               ) : null}
               <div className="mt-6 flex items-center justify-end">
                 <Link
-                  href={
-                    assignment.phase === "planning"
-                      ? `/freelancer/projects/${assignment.projectId}/planning`
-                      : `/freelancer/projects/${assignment.projectId}`
-                  }
+                  href={freelancerAssignmentHref(assignment)}
                   className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80"
                 >
-                  {assignment.phase === "planning"
-                    ? "Open planning deliverable"
-                    : "Open project"}{" "}
+                  {freelancerAssignmentActionLabel(assignment)}{" "}
                   <ArrowRight size={16} />
                 </Link>
               </div>

@@ -12,7 +12,8 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   webServer: {
-    command: "npm run build && npm run start -- -H 127.0.0.1 -p 3300",
+    command:
+      "npx next build --webpack && npm run start -- -H 127.0.0.1 -p 3300",
     url: "http://127.0.0.1:3300",
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
