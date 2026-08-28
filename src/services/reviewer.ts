@@ -39,6 +39,20 @@ export interface ReviewerMatchingInvitation {
   responseReason: string | null;
 }
 
+export interface ReviewerSelectedAssignment {
+  id: string;
+  roleKey: string;
+  status: string;
+  freelancerProfileId: string | null;
+  sourceMatchingRunId: string | null;
+  sourceCandidateId: string | null;
+  freelancer: {
+    id: string;
+    name: string | null;
+    githubUsername: string | null;
+  } | null;
+}
+
 export interface ReviewerMatchingRun {
   id: string;
   projectId: string;
@@ -51,6 +65,7 @@ export interface ReviewerMatchingRun {
   candidateCount: number;
   selectedCandidateId: string | null;
   invitation: ReviewerMatchingInvitation | null;
+  selectedAssignment: ReviewerSelectedAssignment | null;
   reviewedAt: string | null;
   completedAt: string | null;
   createdAt: string;

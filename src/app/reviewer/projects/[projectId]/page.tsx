@@ -671,10 +671,12 @@ export default function ReviewerProjectPage() {
           >
             {currentMatchingRuns.map((run) => {
               const invitationStatus = run.invitation?.status ?? null;
-              const invitationActive = ["pending", "accepting"].includes(
-                invitationStatus ?? "",
-              );
-              const selectionFinished = invitationStatus === "accepted";
+              const invitationActive =
+                !run.selectedAssignment &&
+                ["pending", "accepting"].includes(invitationStatus ?? "");
+              const selectionFinished =
+                Boolean(run.selectedAssignment) ||
+                invitationStatus === "accepted";
               const canChoose =
                 ["completed", "reviewed"].includes(run.status) &&
                 run.candidateCount > 0 &&
@@ -683,7 +685,7 @@ export default function ReviewerProjectPage() {
               const status = invitationActive
                 ? "invitation_pending"
                 : selectionFinished
-                  ? "accepted"
+                  ? "selected"
                   : canChoose
                     ? "selection_required"
                     : run.status;
@@ -702,9 +704,12 @@ export default function ReviewerProjectPage() {
                       <StatusBadge status={status} />
                     </div>
                     <p className="mt-1 text-sm text-on-surface-variant">
-                      {run.candidateCount > 0
-                        ? `${Math.min(run.candidateCount, 3)} top profile${Math.min(run.candidateCount, 3) === 1 ? "" : "s"} ready for review`
-                        : run.summary || "No eligible candidates were ranked."}
+                      {run.selectedAssignment
+                        ? `${run.selectedAssignment.freelancer?.name || "Freelancer"} selected · ${run.selectedAssignment.status.replaceAll("_", " ")}`
+                        : run.candidateCount > 0
+                          ? `${Math.min(run.candidateCount, 3)} top profile${Math.min(run.candidateCount, 3) === 1 ? "" : "s"} ready for review`
+                          : run.summary ||
+                            "No eligible candidates were ranked."}
                       {invitationActive && run.invitation?.expiresAt
                         ? ` · response due ${new Date(run.invitation.expiresAt).toLocaleString()}`
                         : ""}
@@ -720,7 +725,9 @@ export default function ReviewerProjectPage() {
                     <Users size={16} />
                     {canChoose
                       ? `Review ${run.candidateCount} candidate${run.candidateCount === 1 ? "" : "s"}`
-                      : "View matching"}
+                      : selectionFinished
+                        ? "View selection"
+                        : "View matching"}
                   </Button>
                 </div>
               );
@@ -1492,12 +1499,44 @@ export default function ReviewerProjectPage() {
               </div>
               <StatusBadge
                 status={
-                  selectedMatchingRun.invitation
-                    ? `invitation_${selectedMatchingRun.invitation.status}`
-                    : selectedMatchingRun.status
+                  selectedMatchingRun.selectedAssignment
+                    ? "selected"
+                    : selectedMatchingRun.invitation
+                      ? `invitation_${selectedMatchingRun.invitation.status}`
+                      : selectedMatchingRun.status
                 }
               />
             </div>
+
+            {selectedMatchingRun.selectedAssignment && (
+              <div className="mt-5 rounded-lg border border-primary-container/25 bg-primary-container/5 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-primary-container">
+                      Selected freelancer
+                    </p>
+                    <p className="mt-1 font-medium text-on-surface">
+                      {selectedMatchingRun.selectedAssignment.freelancer
+                        ?.name || "Freelancer"}
+                    </p>
+                    {selectedMatchingRun.selectedAssignment.freelancer
+                      ?.githubUsername && (
+                      <a
+                        href={`https://github.com/${selectedMatchingRun.selectedAssignment.freelancer.githubUsername}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 inline-block text-sm font-medium text-primary-container"
+                      >
+                        {`@${selectedMatchingRun.selectedAssignment.freelancer.githubUsername}`}
+                      </a>
+                    )}
+                  </div>
+                  <StatusBadge
+                    status={selectedMatchingRun.selectedAssignment.status}
+                  />
+                </div>
+              </div>
+            )}
 
             {selectedMatchingRun.task && (
               <div className="mt-5 grid gap-3 rounded-xl border border-outline-variant/30 bg-surface-container-low p-4 sm:grid-cols-3">
@@ -1533,21 +1572,22 @@ export default function ReviewerProjectPage() {
               </div>
             )}
 
-            {selectedMatchingRun.invitation && (
-              <p className="mt-5 rounded-lg border border-primary-container/20 bg-primary-container/5 p-3 text-sm text-on-surface-variant">
-                Invitation{" "}
-                {selectedMatchingRun.invitation.status.replaceAll("_", " ")}
-                {selectedMatchingRun.invitation.expiresAt &&
-                ["pending", "accepting"].includes(
-                  selectedMatchingRun.invitation.status,
-                )
-                  ? ` · expires ${new Date(selectedMatchingRun.invitation.expiresAt).toLocaleString()}`
-                  : ""}
-                {selectedMatchingRun.invitation.responseReason
-                  ? ` · ${selectedMatchingRun.invitation.responseReason}`
-                  : ""}
-              </p>
-            )}
+            {selectedMatchingRun.invitation &&
+              !selectedMatchingRun.selectedAssignment && (
+                <p className="mt-5 rounded-lg border border-primary-container/20 bg-primary-container/5 p-3 text-sm text-on-surface-variant">
+                  Invitation{" "}
+                  {selectedMatchingRun.invitation.status.replaceAll("_", " ")}
+                  {selectedMatchingRun.invitation.expiresAt &&
+                  ["pending", "accepting"].includes(
+                    selectedMatchingRun.invitation.status,
+                  )
+                    ? ` · expires ${new Date(selectedMatchingRun.invitation.expiresAt).toLocaleString()}`
+                    : ""}
+                  {selectedMatchingRun.invitation.responseReason
+                    ? ` · ${selectedMatchingRun.invitation.responseReason}`
+                    : ""}
+                </p>
+              )}
 
             <div className="mt-6 grid gap-4 xl:grid-cols-3">
               {selectedMatchingRun.candidates.map((candidate) => {
@@ -1575,6 +1615,16 @@ export default function ReviewerProjectPage() {
                   "accepting",
                   "accepted",
                 ].includes(selectedMatchingRun.invitation?.status ?? "");
+                const selectionFinished = Boolean(
+                  selectedMatchingRun.selectedAssignment,
+                );
+                const isSelectedCandidate = Boolean(
+                  selectedMatchingRun.selectedAssignment &&
+                  (selectedMatchingRun.selectedAssignment.sourceCandidateId ===
+                    candidate.id ||
+                    selectedMatchingRun.selectedAssignment
+                      .freelancerProfileId === candidate.freelancerProfileId),
+                );
                 const candidateEligible = [
                   "recommended",
                   "shortlisted",
@@ -1584,7 +1634,8 @@ export default function ReviewerProjectPage() {
                   Boolean(profile?.isAvailable) &&
                   Boolean(profile?.githubUsername) &&
                   candidateEligible &&
-                  !inviteOpen;
+                  !inviteOpen &&
+                  !selectionFinished;
                 return (
                   <article
                     key={candidate.id}
@@ -1762,10 +1813,14 @@ export default function ReviewerProjectPage() {
                     >
                       {canSelect
                         ? "Select and send invitation"
-                        : selectedMatchingRun.invitation?.candidateId ===
-                            candidate.id
-                          ? "Invitation sent"
-                          : "Not currently selectable"}
+                        : isSelectedCandidate
+                          ? "Selected"
+                          : selectionFinished
+                            ? "Selection complete"
+                            : selectedMatchingRun.invitation?.candidateId ===
+                                candidate.id
+                              ? "Invitation sent"
+                              : "Not currently selectable"}
                     </Button>
                   </article>
                 );
