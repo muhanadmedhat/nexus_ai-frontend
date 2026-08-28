@@ -37,6 +37,7 @@ import {
   reviewReviewerHandoff,
   reviewReviewerMatchingRun,
   reviewReviewerSubmission,
+  retryReviewerSubmissionEvaluation,
   type ReviewerPlanDetail,
   type ReviewerPlanningSubmissionDetail,
   type ReviewerMatchingRun,
@@ -292,6 +293,36 @@ export default function ReviewerProjectPage() {
     () => evaluationNeedsManualReview(selectedEvaluation),
     [selectedEvaluation],
   );
+  const selectedEvaluationStatus = text(selectedEvaluation?.status);
+  const selectedEvaluationPending = ["queued", "running"].includes(
+    selectedEvaluationStatus,
+  );
+  const selectedEvaluationReady = selectedEvaluationStatus === "completed";
+  const selectedEvaluationFailed =
+    !selectedEvaluation ||
+    ["failed", "cancelled", "superseded"].includes(selectedEvaluationStatus);
+  const selectedEvaluationRetryable =
+    selectedEvaluationFailed ||
+    (selectedEvaluationReady && criteria.length === 0);
+
+  useEffect(() => {
+    const submissionId = text(selectedSubmissionRecord?.id);
+    if (!submissionId || !selectedEvaluationPending) return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const detail = await getReviewerSubmission(submissionId);
+        if (!cancelled) setSelectedSubmission(detail);
+      } catch {
+        // Keep the open review stable; the normal manual refresh still reports errors.
+      }
+    };
+    const timer = window.setInterval(() => void refresh(), 5_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [selectedEvaluationPending, selectedSubmissionRecord?.id]);
   const currentMatchingRuns = useMemo(() => {
     const seen = new Set<string>();
     return matchingRuns.filter((run) => {
@@ -455,6 +486,13 @@ export default function ReviewerProjectPage() {
     decision: "approved" | "changes_requested" | "rejected",
   ) => {
     if (!selectedSubmission || !selectedSubmissionRecord) return;
+    if (decision === "approved" && !selectedEvaluationReady) {
+      toast.error(
+        "AI evaluation is not complete",
+        "Wait for the current evaluation or retry it if the run failed.",
+      );
+      return;
+    }
     const feedback =
       window
         .prompt(
@@ -482,7 +520,7 @@ export default function ReviewerProjectPage() {
       );
       return;
     }
-    await act(text(selectedSubmissionRecord.id), () =>
+    const saved = await act(text(selectedSubmissionRecord.id), () =>
       reviewReviewerSubmission(text(selectedSubmissionRecord.id), {
         decision,
         feedback: feedback || undefined,
@@ -498,7 +536,29 @@ export default function ReviewerProjectPage() {
             : undefined,
       }),
     );
-    setSelectedSubmission(null);
+    if (saved) setSelectedSubmission(null);
+  };
+
+  const retrySelectedSubmissionEvaluation = async () => {
+    if (!selectedSubmissionRecord) return;
+    const submissionId = text(selectedSubmissionRecord.id);
+    const actionId = `evaluation:${submissionId}`;
+    setWorking(actionId);
+    try {
+      await retryReviewerSubmissionEvaluation(submissionId);
+      setSelectedSubmission(await getReviewerSubmission(submissionId));
+      toast.success(
+        "Evaluation queued",
+        "The AI evaluation will refresh here automatically.",
+      );
+    } catch (error) {
+      toast.error(
+        "Could not retry evaluation",
+        error instanceof Error ? error.message : "Try again.",
+      );
+    } finally {
+      setWorking(null);
+    }
   };
 
   const decideRelease = async (
@@ -1873,6 +1933,41 @@ export default function ReviewerProjectPage() {
               detail={selectedSubmission}
               submission={selectedSubmissionRecord}
             />
+            {selectedEvaluationPending && (
+              <div className="mt-5 rounded-lg border border-outline-variant/40 bg-surface-container-low p-4 text-sm text-on-surface">
+                <p className="flex items-center gap-2 font-semibold">
+                  <Loader2 size={16} className="animate-spin" /> AI evaluation
+                  in progress
+                </p>
+                <p className="mt-1 text-on-surface-variant">
+                  The rubric is shown below as pending. This review refreshes
+                  automatically when the evaluation finishes.
+                </p>
+              </div>
+            )}
+            {selectedEvaluationRetryable && (
+              <div className="mt-5 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm text-on-surface">
+                <p className="flex items-center gap-2 font-semibold">
+                  <ShieldAlert size={16} /> AI evaluation needs another run
+                </p>
+                <p className="mt-1 text-on-surface-variant">
+                  Approval remains paused until an evaluation completes. Retry
+                  it here without changing the freelancer submission.
+                </p>
+                <Button
+                  className="mt-3 w-auto"
+                  size="sm"
+                  variant="outline"
+                  loading={
+                    working ===
+                    `evaluation:${text(selectedSubmissionRecord.id)}`
+                  }
+                  onClick={() => void retrySelectedSubmissionEvaluation()}
+                >
+                  <RefreshCw size={16} /> Retry evaluation
+                </Button>
+              </div>
+            )}
             {selectedSubmissionNeedsManualReview && (
               <div className="mt-5 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm text-on-surface">
                 <p className="font-semibold">Human verification required</p>
@@ -1933,16 +2028,23 @@ export default function ReviewerProjectPage() {
                   </div>
                 </div>
               ))}
-              {criteria.length === 0 && (
+              {criteria.length === 0 && selectedEvaluationReady && (
                 <p className="rounded-lg bg-warning/10 p-3 text-sm text-on-surface-variant">
-                  This evaluation has no applicable rubric rows. You can still
-                  request changes or reject it; approval remains subject to
-                  backend evaluation policy.
+                  The completed evaluation returned no applicable rubric rows.
+                  Retry the evaluation before making an approval decision.
                 </p>
               )}
             </div>
             <div className="mt-6 flex flex-wrap gap-3">
-              <Button onClick={() => void decideSubmission("approved")}>
+              <Button
+                disabled={!selectedEvaluationReady || working !== null}
+                title={
+                  selectedEvaluationReady
+                    ? undefined
+                    : "Approval becomes available when AI evaluation completes"
+                }
+                onClick={() => void decideSubmission("approved")}
+              >
                 <CheckCircle2 size={16} /> Approve
               </Button>
               <Button
@@ -2169,7 +2271,21 @@ function submissionCriteria(submission: Row | null): Criterion[] {
       ? (evaluation.acceptanceCoverage as Row)
       : null;
   const items = Array.isArray(coverage?.items) ? (coverage.items as Row[]) : [];
-  return items.flatMap((item, index) => {
+  const rubricSnapshot =
+    coverage?.rubricSnapshot && typeof coverage.rubricSnapshot === "object"
+      ? (coverage.rubricSnapshot as Row)
+      : null;
+  const frozenCriteria = Array.isArray(rubricSnapshot?.criteria)
+    ? (rubricSnapshot.criteria as Row[])
+    : [];
+  const rows: Row[] = items.length
+    ? items
+    : frozenCriteria.map((criterion) => ({
+        ...criterion,
+        status: "pending",
+        evidence: "Evaluation pending",
+      }));
+  return rows.flatMap((item, index) => {
     if (text(item.status) === "not_applicable" || !text(item.criterion))
       return [];
     return [

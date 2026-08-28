@@ -404,6 +404,10 @@ export async function reviewReviewerSubmission(
   return mutate(`/reviewer/submissions/${id}/review`, "patch", payload);
 }
 
+export async function retryReviewerSubmissionEvaluation(id: string) {
+  return mutate(`/reviewer/submissions/${id}/evaluation/retry`, "post", {});
+}
+
 export async function reviewReviewerRelease(
   id: string,
   payload: Record<string, unknown>,
