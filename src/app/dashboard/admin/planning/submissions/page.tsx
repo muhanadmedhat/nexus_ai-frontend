@@ -25,8 +25,8 @@ export default function AdminPlanningSubmissionsQueue() {
     <DashboardShell role="admin" title="Planning Submissions" subtitle="Review architecture and UI/UX deliverables.">
       {loading ? <p>Loading...</p> : (
         <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm whitespace-nowrap">
+          <div className="admin-responsive-table-wrap">
+            <table className="admin-responsive-table text-left text-sm">
               <thead className="bg-surface-container-low text-on-surface-variant font-medium">
                 <tr>
                   <th className="p-4">Project</th>
@@ -40,17 +40,17 @@ export default function AdminPlanningSubmissionsQueue() {
               <tbody className="divide-y divide-outline-variant/30">
                 {submissions.map((s) => (
                   <tr key={s.id} className="hover:bg-surface-container-low/50">
-                    <td className="p-4 font-semibold">{s.projectTitle || s.projectId}</td>
-                    <td className="p-4 uppercase text-xs tracking-wider">{s.submissionType?.replace("_", " ")} v{s.version}</td>
-                    <td className="p-4">{s.freelancerName || "N/A"}</td>
-                    <td className="p-4"><StatusBadge status={s.status} /></td>
-                    <td className="p-4">
+                    <td data-label="Project" className="p-4 font-semibold">{s.projectTitle || s.projectId}</td>
+                    <td data-label="Type" className="p-4 uppercase text-xs tracking-wider">{s.submissionType?.replace("_", " ")} v{s.version}</td>
+                    <td data-label="Freelancer" className="p-4">{s.freelancerName || "N/A"}</td>
+                    <td data-label="Status" className="p-4"><StatusBadge status={s.status} /></td>
+                    <td data-label="AI gate" className="p-4">
                       <div className="flex items-center gap-2">
                         <StatusBadge status={s.evaluationStatus || "pending"} />
                         {s.evaluationScore !== null && s.evaluationScore !== undefined ? <span className="text-xs text-on-surface-variant">{s.evaluationScore}/100</span> : null}
                       </div>
                     </td>
-                    <td className="p-4 text-right">
+                    <td data-label="Action" className="p-4 text-right">
                       <Link href={`/dashboard/admin/planning/submissions/${s.id}`}>
                         <Button variant="outline" size="sm">Review</Button>
                       </Link>

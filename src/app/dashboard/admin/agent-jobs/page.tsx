@@ -234,8 +234,8 @@ export default function AdminAgentJobsPage() {
         </div>
       ) : (
         <>
-          <div className="overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest card-shadow">
-            <table className="w-full text-left text-sm">
+          <div className="admin-responsive-table-wrap rounded-xl border border-outline-variant/30 bg-surface-container-lowest card-shadow">
+            <table className="admin-responsive-table text-left text-sm">
               <thead className="bg-surface-container-high">
                 <tr>
                   <th className="px-4 py-3 font-medium text-on-surface-variant">
@@ -264,7 +264,7 @@ export default function AdminAgentJobsPage() {
                     key={job.id}
                     className="border-t border-outline-variant/20 hover:bg-surface-container-low"
                   >
-                    <td className="px-4 py-3">
+                    <td data-label="Job" className="px-4 py-3">
                       <p className="font-semibold text-on-surface">
                         {job.jobType.replace(/_/g, " ")}
                       </p>
@@ -272,10 +272,10 @@ export default function AdminAgentJobsPage() {
                         {job.id.slice(0, 8)}
                       </p>
                     </td>
-                    <td className="px-4 py-3 text-on-surface-variant">
+                    <td data-label="Target" className="px-4 py-3 text-on-surface-variant">
                       {formatTarget(job)}
                     </td>
-                    <td className="px-4 py-3">
+                    <td data-label="Status" className="px-4 py-3">
                       <span
                         className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${
                           statusStyles[job.status] ||
@@ -290,14 +290,14 @@ export default function AdminAgentJobsPage() {
                         {job.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-on-surface-variant">
+                    <td data-label="Attempts" className="px-4 py-3 text-on-surface-variant">
                       {job.attempts}
                     </td>
-                    <td className="px-4 py-3 text-xs text-on-surface-variant">
+                    <td data-label="Last update" className="px-4 py-3 text-xs text-on-surface-variant">
                       {formatDate(job.updatedAt)}
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-nowrap items-center justify-end gap-2">
+                    <td data-label="Actions" className="px-4 py-3">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
                         {job.status === "failed" ? (
                           <Button
                             type="button"

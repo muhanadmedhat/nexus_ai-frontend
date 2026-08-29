@@ -261,8 +261,8 @@ export default function AdminAgentsPage() {
         </div>
       ) : (
         <>
-          <div className="overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest card-shadow">
-            <table className="w-full text-left text-sm">
+          <div className="admin-responsive-table-wrap rounded-xl border border-outline-variant/30 bg-surface-container-lowest card-shadow">
+            <table className="admin-responsive-table text-left text-sm">
               <thead className="bg-surface-container-high">
                 <tr>
                   <th className="px-4 py-3 font-medium text-on-surface-variant">
@@ -288,10 +288,10 @@ export default function AdminAgentsPage() {
                     key={job.id}
                     className="border-t border-outline-variant/20 hover:bg-surface-container-low"
                   >
-                    <td className="px-4 py-3 font-medium text-on-surface">
+                    <td data-label="Type" className="px-4 py-3 font-medium text-on-surface">
                       {job.jobType}
                     </td>
-                    <td className="px-4 py-3">
+                    <td data-label="Status" className="px-4 py-3">
                       <span
                         className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
                           jobStatusColor[job.status] ||
@@ -301,13 +301,13 @@ export default function AdminAgentsPage() {
                         {job.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-on-surface-variant">
+                    <td data-label="Attempts" className="px-4 py-3 text-on-surface-variant">
                       {job.attempts}
                     </td>
-                    <td className="px-4 py-3 text-xs text-on-surface-variant">
+                    <td data-label="Created" className="px-4 py-3 text-xs text-on-surface-variant">
                       {new Date(job.createdAt).toLocaleString()}
                     </td>
-                    <td className="px-4 py-3">
+                    <td data-label="Action" className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">
                         {job.status === "failed" ? (
                           <Button

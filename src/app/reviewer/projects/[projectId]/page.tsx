@@ -19,6 +19,7 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useToast } from "@/components/ui/toast";
+import { useActionDialog } from "@/components/ui/action-dialog";
 import {
   getReviewerOverview,
   getReviewerHandoff,
@@ -157,6 +158,7 @@ function taskMilestoneIdOf(task: {
 export default function ReviewerProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const toast = useToast();
+  const actionDialog = useActionDialog();
   const [overview, setOverview] = useState<Row | null>(null);
   const [planning, setPlanning] = useState<Row[]>([]);
   const [plans, setPlans] = useState<Row[]>([]);
@@ -400,12 +402,13 @@ export default function ReviewerProjectPage() {
       (item) => item.id === candidateId,
     );
     const name = candidate?.freelancer?.name || "this freelancer";
-    if (
-      !window.confirm(
-        `Invite ${name}? If they do not respond within the invitation window, matching moves to the next eligible candidate.`,
-      )
-    )
-      return;
+    const confirmed = await actionDialog.confirm({
+      title: `Invite ${name}?`,
+      description:
+        "If they do not respond within the invitation window, matching moves to the next eligible candidate.",
+      confirmLabel: "Send invitation",
+    });
+    if (!confirmed) return;
     const saved = await act(`candidate:${candidateId}`, () =>
       reviewReviewerMatchingRun(selectedMatchingRun.id, {
         decision: "approved",
@@ -422,19 +425,36 @@ export default function ReviewerProjectPage() {
     const notes =
       status === "approved"
         ? ""
-        : (window.prompt("Explain the decision to the freelancer")?.trim() ??
-          "");
-    if (status !== "approved" && !notes) return;
+        : await actionDialog.prompt({
+            title:
+              status === "rejected"
+                ? "Reject planning submission"
+                : "Request planning changes",
+            description:
+              "Give the freelancer clear, actionable feedback for this decision.",
+            label: "Reviewer feedback",
+            placeholder: "Describe what needs to change and why.",
+            confirmLabel:
+              status === "rejected" ? "Reject submission" : "Request changes",
+            required: true,
+            danger: status === "rejected",
+          });
+    if (status !== "approved" && notes === null) return;
     const recommendation = text(item.evaluationRecommendation);
     let aiOverrideReason = "";
     if (status === "approved" && recommendation !== "approve") {
       aiOverrideReason =
-        window
-          .prompt(
-            "The AI did not recommend approval. Enter at least 20 characters of override evidence:",
-          )
-          ?.trim() ?? "";
-      if (aiOverrideReason.length < 20) return;
+        (await actionDialog.prompt({
+          title: "Document manual approval",
+          description:
+            "The AI did not recommend approval. Record the evidence you verified before overriding it.",
+          label: "Override evidence",
+          placeholder: "Explain what you checked and why approval is appropriate.",
+          confirmLabel: "Approve with evidence",
+          required: true,
+          minLength: 20,
+        })) ?? "";
+      if (!aiOverrideReason) return;
     }
     await act(text(item.id), () =>
       reviewReviewerPlanningSubmission(text(item.id), {
@@ -453,8 +473,19 @@ export default function ReviewerProjectPage() {
     const notes =
       status === "approved"
         ? ""
-        : (window.prompt("Explain what must change")?.trim() ?? "");
-    if (status !== "approved" && !notes) return;
+        : await actionDialog.prompt({
+            title:
+              status === "rejected" ? "Reject project plan" : "Request plan changes",
+            description:
+              "Your feedback is sent into plan regeneration and remains in the review history.",
+            label: "Required changes",
+            placeholder: "Describe exactly what the revised plan should address.",
+            confirmLabel:
+              status === "rejected" ? "Reject plan" : "Request changes",
+            required: true,
+            danger: status === "rejected",
+          });
+    if (status !== "approved" && notes === null) return;
     await act(text(item.id), () =>
       reviewReviewerPlan(text(item.id), {
         status,
@@ -514,17 +545,36 @@ export default function ReviewerProjectPage() {
       );
       return;
     }
-    const feedback =
-      window
-        .prompt(
-          decision === "approved"
-            ? selectedSubmissionNeedsManualReview
-              ? "Required: explain what you verified and why you are overriding the AI recommendation"
-              : "Optional overall comments"
-            : "Explain the requested changes or rejection",
-        )
-        ?.trim() ?? "";
-    if (decision !== "approved" && !feedback) return;
+    const requiresManualEvidence =
+      decision === "approved" && selectedSubmissionNeedsManualReview;
+    const feedbackResult = await actionDialog.prompt({
+      title:
+        decision === "approved"
+          ? "Approve submission"
+          : decision === "rejected"
+            ? "Reject submission"
+            : "Request submission changes",
+      description: requiresManualEvidence
+        ? "The AI recommendation requires a documented manual review before approval."
+        : decision === "approved"
+          ? "Add an optional overall note to the freelancer."
+          : "Give the freelancer actionable feedback for the next submission.",
+      label: requiresManualEvidence ? "Manual review evidence" : "Reviewer feedback",
+      placeholder: requiresManualEvidence
+        ? "Explain what you verified and why you are overriding the AI recommendation."
+        : "Add your overall comments.",
+      confirmLabel:
+        decision === "approved"
+          ? "Continue approval"
+          : decision === "rejected"
+            ? "Reject submission"
+            : "Request changes",
+      required: decision !== "approved" || requiresManualEvidence,
+      minLength: requiresManualEvidence ? 20 : undefined,
+      danger: decision === "rejected",
+    });
+    if (feedbackResult === null) return;
+    const feedback = feedbackResult.trim();
     if (criteria.some((criterion) => !ratings[criterion.key])) {
       toast.error(
         "Rate every criterion",
@@ -606,15 +656,21 @@ export default function ReviewerProjectPage() {
     item: Row,
     decision: "approved" | "rejected",
   ) => {
-    const notes =
-      window
-        .prompt(
-          decision === "approved"
-            ? "Optional payment note"
-            : "Reason for rejecting the release",
-        )
-        ?.trim() ?? "";
-    if (decision === "rejected" && !notes) return;
+    const notesResult = await actionDialog.prompt({
+      title:
+        decision === "approved" ? "Approve payment release" : "Reject payment release",
+      description:
+        decision === "approved"
+          ? "Add an optional note before releasing this payment."
+          : "Explain why this payment cannot be released.",
+      label: decision === "approved" ? "Payment note (optional)" : "Rejection reason",
+      placeholder: "Add a note for the project record.",
+      confirmLabel: decision === "approved" ? "Release payment" : "Reject release",
+      required: decision === "rejected",
+      danger: decision === "rejected",
+    });
+    if (notesResult === null) return;
+    const notes = notesResult.trim();
     await act(text(item.id), () =>
       reviewReviewerRelease(text(item.id), {
         decision,

@@ -7,6 +7,7 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useToast } from "@/components/ui/toast";
+import { useActionDialog } from "@/components/ui/action-dialog";
 import {
   getInvitations,
   respondToInvitation,
@@ -27,6 +28,7 @@ function remaining(expiresAt: string, now: number) {
 
 export default function InvitationsPage() {
   const toast = useToast();
+  const actionDialog = useActionDialog();
   const [items, setItems] = useState<ProjectInvitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState<string | null>(null);
@@ -77,8 +79,17 @@ export default function InvitationsPage() {
   ) => {
     const reason =
       decision === "declined"
-        ? (window.prompt("Optional reason for declining") ?? undefined)
+        ? ((await actionDialog.prompt({
+            title: "Decline invitation",
+            description:
+              "You can share a reason so the team can improve future matches.",
+            label: "Reason (optional)",
+            placeholder: "Why is this project not a fit?",
+            confirmLabel: "Decline invitation",
+            danger: true,
+          })) ?? undefined)
         : undefined;
+    if (decision === "declined" && reason === undefined) return;
     setWorking(item.id);
     try {
       await respondToInvitation(item.id, decision, reason);

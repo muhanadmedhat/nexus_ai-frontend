@@ -209,8 +209,8 @@ export default function AdminAssessmentsPage() {
         </div>
       ) : (
         <>
-          <div className="overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest card-shadow">
-            <table className="w-full text-left text-sm">
+          <div className="admin-responsive-table-wrap rounded-xl border border-outline-variant/30 bg-surface-container-lowest card-shadow">
+            <table className="admin-responsive-table text-left text-sm">
               <thead className="bg-surface-container-high">
                 <tr>
                   <th className="px-4 py-3 font-medium text-on-surface-variant">Freelancer</th>
@@ -225,9 +225,9 @@ export default function AdminAssessmentsPage() {
               <tbody>
                 {assessments.map((a) => (
                   <tr key={a.id} className="border-t border-outline-variant/20 hover:bg-surface-container-low">
-                    <td className="px-4 py-3 font-medium text-on-surface">{a.freelancerName}</td>
-                    <td className="px-4 py-3 font-medium text-on-surface">{a.score ? `${a.score}%` : "—"}</td>
-                    <td className="px-4 py-3">
+                    <td data-label="Freelancer" className="px-4 py-3 font-medium text-on-surface">{a.freelancerName}</td>
+                    <td data-label="Score" className="px-4 py-3 font-medium text-on-surface">{a.score ? `${a.score}%` : "—"}</td>
+                    <td data-label="Recommendation" className="px-4 py-3">
                       {a.recommendation ? (
                         <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
                           {getRecommendationIcon(a.recommendation)}
@@ -237,8 +237,8 @@ export default function AdminAssessmentsPage() {
                         "—"
                       )}
                     </td>
-                    <td className="px-4 py-3 text-on-surface-variant">{a.warningCount}</td>
-                    <td className="px-4 py-3">
+                    <td data-label="Warnings" className="px-4 py-3 text-on-surface-variant">{a.warningCount}</td>
+                    <td data-label="Status" className="px-4 py-3">
                       <span
                         className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
                           statusBadgeColors[a.status] || "bg-surface-container-high text-on-surface-variant"
@@ -247,10 +247,10 @@ export default function AdminAssessmentsPage() {
                         {statusLabels[a.status] || a.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-xs text-on-surface-variant">
+                    <td data-label="Submitted" className="px-4 py-3 text-xs text-on-surface-variant">
                       {a.submittedAt ? new Date(a.submittedAt).toLocaleDateString() : "—"}
                     </td>
-                    <td className="px-4 py-3">
+                    <td data-label="Action" className="px-4 py-3">
                       <div className="flex flex-wrap items-center justify-end gap-2">
                         <Link href={`/dashboard/admin/assessments/${a.id}`}>
                           <Button variant="outline" className="!w-auto px-3 py-2 text-xs">

@@ -24,8 +24,8 @@ export default function AdminPaymentsQueue() {
     <DashboardShell role="admin" title="Payments & Escrow" subtitle="Overview of project escrows, milestone releases, and funding tasks.">
       {loading ? <p>Loading...</p> : (
         <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm whitespace-nowrap">
+          <div className="admin-responsive-table-wrap">
+            <table className="admin-responsive-table text-left text-sm">
               <thead className="bg-surface-container-low text-on-surface-variant font-medium">
                 <tr>
                   <th className="p-4">Project</th>
@@ -38,11 +38,11 @@ export default function AdminPaymentsQueue() {
               <tbody className="divide-y divide-outline-variant/30">
                 {payments.map((p) => (
                   <tr key={p.id} className="hover:bg-surface-container-low/50">
-                    <td className="p-4 font-semibold">{p.projectTitle || p.projectId}</td>
-                    <td className="p-4 uppercase text-xs tracking-wider text-primary">{p.purpose?.replace(/_/g, " ")}</td>
-                    <td className="p-4 font-medium">{p.amount} {p.currency}</td>
-                    <td className="p-4">{p.createdAt ? formatDate(p.createdAt) : "—"}</td>
-                    <td className="p-4"><StatusBadge status={p.status} /></td>
+                    <td data-label="Project" className="p-4 font-semibold">{p.projectTitle || p.projectId}</td>
+                    <td data-label="Purpose" className="p-4 uppercase text-xs tracking-wider text-primary">{p.purpose?.replace(/_/g, " ")}</td>
+                    <td data-label="Amount" className="p-4 font-medium">{p.amount} {p.currency}</td>
+                    <td data-label="Date" className="p-4">{p.createdAt ? formatDate(p.createdAt) : "—"}</td>
+                    <td data-label="Status" className="p-4"><StatusBadge status={p.status} /></td>
                   </tr>
                 ))}
               </tbody>

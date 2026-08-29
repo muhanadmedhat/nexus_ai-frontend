@@ -112,8 +112,8 @@ export default function AdminProjectsPage() {
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest">
-          <div className="overflow-x-auto">
-            <table className="w-full whitespace-nowrap text-left text-sm">
+          <div className="admin-responsive-table-wrap">
+            <table className="admin-responsive-table text-left text-sm">
               <thead className="bg-surface-container-low text-on-surface-variant">
                 <tr>
                   <th className="p-4">Project</th>
@@ -131,7 +131,7 @@ export default function AdminProjectsPage() {
                     key={project.id}
                     className="hover:bg-surface-container-low/50"
                   >
-                    <td className="p-4">
+                    <td data-label="Project" className="p-4">
                       <Link
                         href={`/dashboard/admin/projects/${project.id}/delivery`}
                         className="font-semibold text-primary-container hover:underline"
@@ -139,7 +139,7 @@ export default function AdminProjectsPage() {
                         {project.title}
                       </Link>
                     </td>
-                    <td className="p-4">
+                    <td data-label="Customer" className="p-4">
                       <p>
                         {project.customer
                           ? `${project.customer.firstName ?? ""} ${project.customer.lastName ?? ""}`.trim()
@@ -149,10 +149,10 @@ export default function AdminProjectsPage() {
                         {project.customer?.email}
                       </p>
                     </td>
-                    <td className="p-4">
+                    <td data-label="Status" className="p-4">
                       <StatusBadge status={project.status} />
                     </td>
-                    <td className="p-4">
+                    <td data-label="Automation" className="p-4">
                       <StatusBadge
                         status={project.automationStatus ?? "unknown"}
                       />
@@ -167,7 +167,7 @@ export default function AdminProjectsPage() {
                         </div>
                       )}
                     </td>
-                    <td className="p-4">
+                    <td data-label="Capacity sweep" className="p-4">
                       {project.implementationCapacitySnapshot ? (
                         <div className="max-w-sm whitespace-normal">
                           <StatusBadge
@@ -204,10 +204,10 @@ export default function AdminProjectsPage() {
                         </span>
                       )}
                     </td>
-                    <td className="p-4">
+                    <td data-label="Created" className="p-4">
                       {project.createdAt ? formatDate(project.createdAt) : "—"}
                     </td>
-                    <td className="p-4">
+                    <td data-label="Budget" className="p-4">
                       {project.budgetMin ?? "—"}–{project.budgetMax ?? "—"}{" "}
                       {project.currency}
                     </td>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/providers/auth-provider";
 import { ToastProvider } from "@/components/ui/toast";
+import { ActionDialogProvider } from "@/components/ui/action-dialog";
 
 export const metadata: Metadata = {
   title: "Nexus AI",
@@ -17,7 +18,9 @@ export default function RootLayout({
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full flex flex-col bg-surface text-on-surface">
         <ToastProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <ActionDialogProvider>
+            <AuthProvider>{children}</AuthProvider>
+          </ActionDialogProvider>
         </ToastProvider>
       </body>
     </html>

@@ -54,8 +54,8 @@ export default function AdminRevenuePage() {
             )}
           </div>
           <div className="overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest">
-            <div className="overflow-x-auto">
-              <table className="w-full whitespace-nowrap text-left text-sm">
+            <div className="admin-responsive-table-wrap">
+              <table className="admin-responsive-table text-left text-sm">
                 <thead className="bg-surface-container-low text-on-surface-variant">
                   <tr>
                     <th className="p-4">Project</th>
@@ -68,19 +68,19 @@ export default function AdminRevenuePage() {
                 <tbody className="divide-y divide-outline-variant/30">
                   {(revenue?.recentEntries ?? []).map((entry) => (
                     <tr key={entry.id}>
-                      <td className="p-4 font-medium">
+                      <td data-label="Project" className="p-4 font-medium">
                         {entry.project?.title ?? entry.project?.id ?? "—"}
                       </td>
-                      <td className="p-4 capitalize">
+                      <td data-label="Type" className="p-4 capitalize">
                         {entry.entryType.replace(/_/g, " ")}
                       </td>
-                      <td className="p-4 font-semibold">
+                      <td data-label="Amount" className="p-4 font-semibold">
                         {Number(entry.amount).toLocaleString()} {entry.currency}
                       </td>
-                      <td className="p-4 max-w-md truncate">
+                      <td data-label="Reason" className="p-4 max-w-md">
                         {entry.reason ?? "—"}
                       </td>
-                      <td className="p-4">
+                      <td data-label="Posted" className="p-4">
                         {entry.postedAt ? formatDate(entry.postedAt) : "—"}
                       </td>
                     </tr>

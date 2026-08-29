@@ -99,8 +99,8 @@ export default function AdminEvaluationsQueue() {
         </div>
       ) : (
         <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm whitespace-nowrap">
+          <div className="admin-responsive-table-wrap">
+            <table className="admin-responsive-table text-left text-sm">
               <thead className="bg-surface-container-low text-on-surface-variant font-medium">
                 <tr>
                   <th className="p-4">Submission</th>
@@ -121,28 +121,28 @@ export default function AdminEvaluationsQueue() {
                       key={run.id}
                       className="hover:bg-surface-container-low/50"
                     >
-                      <td className="p-4 font-mono text-xs">
+                      <td data-label="Submission" className="p-4 font-mono text-xs">
                         {run.submissionId?.slice(0, 8) ?? "—"}
                       </td>
-                      <td className="p-4">
+                      <td data-label="Status" className="p-4">
                         <StatusBadge status={run.status} />
                       </td>
-                      <td className="p-4">{run.score ?? "—"}</td>
-                      <td className="p-4">
+                      <td data-label="Score" className="p-4">{run.score ?? "—"}</td>
+                      <td data-label="Recommendation" className="p-4">
                         {recommendation ? (
                           <StatusBadge status={recommendation} />
                         ) : (
                           <span className="text-on-surface-variant">—</span>
                         )}
                       </td>
-                      <td className="p-4">
+                      <td data-label="Review" className="p-4">
                         {run.requiresHumanReview ? (
                           <span className="text-secondary">Needs review</span>
                         ) : (
                           <span className="text-on-surface-variant">—</span>
                         )}
                       </td>
-                      <td className="p-4 text-right">
+                      <td data-label="Action" className="p-4 text-right">
                         <Link href={`/dashboard/admin/evaluations/${run.id}`}>
                           <Button variant="outline" size="sm">
                             View

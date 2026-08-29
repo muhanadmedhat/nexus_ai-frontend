@@ -9,6 +9,7 @@ import {
   type AdminUser,
 } from "@/services/admin";
 import { useToast } from "@/components/ui/toast";
+import { useActionDialog } from "@/components/ui/action-dialog";
 import {
   CheckCircle,
   Loader2,
@@ -58,6 +59,7 @@ function toDraft(user: AdminUser): UserDraft {
 
 export default function AdminUsersPage() {
   const toast = useToast();
+  const actionDialog = useActionDialog();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
@@ -137,6 +139,16 @@ export default function AdminUsersPage() {
   };
 
   const handleDisabledChange = async (user: AdminUser, disabled: boolean) => {
+    const confirmed = await actionDialog.confirm({
+      title: disabled ? "Disable this account?" : "Restore this account?",
+      description: disabled
+        ? `${user.email} will be signed out and unable to sign in until an administrator restores the account.`
+        : `${user.email} will be able to sign in and use the platform again.`,
+      confirmLabel: disabled ? "Disable account" : "Restore account",
+      danger: disabled,
+    });
+    if (!confirmed) return;
+
     setSaving(user.id);
     setError(null);
     try {
@@ -258,8 +270,8 @@ export default function AdminUsersPage() {
         </div>
       ) : (
         <>
-          <div className="overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest card-shadow">
-            <table className="w-full text-left text-sm">
+          <div className="admin-responsive-table-wrap rounded-xl border border-outline-variant/30 bg-surface-container-lowest card-shadow">
+            <table className="admin-responsive-table text-left text-sm">
               <thead className="bg-surface-container-high">
                 <tr>
                   <th className="px-4 py-3 font-medium text-on-surface-variant">User</th>
@@ -283,9 +295,9 @@ export default function AdminUsersPage() {
                       key={user.id}
                       className="border-t border-outline-variant/20 align-top hover:bg-surface-container-low"
                     >
-                      <td className="px-4 py-3">
+                      <td data-label="User" className="px-4 py-3">
                         {editing ? (
-                          <div className="grid min-w-[260px] gap-2 sm:grid-cols-2">
+                          <div className="grid min-w-0 gap-2 sm:grid-cols-2">
                             <input
                               value={draft.firstName}
                               onChange={(event) =>
@@ -333,7 +345,7 @@ export default function AdminUsersPage() {
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td data-label="Role" className="px-4 py-3">
                         {editing ? (
                           <select
                             value={draft.role}
@@ -354,7 +366,7 @@ export default function AdminUsersPage() {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td data-label="Verification" className="px-4 py-3">
                         {editing ? (
                           <div className="space-y-2">
                             <label className="flex items-center gap-2 text-xs text-on-surface">
@@ -393,7 +405,7 @@ export default function AdminUsersPage() {
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td data-label="Status" className="px-4 py-3">
                         <span
                           className={
                             disabled
@@ -404,10 +416,10 @@ export default function AdminUsersPage() {
                           {disabled ? "Disabled" : "Active"}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-xs text-on-surface-variant">
+                      <td data-label="Joined" className="px-4 py-3 text-xs text-on-surface-variant">
                         {new Date(user.createdAt).toLocaleDateString()}
                       </td>
-                      <td className="px-4 py-3">
+                      <td data-label="Actions" className="px-4 py-3">
                         <div className="flex flex-wrap justify-end gap-2">
                           {editing ? (
                             <>

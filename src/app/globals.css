@@ -53,6 +53,92 @@ body {
   background-color: var(--color-background);
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+
+.admin-responsive-table-wrap {
+  container-type: inline-size;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.admin-responsive-table {
+  width: 100%;
+  table-layout: auto;
+}
+
+.admin-responsive-table :where(th, td) {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@container (max-width: 1200px) {
+  .admin-responsive-table,
+  .admin-responsive-table tbody,
+  .admin-responsive-table tr,
+  .admin-responsive-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .admin-responsive-table thead {
+    display: none;
+  }
+
+  .admin-responsive-table tbody {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+    padding: 0.75rem;
+  }
+
+  .admin-responsive-table tbody tr {
+    overflow: hidden;
+    border: 1px solid color-mix(in oklab, var(--color-outline-variant) 40%, transparent);
+    border-radius: 0.5rem;
+    background: var(--color-surface-container-lowest);
+  }
+
+  .admin-responsive-table tbody td {
+    display: grid;
+    grid-template-columns: minmax(7rem, 0.4fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 0.75rem;
+    padding: 0.7rem 0.85rem;
+    text-align: left;
+  }
+
+  .admin-responsive-table tbody td + td {
+    border-top: 1px solid color-mix(in oklab, var(--color-outline-variant) 25%, transparent);
+  }
+
+  .admin-responsive-table tbody td::before {
+    content: attr(data-label);
+    color: var(--color-on-surface-variant);
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1.25rem;
+    text-transform: uppercase;
+  }
+
+  .admin-responsive-table tbody td[data-label="Actions"] > :first-child,
+  .admin-responsive-table tbody td[data-label="Action"] > :first-child {
+    justify-content: flex-start;
+  }
+}
+
+@container (max-width: 700px) {
+  .admin-responsive-table tbody {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-responsive-table tbody td {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
 }
 
 :where(

@@ -433,8 +433,8 @@ export default function AdminFreelancersPage() {
         </div>
       ) : (
         <>
-          <div className="overflow-x-auto rounded-xl border border-outline-variant/30 bg-surface-container-lowest card-shadow">
-            <table className="w-full text-left text-sm">
+          <div className="admin-responsive-table-wrap rounded-xl border border-outline-variant/30 bg-surface-container-lowest card-shadow">
+            <table className="admin-responsive-table text-left text-sm">
               <thead className="bg-surface-container-high">
                 <tr>
                   <th className="px-4 py-3 font-medium text-on-surface-variant">
@@ -477,7 +477,7 @@ export default function AdminFreelancersPage() {
                       key={freelancer.id}
                       className="border-t border-outline-variant/20 hover:bg-surface-container-low"
                     >
-                      <td className="min-w-48 px-4 py-4">
+                      <td data-label="Freelancer" className="px-4 py-4">
                         <p className="font-semibold text-on-surface">
                           {freelancer.name}
                         </p>
@@ -485,7 +485,7 @@ export default function AdminFreelancersPage() {
                           {freelancer.email}
                         </p>
                       </td>
-                      <td className="max-w-60 px-4 py-4 text-on-surface-variant">
+                      <td data-label="Platform position" className="max-w-60 px-4 py-4 text-on-surface-variant">
                         <p className="font-semibold text-on-surface">
                           {freelancer.professionalTitle ||
                             freelancer.assessmentTargetTitle ||
@@ -504,7 +504,7 @@ export default function AdminFreelancersPage() {
                             : freelancer.headline || "No CV classification yet"}
                         </p>
                       </td>
-                      <td className="min-w-72 px-4 py-4">
+                      <td data-label="Top skills" className="px-4 py-4">
                         {topScores.length > 0 ? (
                           <div className="flex flex-wrap gap-1.5">
                             {topScores.map((skill) => (
@@ -534,10 +534,10 @@ export default function AdminFreelancersPage() {
                           <span className="text-on-surface-variant">-</span>
                         )}
                       </td>
-                      <td className="px-4 py-4 font-semibold text-on-surface">
+                      <td data-label="Score" className="px-4 py-4 font-semibold text-on-surface">
                         {formatPercent(freelancer.assessmentScore)}
                       </td>
-                      <td className="px-4 py-4">
+                      <td data-label="Status" className="px-4 py-4">
                         <span
                           className={`inline-block rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadgeColors[freelancer.verificationStatus] || "border border-outline-variant/50 bg-surface-container-high text-on-surface-variant"}`}
                         >
@@ -545,7 +545,7 @@ export default function AdminFreelancersPage() {
                             freelancer.verificationStatus}
                         </span>
                       </td>
-                      <td className="px-4 py-4">
+                      <td data-label="Reviewer" className="px-4 py-4">
                         <span className="inline-block rounded-full border border-outline-variant/50 bg-surface-container-high px-2.5 py-1 text-xs font-semibold capitalize text-on-surface-variant">
                           {freelancer.principalReviewerStatus.replaceAll(
                             "_",
@@ -553,16 +553,16 @@ export default function AdminFreelancersPage() {
                           )}
                         </span>
                       </td>
-                      <td className="px-4 py-4 text-xs text-on-surface-variant">
+                      <td data-label="Submitted" className="px-4 py-4 text-xs text-on-surface-variant">
                         {freelancer.assessmentSubmittedAt
                           ? new Date(
                               freelancer.assessmentSubmittedAt,
                             ).toLocaleDateString()
                           : "-"}
                       </td>
-                      <td className="w-[260px] min-w-[260px] px-3 py-4 text-right">
+                      <td data-label="Actions" className="px-3 py-4 text-right">
                         {isFinalStatus ? (
-                          <div className="flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap">
+                          <div className="flex flex-wrap items-center justify-end gap-1.5">
                             <span
                               className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1.5 text-[11px] font-semibold ${statusBadgeColors[freelancer.verificationStatus]}`}
                             >
@@ -586,7 +586,7 @@ export default function AdminFreelancersPage() {
                             </Link>
                           </div>
                         ) : (
-                          <div className="flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap">
+                          <div className="flex flex-wrap items-center justify-end gap-1.5">
                             <Button
                               type="button"
                               className="!w-auto rounded-full px-2.5 py-1.5 text-[11px]"

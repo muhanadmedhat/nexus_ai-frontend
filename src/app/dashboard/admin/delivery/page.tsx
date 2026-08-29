@@ -106,8 +106,8 @@ export default function AdminDeliveryPage() {
             />
           ) : (
             <div className="overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm whitespace-nowrap">
+              <div className="admin-responsive-table-wrap">
+                <table className="admin-responsive-table text-left text-sm">
                   <thead className="bg-surface-container-low font-medium text-on-surface-variant">
                     <tr>
                       <th className="p-4">Project</th>
@@ -127,7 +127,7 @@ export default function AdminDeliveryPage() {
                         key={summary.project.id}
                         className="hover:bg-surface-container-low/50"
                       >
-                        <td className="p-4 font-semibold">
+                        <td data-label="Project" className="p-4 font-semibold">
                           <Link
                             href={`/dashboard/admin/projects/${summary.project.id}/delivery`}
                             className="hover:text-primary-container"
@@ -135,14 +135,14 @@ export default function AdminDeliveryPage() {
                             {summary.project.title || summary.project.id}
                           </Link>
                         </td>
-                        <td className="p-4">
+                        <td data-label="Status" className="p-4">
                           <StatusBadge status={summary.project.status} />
                         </td>
-                        <td className="p-4 text-right tabular-nums">
+                        <td data-label="Milestones" className="p-4 text-right tabular-nums">
                           {summary.milestoneCount}
                         </td>
-                        <td className="p-4 text-right tabular-nums">{summary.taskCount}</td>
-                        <td className="p-4 text-right tabular-nums">
+                        <td data-label="Tasks" className="p-4 text-right tabular-nums">{summary.taskCount}</td>
+                        <td data-label="Unassigned" className="p-4 text-right tabular-nums">
                           {summary.unassignedTasks > 0 ? (
                             <span className="font-semibold text-error">
                               {summary.unassignedTasks}
@@ -151,16 +151,16 @@ export default function AdminDeliveryPage() {
                             0
                           )}
                         </td>
-                        <td className="p-4 text-right tabular-nums">
+                        <td data-label="In review" className="p-4 text-right tabular-nums">
                           {summary.pendingSubmissions}
                         </td>
-                        <td className="p-4 text-right tabular-nums">
+                        <td data-label="Revisions" className="p-4 text-right tabular-nums">
                           {summary.openRevisions}
                         </td>
-                        <td className="p-4 text-right tabular-nums">
+                        <td data-label="Held escrow" className="p-4 text-right tabular-nums">
                           {formatMoney(summary.heldEscrow, summary.currency)}
                         </td>
-                        <td className="p-4 text-on-surface-variant">{summary.nextAction}</td>
+                        <td data-label="Next action" className="p-4 text-on-surface-variant">{summary.nextAction}</td>
                       </tr>
                     ))}
                   </tbody>

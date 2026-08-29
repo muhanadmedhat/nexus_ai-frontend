@@ -25,8 +25,8 @@ export default function AdminProjectPlansQueue() {
     <DashboardShell role="admin" title="Project Plans" subtitle="Review AI-generated scrum master milestones and tasks.">
       {loading ? <p>Loading...</p> : (
         <div className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm whitespace-nowrap">
+          <div className="admin-responsive-table-wrap">
+            <table className="admin-responsive-table text-left text-sm">
               <thead className="bg-surface-container-low text-on-surface-variant font-medium">
                 <tr>
                   <th className="p-4">Project</th>
@@ -39,11 +39,11 @@ export default function AdminProjectPlansQueue() {
               <tbody className="divide-y divide-outline-variant/30">
                 {plans.map((p) => (
                   <tr key={p.id} className="hover:bg-surface-container-low/50">
-                    <td className="p-4 font-semibold">{p.projectTitle || p.projectId}</td>
-                    <td className="p-4">v{p.version}</td>
-                    <td className="p-4"><StatusBadge status={p.status} /></td>
-                    <td className="p-4">{p.milestoneCount || 0} / {p.taskCount || 0}</td>
-                    <td className="p-4 text-right">
+                    <td data-label="Project" className="p-4 font-semibold">{p.projectTitle || p.projectId}</td>
+                    <td data-label="Version" className="p-4">v{p.version}</td>
+                    <td data-label="Status" className="p-4"><StatusBadge status={p.status} /></td>
+                    <td data-label="Milestones / Tasks" className="p-4">{p.milestoneCount || 0} / {p.taskCount || 0}</td>
+                    <td data-label="Action" className="p-4 text-right">
                       <Link href={`/dashboard/admin/project-plans/${p.id}`}>
                         <Button variant="outline" size="sm">Review</Button>
                       </Link>
