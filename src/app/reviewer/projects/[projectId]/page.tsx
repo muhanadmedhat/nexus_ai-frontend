@@ -41,6 +41,7 @@ import {
   getReviewerSubmissions,
   reviewReviewerPlan,
   reviewReviewerPlanningSubmission,
+  retryReviewerPlanningSubmissionEvaluation,
   reviewReviewerRelease,
   reviewReviewerHandoff,
   reviewReviewerMatchingRun,
@@ -148,6 +149,27 @@ function verdictTone(status: string) {
       return "border-outline-variant/30 bg-surface-container-low";
     default:
       return "border-outline-variant/40 bg-surface-container-low";
+  }
+}
+
+const ACTIVE_PLANNING_EVALUATION_STATUSES = ["pending", "queued", "running"];
+
+function planningEvaluationStatus(item: { evaluationStatus?: unknown }) {
+  return text(item.evaluationStatus) || "pending";
+}
+
+function planningApprovalBlock(item: { evaluationStatus?: unknown }) {
+  switch (planningEvaluationStatus(item)) {
+    case "completed":
+      return undefined;
+    case "pending_architecture":
+      return "UI/UX evaluation starts automatically after the architecture deliverable is approved.";
+    case "failed":
+      return "AI evaluation failed. Open the deliverable to see the cause and retry it.";
+    case "running":
+      return "AI is reviewing this deliverable. Approval unlocks automatically when it finishes.";
+    default:
+      return "AI evaluation is queued. Approval unlocks automatically when it finishes.";
   }
 }
 
@@ -330,6 +352,30 @@ export default function ReviewerProjectPage() {
     };
   }, [load]);
 
+  const hasActivePlanningEvaluation = planning.some((item) =>
+    ACTIVE_PLANNING_EVALUATION_STATUSES.includes(
+      planningEvaluationStatus(item),
+    ),
+  );
+
+  useEffect(() => {
+    if (!hasActivePlanningEvaluation) return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const current = await getReviewerPlanningSubmissions(projectId);
+        if (!cancelled) setPlanning(current);
+      } catch {
+        // Keep the workbench stable; opening the deliverable reports errors.
+      }
+    };
+    const timer = window.setInterval(() => void refresh(), 5_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [hasActivePlanningEvaluation, projectId]);
+
   const project = (overview?.project ?? {}) as Row;
   const attention = (overview?.attention ?? {}) as Row;
   const criteria = useMemo(
@@ -371,6 +417,16 @@ export default function ReviewerProjectPage() {
     (selectedPullRequestReadiness.targetReady === true &&
       selectedPullRequestReadiness.historyReady === true &&
       selectedPullRequestReadiness.evaluationCurrent === true);
+  const openPlanningEvaluationStatus = openDeliverable
+    ? planningEvaluationStatus(openDeliverable)
+    : "";
+  const openPlanningEvaluationActive =
+    ACTIVE_PLANNING_EVALUATION_STATUSES.includes(openPlanningEvaluationStatus);
+  const openPlanningEvaluationComplete =
+    openPlanningEvaluationStatus === "completed";
+  const openPlanningApprovalBlock = openDeliverable
+    ? planningApprovalBlock(openDeliverable)
+    : undefined;
 
   useEffect(() => {
     const submissionId = text(selectedSubmissionRecord?.id);
@@ -390,6 +446,31 @@ export default function ReviewerProjectPage() {
       window.clearInterval(timer);
     };
   }, [selectedEvaluationPending, selectedSubmissionRecord?.id]);
+
+  useEffect(() => {
+    const submissionId = openDeliverable?.id;
+    if (!submissionId || !openPlanningEvaluationActive) return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const detail = await getReviewerPlanningSubmission(submissionId);
+        if (cancelled) return;
+        setOpenDeliverable(detail);
+        setPlanning((current) =>
+          current.map((item) =>
+            text(item.id) === detail.id ? { ...item, ...detail } : item,
+          ),
+        );
+      } catch {
+        // Preserve the open review. A manual retry reports actionable errors.
+      }
+    };
+    const timer = window.setInterval(() => void refresh(), 5_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [openDeliverable?.id, openPlanningEvaluationActive]);
   const currentMatchingRuns = useMemo(() => {
     const seen = new Set<string>();
     return matchingRuns.filter((run) => {
@@ -474,6 +555,13 @@ export default function ReviewerProjectPage() {
     item: Row,
     status: "approved" | "changes_requested" | "rejected",
   ) => {
+    if (status === "approved") {
+      const blocked = planningApprovalBlock(item);
+      if (blocked) {
+        toast.error("AI evaluation is not complete", blocked);
+        return false;
+      }
+    }
     const notes =
       status === "approved"
         ? ""
@@ -491,7 +579,7 @@ export default function ReviewerProjectPage() {
             required: true,
             danger: status === "rejected",
           });
-    if (status !== "approved" && notes === null) return;
+    if (status !== "approved" && notes === null) return false;
     const recommendation = text(item.evaluationRecommendation);
     let aiOverrideReason = "";
     if (status === "approved" && recommendation !== "approve") {
@@ -506,9 +594,9 @@ export default function ReviewerProjectPage() {
           required: true,
           minLength: 20,
         })) ?? "";
-      if (!aiOverrideReason) return;
+      if (!aiOverrideReason) return false;
     }
-    await act(text(item.id), () =>
+    return act(text(item.id), () =>
       reviewReviewerPlanningSubmission(text(item.id), {
         status,
         adminNotes: notes || undefined,
@@ -516,6 +604,34 @@ export default function ReviewerProjectPage() {
         aiOverrideReason: aiOverrideReason || undefined,
       }),
     );
+  };
+
+  const retryPlanningEvaluation = async () => {
+    if (!openDeliverable) return;
+    const submissionId = openDeliverable.id;
+    const actionId = `planning-evaluation:${submissionId}`;
+    setWorking(actionId);
+    try {
+      await retryReviewerPlanningSubmissionEvaluation(submissionId);
+      const detail = await getReviewerPlanningSubmission(submissionId);
+      setOpenDeliverable(detail);
+      setPlanning((current) =>
+        current.map((item) =>
+          text(item.id) === detail.id ? { ...item, ...detail } : item,
+        ),
+      );
+      toast.success(
+        "AI evaluation queued",
+        "This review will update automatically when evaluation finishes.",
+      );
+    } catch (error) {
+      toast.error(
+        "Could not retry AI evaluation",
+        error instanceof Error ? error.message : "Try again.",
+      );
+    } finally {
+      setWorking(null);
+    }
   };
 
   const decidePlan = async (
@@ -540,10 +656,10 @@ export default function ReviewerProjectPage() {
     if (status !== "approved" && notes === null) return;
     await act(text(item.id), () =>
       reviewReviewerPlan(text(item.id), {
-        status,
-        adminNotes: notes || undefined,
-        materialize: status === "approved",
-      }),
+          status,
+          adminNotes: notes || undefined,
+          materialize: status === "approved",
+        }),
       status === "changes_requested"
         ? (result) =>
             result.regeneration?.queued === false
@@ -820,10 +936,10 @@ export default function ReviewerProjectPage() {
     }
     await act(`implementation-rating:${userId}`, () =>
       rateReviewerImplementationContributor(projectId, {
-        ratedUserId: userId,
-        rating,
-        comment: implementationRatingComments[userId]?.trim() || undefined,
-      }),
+          ratedUserId: userId,
+          rating,
+          comment: implementationRatingComments[userId]?.trim() || undefined,
+        }),
       {
         title: "Freelancer rating saved",
         message: "The confirmed rating is now part of their platform record.",
@@ -1008,9 +1124,17 @@ export default function ReviewerProjectPage() {
                   onOpen={() => void openPlanningSubmission(text(item.id))}
                   openLabel="Open deliverable"
                   approveDisabledReason={
-                    reviewedSubmissionIds.has(text(item.id))
+                    planningApprovalBlock(item) ??
+                    (reviewedSubmissionIds.has(text(item.id))
                       ? undefined
-                      : "Open the deliverable before approving it."
+                      : "Open the deliverable before approving it.")
+                  }
+                  approveLabel={
+                    planningEvaluationStatus(item) === "completed"
+                      ? "Approve"
+                      : planningEvaluationStatus(item) === "failed"
+                        ? "Evaluation failed"
+                        : "Waiting for AI"
                   }
                   onApprove={() => void decidePlanning(item, "approved")}
                   onChanges={() =>
@@ -1178,7 +1302,7 @@ export default function ReviewerProjectPage() {
                         ? "border border-error/30 bg-error/5"
                         : branchUpdateRequested
                           ? "border border-primary/30 bg-primary/5"
-                        : "bg-surface-container-low")
+                          : "bg-surface-container-low")
                     }
                   >
                     <div>
@@ -1199,7 +1323,7 @@ export default function ReviewerProjectPage() {
                             "The freelancer must update the feature branch from main."
                           : branchUpdateRequested
                             ? "Nexus asked GitHub to update this feature branch from main. A fresh evaluation will start when the new commit appears."
-                          : text(item.summary)}
+                            : text(item.summary)}
                       </p>
                     </div>
                     <Button
@@ -1805,6 +1929,72 @@ export default function ReviewerProjectPage() {
               </div>
             )}
 
+            <div
+              className={`mt-5 rounded-xl border p-4 ${
+                openPlanningEvaluationComplete
+                  ? "border-green-500/35 bg-green-500/5"
+                  : openPlanningEvaluationStatus === "failed"
+                    ? "border-red-500/35 bg-red-500/5"
+                    : openPlanningEvaluationStatus === "pending_architecture"
+                      ? "border-amber-500/35 bg-amber-500/5"
+                      : "border-outline-variant/40 bg-surface-container-low"
+              }`}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="flex items-center gap-2 font-semibold text-on-surface">
+                    {openPlanningEvaluationActive && (
+                      <Loader2 size={16} className="animate-spin" />
+                    )}
+                    {openPlanningEvaluationComplete && (
+                      <CheckCircle2 size={16} className="text-green-600" />
+                    )}
+                    {openPlanningEvaluationStatus === "failed" && (
+                      <ShieldAlert size={16} className="text-red-600" />
+                    )}
+                    {openPlanningEvaluationStatus ===
+                      "pending_architecture" && (
+                      <Clock3 size={16} className="text-amber-600" />
+                    )}
+                    {openPlanningEvaluationStatus === "running"
+                      ? "AI is reviewing this deliverable"
+                      : openPlanningEvaluationStatus === "completed"
+                        ? "AI evaluation completed"
+                        : openPlanningEvaluationStatus === "failed"
+                          ? "AI evaluation failed"
+                          : openPlanningEvaluationStatus ===
+                              "pending_architecture"
+                            ? "Waiting for architecture approval"
+                            : "AI evaluation queued"}
+                  </p>
+                  <p className="mt-1 text-sm text-on-surface-variant">
+                    {openPlanningEvaluationStatus === "completed"
+                      ? `Recommendation: ${openDeliverable.evaluationRecommendation ?? "manual review"}${openDeliverable.evaluatedAt ? ` · finished ${new Date(openDeliverable.evaluatedAt).toLocaleString()}` : ""}`
+                      : openPlanningEvaluationStatus === "pending_architecture"
+                        ? "The UI/UX evaluation will start automatically after the architecture contract is approved."
+                        : openPlanningEvaluationStatus === "failed"
+                          ? openDeliverable.evaluationError ||
+                            "The evaluation did not complete. Retry without resubmitting the deliverable."
+                          : "Approval is paused. This page checks for the result automatically every five seconds."}
+                  </p>
+                </div>
+                <StatusBadge status={openPlanningEvaluationStatus} />
+              </div>
+              {openPlanningEvaluationStatus === "failed" && (
+                <Button
+                  className="mt-3 w-auto"
+                  size="sm"
+                  variant="outline"
+                  loading={
+                    working === `planning-evaluation:${openDeliverable.id}`
+                  }
+                  onClick={() => void retryPlanningEvaluation()}
+                >
+                  <RefreshCw size={16} /> Retry AI evaluation
+                </Button>
+              )}
+            </div>
+
             {(openDeliverable.evaluationResult?.risks?.length ?? 0) > 0 && (
               <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/5 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-red-600">
@@ -1919,26 +2109,31 @@ export default function ReviewerProjectPage() {
               </Button>
               <Button
                 variant="outline"
-                onClick={() => {
-                  const row = planning.find(
-                    (entry) => text(entry.id) === openDeliverable.id,
+                disabled={working !== null}
+                onClick={async () => {
+                  const saved = await decidePlanning(
+                    openDeliverable as unknown as Row,
+                    "changes_requested",
                   );
-                  if (row) void decidePlanning(row, "changes_requested");
-                  setOpenDeliverable(null);
+                  if (saved) setOpenDeliverable(null);
                 }}
               >
                 Request changes
               </Button>
               <Button
-                onClick={() => {
-                  const row = planning.find(
-                    (entry) => text(entry.id) === openDeliverable.id,
+                disabled={
+                  Boolean(openPlanningApprovalBlock) || working !== null
+                }
+                title={openPlanningApprovalBlock}
+                onClick={async () => {
+                  const saved = await decidePlanning(
+                    openDeliverable as unknown as Row,
+                    "approved",
                   );
-                  if (row) void decidePlanning(row, "approved");
-                  setOpenDeliverable(null);
+                  if (saved) setOpenDeliverable(null);
                 }}
               >
-                Approve
+                {openPlanningEvaluationComplete ? "Approve" : "Waiting for AI"}
               </Button>
             </div>
           </div>
@@ -2347,62 +2542,62 @@ export default function ReviewerProjectPage() {
             />
             {selectedPullRequestReadiness &&
               !selectedApprovalBranchReady && (
-                <div className="mt-5 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm text-on-surface">
-                  <p className="flex items-center gap-2 font-semibold">
-                    <ShieldAlert size={16} /> Pull request needs integration
-                    preparation
-                  </p>
-                  <p className="mt-1 text-on-surface-variant">
+              <div className="mt-5 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm text-on-surface">
+                <p className="flex items-center gap-2 font-semibold">
+                  <ShieldAlert size={16} /> Pull request needs integration
+                  preparation
+                </p>
+                <p className="mt-1 text-on-surface-variant">
                     Current base: {text(selectedPullRequestReadiness.baseRef) ||
                       "unknown"}
                     {" · "}Required base: {text(
                       selectedPullRequestReadiness.requiredBaseRef,
                     )}
+                </p>
+                <p className="mt-2 text-on-surface-variant">
+                  {text(selectedPullRequestReadiness.blocker)}
+                </p>
+                {Boolean(selectedPullRequestReadiness.error) && (
+                  <p className="mt-2 text-xs text-error">
+                    {text(selectedPullRequestReadiness.error)}
                   </p>
-                  <p className="mt-2 text-on-surface-variant">
-                    {text(selectedPullRequestReadiness.blocker)}
-                  </p>
-                  {Boolean(selectedPullRequestReadiness.error) && (
-                    <p className="mt-2 text-xs text-error">
-                      {text(selectedPullRequestReadiness.error)}
-                    </p>
-                  )}
-                  {selectedPullRequestReadiness.canRetarget === true && (
+                )}
+                {selectedPullRequestReadiness.canRetarget === true && (
+                  <Button
+                    className="mt-3 w-auto"
+                    size="sm"
+                    variant="outline"
+                    loading={
+                      working ===
+                      `retarget:${text(selectedSubmissionRecord.id)}`
+                    }
+                      onClick={() =>
+                        void retargetSelectedSubmissionPullRequest()
+                      }
+                  >
+                    <RefreshCw size={16} /> Retarget and re-evaluate
+                  </Button>
+                )}
+                {selectedPullRequestReadiness.targetReady === true &&
+                  selectedPullRequestReadiness.historyReady === true &&
+                  selectedPullRequestReadiness.evaluationCurrent !== true && (
                     <Button
                       className="mt-3 w-auto"
                       size="sm"
                       variant="outline"
                       loading={
                         working ===
-                        `retarget:${text(selectedSubmissionRecord.id)}`
+                        `evaluation:${text(selectedSubmissionRecord.id)}`
                       }
-                      onClick={() =>
-                        void retargetSelectedSubmissionPullRequest()
-                      }
-                    >
-                      <RefreshCw size={16} /> Retarget and re-evaluate
-                    </Button>
-                  )}
-                  {selectedPullRequestReadiness.targetReady === true &&
-                    selectedPullRequestReadiness.historyReady === true &&
-                    selectedPullRequestReadiness.evaluationCurrent !== true && (
-                      <Button
-                        className="mt-3 w-auto"
-                        size="sm"
-                        variant="outline"
-                        loading={
-                          working ===
-                          `evaluation:${text(selectedSubmissionRecord.id)}`
-                        }
                         onClick={() =>
                           void retrySelectedSubmissionEvaluation()
                         }
-                      >
-                        <RefreshCw size={16} /> Re-evaluate current base
-                      </Button>
-                    )}
-                </div>
-              )}
+                    >
+                      <RefreshCw size={16} /> Re-evaluate current base
+                    </Button>
+                  )}
+              </div>
+            )}
             {selectedEvaluationPending && (
               <div className="mt-5 rounded-lg border border-outline-variant/40 bg-surface-container-low p-4 text-sm text-on-surface">
                 <p className="flex items-center gap-2 font-semibold">

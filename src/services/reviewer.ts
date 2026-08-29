@@ -180,8 +180,11 @@ export interface ReviewerPlanningSubmissionDetail {
   } | null;
   fileUrls?: Record<string, unknown> | null;
   evaluationStatus?: string | null;
+  evaluationError?: string | null;
+  evaluationAgentJobId?: string | null;
   evaluationScore?: number | string | null;
   evaluationRecommendation?: string | null;
+  evaluatedAt?: string | null;
   evaluationRequirements?: Array<{
     key: string;
     title: string;
@@ -430,6 +433,14 @@ export async function reviewReviewerPlanningSubmission(
     `/reviewer/planning-submissions/${id}/review`,
     "patch",
     payload,
+  );
+}
+
+export async function retryReviewerPlanningSubmissionEvaluation(id: string) {
+  return mutate(
+    `/reviewer/planning-submissions/${id}/evaluation/retry`,
+    "post",
+    {},
   );
 }
 
