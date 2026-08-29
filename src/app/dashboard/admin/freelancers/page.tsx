@@ -9,6 +9,11 @@ import {
   updateFreelancerVerification,
   type FreelancerListItem,
 } from "@/services/admin";
+import {
+  PROFESSIONAL_ROLE_OPTIONS,
+  SENIORITY_OPTIONS,
+  professionalTitle,
+} from "@/lib/professional-classification";
 import { useToast } from "@/components/ui/toast";
 import {
   Calendar,
@@ -16,6 +21,7 @@ import {
   Eye,
   Loader2,
   Search,
+  SearchCheck,
   X,
   XCircle,
 } from "lucide-react";
@@ -85,15 +91,15 @@ export default function AdminFreelancersPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
-  const [statusFilter, setStatusFilter] = useState<string>(
-    "assessment_submitted",
-  );
+  const [statusFilter, setStatusFilter] = useState<string>("");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [skills, setSkills] = useState("");
   const [principalReviewerFilter, setPrincipalReviewerFilter] = useState("");
+  const [professionalRoleFilter, setProfessionalRoleFilter] = useState("");
+  const [seniorityFilter, setSeniorityFilter] = useState("");
   const limit = 20;
 
   const loadFreelancers = useCallback(async () => {
@@ -116,6 +122,8 @@ export default function AdminFreelancersPage() {
         dateTo: dateTo || undefined,
         skills: skillsArray,
         principalReviewerStatus: principalReviewerFilter || undefined,
+        professionalRole: professionalRoleFilter || undefined,
+        seniorityLevel: seniorityFilter || undefined,
       });
       setFreelancers(result.data);
       setTotal(result.total);
@@ -134,6 +142,8 @@ export default function AdminFreelancersPage() {
     dateTo,
     skills,
     principalReviewerFilter,
+    professionalRoleFilter,
+    seniorityFilter,
   ]);
 
   useEffect(() => {
@@ -203,11 +213,19 @@ export default function AdminFreelancersPage() {
     setDateTo("");
     setSkills("");
     setPrincipalReviewerFilter("");
+    setProfessionalRoleFilter("");
+    setSeniorityFilter("");
     setPage(1);
   };
 
   const hasActiveFilters =
-    search || dateFrom || dateTo || skills || principalReviewerFilter;
+    search ||
+    dateFrom ||
+    dateTo ||
+    skills ||
+    principalReviewerFilter ||
+    professionalRoleFilter ||
+    seniorityFilter;
 
   return (
     <DashboardShell
@@ -217,6 +235,21 @@ export default function AdminFreelancersPage() {
     >
       {/* Filter tabs */}
       <div className="mb-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setStatusFilter("");
+            setPrincipalReviewerFilter("");
+            setPage(1);
+          }}
+          className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+            !statusFilter && !principalReviewerFilter
+              ? "bg-primary-container text-on-primary-container"
+              : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high"
+          }`}
+        >
+          All freelancers
+        </button>
         <button
           onClick={() => {
             setStatusFilter("");
@@ -269,6 +302,19 @@ export default function AdminFreelancersPage() {
           />
         </div>
 
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            setSearch(searchInput.trim());
+            setPage(1);
+          }}
+          className="!w-auto px-3 py-2 text-sm"
+        >
+          <SearchCheck size={16} />
+          Search
+        </Button>
+
         <div className="relative">
           <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-outline" />
           <input
@@ -307,6 +353,41 @@ export default function AdminFreelancersPage() {
           }}
           className="min-w-[150px] rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface placeholder:text-outline/50 focus:border-primary-container focus:outline-none focus:ring-1 focus:ring-primary-container"
         />
+
+        <select
+          value={professionalRoleFilter}
+          onChange={(event) => {
+            setProfessionalRoleFilter(event.target.value);
+            setPage(1);
+          }}
+          className="rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:outline-none focus:ring-1 focus:ring-primary-container"
+          aria-label="Professional role"
+        >
+          <option value="">All professional roles</option>
+          <option value="principal_reviewer">Principal reviewers</option>
+          {PROFESSIONAL_ROLE_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={seniorityFilter}
+          onChange={(event) => {
+            setSeniorityFilter(event.target.value);
+            setPage(1);
+          }}
+          className="rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus:border-primary-container focus:outline-none focus:ring-1 focus:ring-primary-container"
+          aria-label="Seniority level"
+        >
+          <option value="">All seniority levels</option>
+          {SENIORITY_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
 
         <select
           value={principalReviewerFilter}
@@ -352,7 +433,7 @@ export default function AdminFreelancersPage() {
         </div>
       ) : (
         <>
-          <div className="overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container-lowest card-shadow">
+          <div className="overflow-x-auto rounded-xl border border-outline-variant/30 bg-surface-container-lowest card-shadow">
             <table className="w-full text-left text-sm">
               <thead className="bg-surface-container-high">
                 <tr>
@@ -360,7 +441,7 @@ export default function AdminFreelancersPage() {
                     Freelancer
                   </th>
                   <th className="px-4 py-3 font-medium text-on-surface-variant">
-                    Headline
+                    Platform position
                   </th>
                   <th className="px-4 py-3 font-medium text-on-surface-variant">
                     Top skills
@@ -405,8 +486,22 @@ export default function AdminFreelancersPage() {
                         </p>
                       </td>
                       <td className="max-w-60 px-4 py-4 text-on-surface-variant">
-                        <p className="line-clamp-2">
-                          {freelancer.headline || "-"}
+                        <p className="font-semibold text-on-surface">
+                          {freelancer.professionalTitle ||
+                            freelancer.assessmentTargetTitle ||
+                            professionalTitle(
+                              freelancer.professionalRole ||
+                                freelancer.assessmentTargetRole,
+                              freelancer.seniorityLevel ||
+                                freelancer.assessmentTargetSeniority,
+                            ) ||
+                            "Unclassified"}
+                        </p>
+                        <p className="mt-1 line-clamp-2 text-xs">
+                          {!freelancer.professionalRole &&
+                          freelancer.assessmentTargetRole
+                            ? `Assessment target from CV${freelancer.headline ? ` - ${freelancer.headline}` : ""}`
+                            : freelancer.headline || "No CV classification yet"}
                         </p>
                       </td>
                       <td className="min-w-72 px-4 py-4">

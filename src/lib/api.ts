@@ -67,6 +67,8 @@ export const API_ENDPOINTS = {
     freelancerDetail: (id: string) => `/admin/freelancers/${id}`,
     freelancerVerification: (id: string) =>
       `/admin/freelancers/${id}/verification`,
+    freelancerClassification: (id: string) =>
+      `/admin/freelancers/${id}/classification`,
     principalReviewerReview: (id: string) =>
       `/admin/freelancers/${id}/principal-reviewer`,
     agentsOverview: "/admin/agents/overview",

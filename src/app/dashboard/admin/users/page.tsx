@@ -199,6 +199,18 @@ export default function AdminUsersPage() {
             className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest py-2 pl-9 pr-3 text-sm text-on-surface outline-none focus:border-primary-container"
           />
         </div>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            setSearch(searchInput.trim());
+            setPage(1);
+          }}
+          className="!w-auto px-3 py-2 text-sm"
+        >
+          <Search size={16} />
+          Search
+        </Button>
         <div className="relative">
           <SlidersHorizontal className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-outline" />
           <select

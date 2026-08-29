@@ -17,6 +17,7 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
 import { getVerification, getMySkills, startAssessment } from "@/services/assessments";
 import type { VerificationChecklist } from "@/types/assessment";
+import { professionalTitle } from "@/lib/professional-classification";
 
 const ASSESSMENT_QUESTION_COUNT = 40;
 const ASSESSMENT_DURATION_SECONDS = 2700;
@@ -117,6 +118,14 @@ export default function AssessmentLobbyPage() {
     (assessment?.durationSeconds ?? ASSESSMENT_DURATION_SECONDS) / 60,
   );
   const questionCount = assessment?.questionCount ?? ASSESSMENT_QUESTION_COUNT;
+  const targetTitle = professionalTitle(
+    assessment?.targetRole,
+    assessment?.targetSeniority,
+  );
+  const resultTitle = professionalTitle(
+    assessment?.resultRole,
+    assessment?.resultSeniority,
+  );
 
   return (
     <DashboardShell
@@ -149,9 +158,12 @@ export default function AssessmentLobbyPage() {
                 <ClipboardCheck size={20} className="text-primary-container" />
               </div>
               <div className="min-w-0">
-                <h2 className="font-headline text-xl font-bold text-on-surface">You&apos;re ready to start</h2>
+                <h2 className="font-headline text-xl font-bold text-on-surface">
+                  {targetTitle ? `${targetTitle} assessment` : "You're ready to start"}
+                </h2>
                 <p className="mt-1 text-sm text-on-surface-variant">
-                  Answer a focused assessment based on the skills from your CV. Find a quiet moment —
+                  {targetTitle ? `Your CV was mapped to ${targetTitle}. ` : ""}
+                  Answer a focused assessment based on the skills from your CV. Find a quiet moment -
                   you take this once.
                 </p>
               </div>
@@ -236,7 +248,11 @@ export default function AssessmentLobbyPage() {
       ) : phase === "done" ? (
         <LobbyState
           title="Your assessment is complete"
-          detail="You can review the outcome on your result page."
+          detail={
+            resultTitle
+              ? `You were ranked as ${resultTitle}. Review the outcome on your result page.`
+              : "You can review the outcome on your result page."
+          }
           actionLabel="View result"
           href="/freelancer/assessment/result"
         />

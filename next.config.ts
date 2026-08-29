@@ -5,6 +5,9 @@ import type { NextConfig } from "next";
 const rootDir = dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  experimental: {
+    useTypeScriptCli: false,
+  },
   turbopack: {
     root: rootDir,
   },

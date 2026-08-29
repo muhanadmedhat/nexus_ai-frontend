@@ -4,6 +4,10 @@ import {
   sprint4Endpoints,
   getApiErrorMessage,
 } from "@/lib/api";
+import type {
+  ProfessionalRole,
+  SeniorityLevel,
+} from "@/lib/professional-classification";
 
 // ===== Types =====
 
@@ -138,6 +142,14 @@ export interface FreelancerListItem {
   headline: string | null;
   skills: string[];
   yearsExperience: number | null;
+  professionalRole: ProfessionalRole | null;
+  seniorityLevel: SeniorityLevel | null;
+  assessmentTargetRole: ProfessionalRole | null;
+  assessmentTargetSeniority: SeniorityLevel | null;
+  professionalTitle: string | null;
+  assessmentTargetTitle: string | null;
+  classificationSource: "assessment" | "admin" | "migration" | null;
+  classifiedAt: string | null;
   cvUrl: string | null;
   verificationStatus: string;
   assessmentScore: string | null;
@@ -162,6 +174,14 @@ export interface FreelancerDetail {
     bio: string | null;
     skills: string[];
     yearsExperience: number | null;
+    professionalRole: ProfessionalRole | null;
+    seniorityLevel: SeniorityLevel | null;
+    assessmentTargetRole: ProfessionalRole | null;
+    assessmentTargetSeniority: SeniorityLevel | null;
+    professionalTitle: string | null;
+    assessmentTargetTitle: string | null;
+    classificationSource: "assessment" | "admin" | "migration" | null;
+    classifiedAt: string | null;
     hourlyRate: number | null;
     availabilityHoursPerWeek: number | null;
     isAvailable: boolean;
@@ -210,6 +230,10 @@ export interface FreelancerDetail {
     id: string;
     status: string;
     score: string | null;
+    targetRole: ProfessionalRole | null;
+    targetSeniority: SeniorityLevel | null;
+    resultRole: ProfessionalRole | null;
+    resultSeniority: SeniorityLevel | null;
     recommendation: string | null;
     aiFeedback: JsonObject | null;
     warningCount: number;
@@ -449,6 +473,8 @@ export async function getFreelancers(params?: {
   dateFrom?: string;
   dateTo?: string;
   principalReviewerStatus?: string;
+  professionalRole?: string;
+  seniorityLevel?: string;
 }) {
   const query = new URLSearchParams();
   if (params?.status) query.append("status", params.status);
@@ -462,6 +488,12 @@ export async function getFreelancers(params?: {
   if (params?.dateTo) query.append("dateTo", params.dateTo);
   if (params?.principalReviewerStatus) {
     query.append("principalReviewerStatus", params.principalReviewerStatus);
+  }
+  if (params?.professionalRole) {
+    query.append("professionalRole", params.professionalRole);
+  }
+  if (params?.seniorityLevel) {
+    query.append("seniorityLevel", params.seniorityLevel);
   }
 
   const { data } = await api.get<{
@@ -493,6 +525,20 @@ export async function updateFreelancerVerification(
     `/admin/freelancers/${id}/verification`,
     payload,
   );
+  return data.data;
+}
+
+export async function updateFreelancerClassification(
+  id: string,
+  payload: {
+    professionalRole: ProfessionalRole;
+    seniorityLevel: SeniorityLevel;
+  },
+) {
+  const { data } = await api.patch<{
+    status: string;
+    data: FreelancerDetail;
+  }>(API_ENDPOINTS.admin.freelancerClassification(id), payload);
   return data.data;
 }
 

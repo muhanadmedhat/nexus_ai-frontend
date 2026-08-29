@@ -105,6 +105,10 @@ export interface AssessmentSummary {
   submittedAt: string | null;
   remainingSeconds?: number;
   questionCount?: number;
+  targetRole?: string | null;
+  targetSeniority?: string | null;
+  resultRole?: string | null;
+  resultSeniority?: string | null;
 }
 
 export interface AntiCheatConfig {

@@ -8,6 +8,7 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
 import { getVerification, getCurrentAssessment } from "@/services/assessments";
 import type { AssessmentStatus, AssessmentSummary, VerificationChecklist } from "@/types/assessment";
+import { professionalTitle } from "@/lib/professional-classification";
 
 // Derived from the assessment status only — never from rubric/correct answers (§10).
 function recommendationLabel(status: AssessmentStatus | undefined): string | null {
@@ -90,7 +91,7 @@ export default function AssessmentResultPage() {
       ) : status === "approved" ? (
         <ResultCard
           tone="success"
-          heading="You're verified 🎉"
+          heading="You're verified"
           sub="Your assessment was reviewed and approved. You're ready to get matched to work."
           assessment={assessment}
           warnings={warnings}
@@ -167,6 +168,16 @@ function ResultCard({
   const Icon = t.icon;
 
   const rows: { label: string; value: string }[] = [];
+  const targetTitle = professionalTitle(
+    assessment?.targetRole,
+    assessment?.targetSeniority,
+  );
+  const resultTitle = professionalTitle(
+    assessment?.resultRole,
+    assessment?.resultSeniority,
+  );
+  if (targetTitle) rows.push({ label: "Assessment taken", value: targetTitle });
+  if (resultTitle) rows.push({ label: "Platform rank", value: resultTitle });
   if (assessment?.score != null) rows.push({ label: "Score", value: assessment.score });
   const rec = recommendationLabel(assessment?.status);
   if (rec) rows.push({ label: "Recommendation", value: rec });

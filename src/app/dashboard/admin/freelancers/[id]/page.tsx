@@ -9,9 +9,17 @@ import { Input } from "@/components/ui/input";
 import {
   getFreelancerDetail,
   reviewPrincipalReviewer,
+  updateFreelancerClassification,
   updateFreelancerVerification,
   type FreelancerDetail,
 } from "@/services/admin";
+import {
+  PROFESSIONAL_ROLE_OPTIONS,
+  SENIORITY_OPTIONS,
+  professionalTitle,
+  type ProfessionalRole,
+  type SeniorityLevel,
+} from "@/lib/professional-classification";
 import { useToast } from "@/components/ui/toast";
 import {
   ArrowLeft,
@@ -21,6 +29,7 @@ import {
   FileText,
   Loader2,
   Mail,
+  Save,
   ShieldCheck,
   Timer,
   XCircle,
@@ -114,6 +123,12 @@ export default function FreelancerDetailPage() {
   const [principalCapacity, setPrincipalCapacity] = useState("3");
   const [principalReason, setPrincipalReason] = useState("");
   const [principalOverride, setPrincipalOverride] = useState(false);
+  const [classificationRole, setClassificationRole] = useState<
+    ProfessionalRole | ""
+  >("");
+  const [classificationSeniority, setClassificationSeniority] = useState<
+    SeniorityLevel | ""
+  >("");
 
   const loadDetail = useCallback(async () => {
     setLoading(true);
@@ -126,6 +141,8 @@ export default function FreelancerDetailPage() {
       setPrincipalCapacity(
         String(next.profile.principalReviewerMaxProjects ?? 3),
       );
+      setClassificationRole(next.profile.professionalRole ?? "");
+      setClassificationSeniority(next.profile.seniorityLevel ?? "");
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to load freelancer",
@@ -274,6 +291,34 @@ export default function FreelancerDetailPage() {
     }
   };
 
+  const handleClassificationSave = async () => {
+    if (!classificationRole || !classificationSeniority) {
+      setError("Choose both a professional role and seniority level.");
+      return;
+    }
+
+    setActioning("classification");
+    setError(null);
+    try {
+      const updated = await updateFreelancerClassification(params.id, {
+        professionalRole: classificationRole,
+        seniorityLevel: classificationSeniority,
+      });
+      setDetail(updated);
+      toast.success(
+        "Platform position updated",
+        `${updated.profile.name} is now ${updated.profile.professionalTitle}.`,
+      );
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Could not update platform position";
+      setError(message);
+      toast.error("Position update failed", message);
+    } finally {
+      setActioning(null);
+    }
+  };
+
   if (loading) {
     return (
       <DashboardShell
@@ -364,6 +409,81 @@ export default function FreelancerDetailPage() {
                     {profile.headline}
                   </p>
                 ) : null}
+              </div>
+            </div>
+
+            <div className="mt-5 border-t border-outline-variant/30 pt-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-on-surface-variant">
+                    Platform position
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-on-surface">
+                    {professionalTitle(
+                      profile.professionalRole,
+                      profile.seniorityLevel,
+                    ) || "Unclassified"}
+                  </p>
+                  {profile.assessmentTargetRole ? (
+                    <p className="mt-1 text-xs text-on-surface-variant">
+                      Assessment target: {professionalTitle(
+                        profile.assessmentTargetRole,
+                        profile.assessmentTargetSeniority,
+                      )}
+                    </p>
+                  ) : null}
+                </div>
+                {profile.principalReviewerStatus === "approved" ? (
+                  <span className="rounded-full border border-primary-container/20 bg-primary-container/10 px-2.5 py-1 text-xs font-semibold text-primary-container">
+                    Principal reviewer
+                  </span>
+                ) : null}
+              </div>
+              <div className="mt-3 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
+                <select
+                  value={classificationRole}
+                  onChange={(event) =>
+                    setClassificationRole(event.target.value as ProfessionalRole)
+                  }
+                  className="min-w-0 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface outline-none focus:border-primary-container"
+                  aria-label="Professional role"
+                >
+                  <option value="">Select role</option>
+                  {PROFESSIONAL_ROLE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={classificationSeniority}
+                  onChange={(event) =>
+                    setClassificationSeniority(
+                      event.target.value as SeniorityLevel,
+                    )
+                  }
+                  className="min-w-0 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface outline-none focus:border-primary-container"
+                  aria-label="Seniority level"
+                >
+                  <option value="">Select level</option>
+                  {SENIORITY_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  loading={actioning === "classification"}
+                  disabled={Boolean(actioning)}
+                  onClick={handleClassificationSave}
+                  className="!w-auto px-3 py-2"
+                  title="Save platform position"
+                >
+                  <Save size={16} />
+                  <span className="sr-only">Save platform position</span>
+                </Button>
               </div>
             </div>
 
