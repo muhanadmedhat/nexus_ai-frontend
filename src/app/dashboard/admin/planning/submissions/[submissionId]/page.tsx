@@ -186,10 +186,15 @@ export default function AdminSubmissionDetail() {
       subtitle="Approve architecture and UI/UX deliverables."
     >
       <Link
-        href="/dashboard/admin/planning/submissions"
+        href={
+          detail?.projectId
+            ? `/dashboard/admin/projects/${detail.projectId}`
+            : "/dashboard/admin/reviews"
+        }
         className="mb-4 inline-flex items-center gap-1.5 text-sm text-on-surface-variant hover:text-primary"
       >
-        <ArrowLeft size={16} /> Back to queue
+        <ArrowLeft size={16} />
+        {detail?.projectId ? "Project workspace" : "Review queue"}
       </Link>
 
       {loading ? (

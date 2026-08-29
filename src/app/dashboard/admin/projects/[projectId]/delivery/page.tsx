@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Circle,
+  Clock3,
+  ExternalLink,
+} from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
@@ -19,9 +25,17 @@ import { ImplementationMatchingPanel } from "@/components/delivery/implementatio
 import { toNumber } from "@/components/delivery/helpers";
 import {
   getMilestones,
+  getProjectPlans,
+  getProjectSubmissions,
   getTasks,
+  type PlanningSubmission,
+  type ProjectPlan,
   type ProjectMilestone,
 } from "@/services/planning";
+import {
+  getProjectMatchingRuns,
+  type MatchingRun,
+} from "@/services/matching";
 import { getProject } from "@/services/projects";
 import { listDeliverySubmissions } from "@/services/project-submissions";
 import { listRevisionRequests } from "@/services/revisions";
@@ -43,18 +57,20 @@ import type {
 /** Admin project delivery workspace for the complete automated lifecycle. */
 
 function Section({
+  id,
   index,
   title,
   description,
   children,
 }: {
+  id?: string;
   index: number;
   title: string;
   description?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
+    <section id={id} className="scroll-mt-24 border-b border-outline-variant/30 py-7">
       <div className="mb-4 flex flex-wrap items-baseline gap-3">
         <span className="font-mono text-xs text-on-surface-variant tabular-nums">
           {String(index).padStart(2, "0")}
@@ -70,6 +86,48 @@ function Section({
       )}
       {children}
     </section>
+  );
+}
+
+interface LifecycleStage {
+  label: string;
+  detail: string;
+  done: boolean;
+  active: boolean;
+}
+
+function LifecycleTrace({ stages }: { stages: LifecycleStage[] }) {
+  return (
+    <ol className="grid gap-2 md:grid-cols-3 xl:grid-cols-6">
+      {stages.map((stage, index) => (
+        <li
+          key={stage.label}
+          className={`min-w-0 border-l-2 px-3 py-2 ${
+            stage.done
+              ? "border-primary-container"
+              : stage.active
+                ? "border-secondary bg-secondary-container/15"
+                : "border-outline-variant"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {stage.done ? (
+              <CheckCircle2 size={16} className="shrink-0 text-primary-container" />
+            ) : stage.active ? (
+              <Clock3 size={16} className="shrink-0 text-secondary" />
+            ) : (
+              <Circle size={16} className="shrink-0 text-outline" />
+            )}
+            <span className="text-xs font-semibold text-on-surface">
+              {index + 1}. {stage.label}
+            </span>
+          </div>
+          <p className="mt-1 text-xs leading-5 text-on-surface-variant">
+            {stage.detail}
+          </p>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -100,6 +158,23 @@ const AUTOMATION_MESSAGES: Record<string, string> = {
     "The integrated delivery is ready for the client’s final decision.",
 };
 
+async function withinLoadWindow<T>(promise: Promise<T>, label: string) {
+  let timeout: number | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeout = window.setTimeout(
+          () => reject(new Error(`${label} did not respond in time`)),
+          10_000,
+        );
+      }),
+    ]);
+  } finally {
+    if (timeout) window.clearTimeout(timeout);
+  }
+}
+
 export default function AdminProjectDeliveryPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const toast = useToast();
@@ -109,6 +184,11 @@ export default function AdminProjectDeliveryPage() {
   const [loadErrors, setLoadErrors] = useState<string[]>([]);
 
   const [project, setProject] = useState<Project | null>(null);
+  const [matchingRuns, setMatchingRuns] = useState<MatchingRun[]>([]);
+  const [planningSubmissions, setPlanningSubmissions] = useState<
+    PlanningSubmission[]
+  >([]);
+  const [plans, setPlans] = useState<ProjectPlan[]>([]);
   const [milestones, setMilestones] = useState<ProjectMilestone[]>([]);
   const [tasks, setTasks] = useState<DeliveryTask[]>([]);
   const [submissions, setSubmissions] = useState<ProjectSubmission[]>([]);
@@ -121,17 +201,38 @@ export default function AdminProjectDeliveryPage() {
     if (!projectId) return;
 
     Promise.allSettled([
-      getProject(projectId),
-      getMilestones(projectId),
-      getTasks(projectId, { limit: 200 }),
-      listDeliverySubmissions(projectId),
-      listRevisionRequests(projectId),
-      listProjectReleaseRequests(projectId),
-      getProjectHandoff(projectId),
+      withinLoadWindow(getProject(projectId), "Project summary"),
+      withinLoadWindow(
+        getProjectMatchingRuns(projectId),
+        "Team matching",
+      ),
+      withinLoadWindow(
+        getProjectSubmissions(projectId, { limit: 100 }),
+        "Planning deliverables",
+      ),
+      withinLoadWindow(
+        getProjectPlans(projectId, { limit: 100 }),
+        "Scrum plans",
+      ),
+      withinLoadWindow(getMilestones(projectId), "Milestones"),
+      withinLoadWindow(getTasks(projectId, { limit: 200 }), "Tasks"),
+      withinLoadWindow(
+        listDeliverySubmissions(projectId),
+        "Implementation submissions",
+      ),
+      withinLoadWindow(listRevisionRequests(projectId), "Revision requests"),
+      withinLoadWindow(
+        listProjectReleaseRequests(projectId),
+        "Payment releases",
+      ),
+      withinLoadWindow(getProjectHandoff(projectId), "Final delivery"),
     ])
       .then(
         ([
           projectResult,
+          matchingRunsResult,
+          planningSubmissionsResult,
+          plansResult,
           milestonesResult,
           tasksResult,
           submissionsResult,
@@ -142,6 +243,17 @@ export default function AdminProjectDeliveryPage() {
           setProject(
             projectResult.status === "fulfilled" ? projectResult.value : null,
           );
+          setMatchingRuns(
+            matchingRunsResult.status === "fulfilled"
+              ? matchingRunsResult.value
+              : [],
+          );
+          setPlanningSubmissions(
+            planningSubmissionsResult.status === "fulfilled"
+              ? planningSubmissionsResult.value
+              : [],
+          );
+          setPlans(plansResult.status === "fulfilled" ? plansResult.value : []);
           setMilestones(
             milestonesResult.status === "fulfilled"
               ? milestonesResult.value
@@ -172,6 +284,13 @@ export default function AdminProjectDeliveryPage() {
           );
 
           const failures: string[] = [];
+          if (projectResult.status === "rejected")
+            failures.push("project summary");
+          if (matchingRunsResult.status === "rejected")
+            failures.push("team matching");
+          if (planningSubmissionsResult.status === "rejected")
+            failures.push("planning deliverables");
+          if (plansResult.status === "rejected") failures.push("Scrum plans");
           if (milestonesResult.status === "rejected")
             failures.push("milestones");
           if (tasksResult.status === "rejected") failures.push("tasks");
@@ -213,6 +332,125 @@ export default function AdminProjectDeliveryPage() {
     );
   }, [tasks, milestones]);
 
+  const latestRunForRole = useCallback(
+    (...roles: string[]) =>
+      [...matchingRuns]
+        .filter((run) => roles.includes(run.targetRoleKey))
+        .sort(
+          (left, right) =>
+            new Date(right.createdAt).getTime() -
+            new Date(left.createdAt).getTime(),
+        )[0],
+    [matchingRuns],
+  );
+  const reviewerRun = latestRunForRole("principal_reviewer");
+  const architectRun = latestRunForRole("architect", "architecture");
+  const uiuxRun = latestRunForRole("ui_ux", "uiux", "designer");
+
+  const latestPlanningSubmission = useCallback(
+    (type: "architecture" | "ui_ux") =>
+      [...planningSubmissions]
+        .filter((submission) => submission.submissionType === type)
+        .sort((left, right) => right.version - left.version)[0],
+    [planningSubmissions],
+  );
+  const architectureSubmission = latestPlanningSubmission("architecture");
+  const uiuxSubmission = latestPlanningSubmission("ui_ux");
+  const currentPlan =
+    plans.find((plan) => plan.isCurrent) ??
+    [...plans].sort((left, right) => right.version - left.version)[0];
+
+  const lifecycleStages = useMemo<LifecycleStage[]>(() => {
+    const scopeDone = Boolean(
+      project && !["draft", "brief_pending"].includes(project.status),
+    );
+    const runAccepted = (run?: MatchingRun) =>
+      Boolean(
+        run &&
+          (["approved", "reviewed"].includes(run.status) ||
+            run.selectedCandidateId),
+      );
+    const staffingDone =
+      Boolean(architectureSubmission && uiuxSubmission) ||
+      (runAccepted(reviewerRun) &&
+        runAccepted(architectRun) &&
+        runAccepted(uiuxRun));
+    const planningDone =
+      architectureSubmission?.status === "approved" &&
+      uiuxSubmission?.status === "approved";
+    const scrumDone =
+      Boolean(currentPlan?.status === "approved") || tasks.length > 0;
+    const implementationDone =
+      tasks.length > 0 &&
+      tasks.every((task) =>
+        ["approved", "completed", "done"].includes(task.status),
+      );
+    const handoffDone = Boolean(
+      handoff?.handoff &&
+        ["approved", "accepted", "completed", "released"].includes(
+          handoff.handoff.status,
+        ),
+    );
+    const done = [
+      scopeDone,
+      staffingDone,
+      planningDone,
+      scrumDone,
+      implementationDone,
+      handoffDone,
+    ];
+    const activeIndex = done.findIndex((value) => !value);
+
+    return [
+      {
+        label: "Scope",
+        detail: scopeDone ? "Brief and quote ready" : "Brief still being defined",
+        done: scopeDone,
+        active: activeIndex === 0,
+      },
+      {
+        label: "Team",
+        detail: staffingDone ? "Planning team assigned" : "Reviewer or planning roles pending",
+        done: staffingDone,
+        active: activeIndex === 1,
+      },
+      {
+        label: "Deliverables",
+        detail: `${Number(architectureSubmission?.status === "approved") + Number(uiuxSubmission?.status === "approved")}/2 approved`,
+        done: planningDone,
+        active: activeIndex === 2,
+      },
+      {
+        label: "Scrum plan",
+        detail: currentPlan ? `Version ${currentPlan.version} · ${currentPlan.status.replaceAll("_", " ")}` : "Not generated",
+        done: scrumDone,
+        active: activeIndex === 3,
+      },
+      {
+        label: "Implementation",
+        detail: tasks.length ? `${tasks.filter((task) => ["approved", "completed", "done"].includes(task.status)).length}/${tasks.length} tasks complete` : "Tasks not created",
+        done: implementationDone,
+        active: activeIndex === 4,
+      },
+      {
+        label: "Handoff",
+        detail: handoff?.handoff?.status.replaceAll("_", " ") || "Waiting for implementation",
+        done: handoffDone,
+        active: activeIndex === 5,
+      },
+    ];
+  }, [
+    architectRun,
+    architectureSubmission,
+    currentPlan,
+    handoff,
+    project,
+    reviewerRun,
+    tasks,
+    uiuxRun,
+    uiuxSubmission,
+  ]);
+
   const retryFinalDelivery = async () => {
     setRetryingHandoff(true);
     try {
@@ -229,22 +467,22 @@ export default function AdminProjectDeliveryPage() {
   return (
     <DashboardShell
       role="admin"
-      title={project?.title ?? "Project delivery"}
-      subtitle="Repository, matching, assignments, submissions, revisions, and escrow releases."
+      title={project?.title ?? "Project Workspace"}
+      subtitle="One operational trace from scope and staffing through delivery and payment."
     >
       <Link
-        href="/dashboard/admin/delivery"
+        href="/dashboard/admin/projects"
         className="mb-4 inline-flex items-center gap-1.5 text-sm text-on-surface-variant hover:text-primary-container"
       >
-        <ArrowLeft size={16} /> Back to delivery
+        <ArrowLeft size={16} /> All projects
       </Link>
 
       {loading ? (
         <p className="text-sm text-on-surface-variant">
-          Loading project delivery...
+          Loading project workspace...
         </p>
       ) : (
-        <div className="space-y-5">
+        <div>
           {loadErrors.length > 0 && (
             <DeliveryRetryBanner
               title="Some sections could not be loaded"
@@ -254,21 +492,42 @@ export default function AdminProjectDeliveryPage() {
           )}
 
           {project && (
-            <div className="rounded-lg border border-outline-variant/30 bg-surface-container-lowest p-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <StatusBadge status={project.status} />
-                {project.automationStatus && (
-                  <StatusBadge status={project.automationStatus} />
-                )}
-                <span className="text-sm text-on-surface-variant">
-                  {tasks.length} tasks · {unassigned.length} unassigned ·{" "}
-                  {submissions.length} submissions
-                </span>
+            <section className="border-y border-outline-variant/30 bg-surface-container-lowest py-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge status={project.status} />
+                    {project.automationStatus && (
+                      <StatusBadge status={project.automationStatus} />
+                    )}
+                  </div>
+                  <p className="mt-3 max-w-3xl text-sm leading-6 text-on-surface-variant">
+                    {AUTOMATION_MESSAGES[project.automationStatus ?? ""] ??
+                      "Automation is progressing normally. This workspace refreshes as invitations, reviews, planning, and delivery move forward."}
+                  </p>
+                </div>
+                <dl className="grid shrink-0 grid-cols-3 gap-5 text-sm">
+                  <div>
+                    <dt className="text-xs text-on-surface-variant">Milestones</dt>
+                    <dd className="mt-1 font-semibold text-on-surface">{milestones.length}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-on-surface-variant">Tasks</dt>
+                    <dd className="mt-1 font-semibold text-on-surface">
+                      {tasks.length} <span className="font-normal text-on-surface-variant">· {unassigned.length} open</span>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-on-surface-variant">Submissions</dt>
+                    <dd className="mt-1 font-semibold text-on-surface">{submissions.length}</dd>
+                  </div>
+                </dl>
               </div>
-              <p className="mt-2 text-sm text-on-surface-variant">
-                {AUTOMATION_MESSAGES[project.automationStatus ?? ""] ??
-                  "The page refreshes automatically as invitations, reviews, planning, and matching progress."}
-              </p>
+
+              <div className="mt-5 border-t border-outline-variant/30 pt-5">
+                <LifecycleTrace stages={lifecycleStages} />
+              </div>
+
               {project.implementationCapacitySnapshot && (
                 <div className="mt-4 border-t border-outline-variant/30 pt-4">
                   <div className="flex flex-wrap items-center gap-2">
@@ -300,11 +559,147 @@ export default function AdminProjectDeliveryPage() {
                   )}
                 </div>
               )}
-            </div>
+            </section>
           )}
 
+          <nav
+            aria-label="Project workspace sections"
+            className="sticky top-16 z-20 -mx-3 flex gap-1 overflow-x-auto border-b border-outline-variant/30 bg-background/95 px-3 py-3 backdrop-blur sm:-mx-4 sm:px-4 md:-mx-6 md:px-6"
+          >
+            {[
+              ["planning", "Planning"],
+              ["repository", "Repository"],
+              ["implementation", "Implementation"],
+              ["reviews", "Reviews"],
+              ["payments", "Payments"],
+              ["handoff", "Handoff"],
+            ].map(([href, label]) => (
+              <a
+                key={href}
+                href={`#${href}`}
+                className="shrink-0 rounded-lg px-3 py-2 text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
+              >
+                {label}
+              </a>
+            ))}
+          </nav>
+
           <Section
+            id="planning"
             index={1}
+            title="Planning team"
+            description="Principal reviewer, architecture, and UI/UX matching for this project."
+          >
+            {matchingRuns.length ? (
+              <div className="grid gap-3 lg:grid-cols-3">
+                {(
+                  [
+                  ["Principal reviewer", reviewerRun],
+                  ["Architect", architectRun],
+                  ["UI/UX", uiuxRun],
+                  ] as Array<[string, MatchingRun | undefined]>
+                ).map(([label, matchingRun]) => {
+                  return (
+                    <div key={label} className="rounded-lg border border-outline-variant/30 p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-semibold text-on-surface">{label}</p>
+                        {matchingRun ? <StatusBadge status={matchingRun.status} /> : null}
+                      </div>
+                      <p className="mt-2 text-sm text-on-surface-variant">
+                        {matchingRun
+                          ? `${matchingRun.candidateCount} candidates${matchingRun.selectedCandidateId ? " · selection recorded" : ""}`
+                          : "Matching has not started."}
+                      </p>
+                      {matchingRun ? (
+                        <Link
+                          href={`/dashboard/admin/matching/${matchingRun.id}`}
+                          className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-primary-container hover:underline"
+                        >
+                          Open matching run <ExternalLink size={13} />
+                        </Link>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <DeliveryEmpty title="Team matching has not started" />
+            )}
+          </Section>
+
+          <Section
+            index={2}
+            title="Planning deliverables"
+            description="The latest architecture and UI/UX submissions and their review state."
+          >
+            <div className="grid gap-3 lg:grid-cols-2">
+              {(
+                [
+                  ["Architecture", architectureSubmission],
+                  ["UI/UX", uiuxSubmission],
+                ] as Array<[string, PlanningSubmission | undefined]>
+              ).map(([label, planningSubmission]) => {
+                return (
+                  <div key={label} className="rounded-lg border border-outline-variant/30 p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-semibold text-on-surface">{label}</p>
+                      {planningSubmission ? <StatusBadge status={planningSubmission.status} /> : null}
+                    </div>
+                    <p className="mt-2 text-sm text-on-surface-variant">
+                      {planningSubmission
+                        ? `${planningSubmission.title || `${label} deliverable`} · Version ${planningSubmission.version}`
+                        : "No submission yet."}
+                    </p>
+                    {planningSubmission ? (
+                      <Link
+                        href={`/dashboard/admin/planning/submissions/${planningSubmission.id}`}
+                        className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-primary-container hover:underline"
+                      >
+                        Open deliverable <ExternalLink size={13} />
+                      </Link>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          </Section>
+
+          <Section
+            index={3}
+            title="Scrum plan"
+            description="The current approved plan is the source for materialized milestones and tasks."
+          >
+            {currentPlan ? (
+              <div className="flex flex-col gap-4 rounded-lg border border-outline-variant/30 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-semibold text-on-surface">Version {currentPlan.version}</p>
+                    <StatusBadge status={currentPlan.status} />
+                    {currentPlan.isCurrent ? (
+                      <span className="text-xs font-semibold text-primary-container">Current</span>
+                    ) : null}
+                  </div>
+                  <p className="mt-2 text-sm text-on-surface-variant">
+                    {currentPlan.milestones?.length ?? milestones.length} planned
+                    milestones · {currentPlan.tasks?.length ?? tasks.length} planned
+                    tasks
+                  </p>
+                </div>
+                <Link
+                  href={`/dashboard/admin/project-plans/${currentPlan.id}`}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-outline-variant px-3 py-2 text-sm font-semibold text-on-surface hover:bg-surface-container-low"
+                >
+                  Open Scrum plan <ExternalLink size={14} />
+                </Link>
+              </div>
+            ) : (
+              <DeliveryEmpty title="Scrum plan has not been generated" />
+            )}
+          </Section>
+
+          <Section
+            id="repository"
+            index={4}
             title="Repository"
             description="One Nexus-owned private repository per project, plus collaborator invites."
           >
@@ -312,7 +707,8 @@ export default function AdminProjectDeliveryPage() {
           </Section>
 
           <Section
-            index={2}
+            id="implementation"
+            index={5}
             title="Implementation task matching"
             description="Task-level matching runs and candidate approval."
           >
@@ -324,8 +720,8 @@ export default function AdminProjectDeliveryPage() {
           </Section>
 
           <Section
-            index={3}
-            title="Task assignments"
+            index={6}
+            title="Milestones and task assignments"
             description="Every implementation task, grouped by milestone."
           >
             {milestones.length || tasks.length ? (
@@ -361,7 +757,8 @@ export default function AdminProjectDeliveryPage() {
           </Section>
 
           <Section
-            index={4}
+            id="reviews"
+            index={7}
             title="Submissions and evaluations"
             description="Submitted implementation work and its automated review."
           >
@@ -394,7 +791,7 @@ export default function AdminProjectDeliveryPage() {
             )}
           </Section>
 
-          <Section index={5} title="Revisions">
+          <Section index={8} title="Revisions">
             {revisions.length ? (
               <ul className="space-y-2">
                 {revisions.map((revision) => (
@@ -422,7 +819,8 @@ export default function AdminProjectDeliveryPage() {
           </Section>
 
           <Section
-            index={6}
+            id="payments"
+            index={9}
             title="Payment release requests"
             description="Approved task payouts are recorded immediately and dispatched through configured Stripe Connect automation."
           >
@@ -437,12 +835,14 @@ export default function AdminProjectDeliveryPage() {
                       {formatMoney(toNumber(release.amount), release.currency)}
                     </span>
                     <span className="flex items-center gap-3">
-                      <Link
-                        href="/dashboard/admin/payment-release-requests"
-                        className="text-sm text-primary-container underline-offset-2 hover:underline"
-                      >
-                        Decide
-                      </Link>
+                      {["pending", "approved"].includes(release.status) ? (
+                        <Link
+                          href="/dashboard/admin/payment-release-requests"
+                          className="text-sm text-primary-container underline-offset-2 hover:underline"
+                        >
+                          Decide
+                        </Link>
+                      ) : null}
                       <StatusBadge status={release.status} />
                     </span>
                   </li>
@@ -451,10 +851,17 @@ export default function AdminProjectDeliveryPage() {
             ) : (
               <DeliveryEmpty title="No release requests" />
             )}
+            <Link
+              href="/dashboard/admin/payment-release-requests"
+              className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-primary-container hover:underline"
+            >
+              Open payment release queue <ExternalLink size={14} />
+            </Link>
           </Section>
 
           <Section
-            index={7}
+            id="handoff"
+            index={10}
             title="Final integration and client handoff"
             description="Technical override surface for merge, verification, and escrow-finalization failures."
           >

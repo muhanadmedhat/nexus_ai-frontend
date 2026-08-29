@@ -561,11 +561,15 @@ export default function AdminMatchingDetail() {
       subtitle={`Reviewing ${projectTitle}`}
     >
       <Link
-        href="/dashboard/admin/matching"
+        href={
+          projectId
+            ? `/dashboard/admin/projects/${projectId}`
+            : "/dashboard/admin/projects"
+        }
         className="mb-4 inline-flex items-center gap-1.5 text-sm text-on-surface-variant hover:text-primary-container"
       >
         <ArrowLeft size={16} />
-        Back to projects
+        {projectId ? "Project workspace" : "All projects"}
       </Link>
 
       {loading ? (

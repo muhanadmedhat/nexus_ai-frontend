@@ -301,7 +301,7 @@ export default function AdminMatchingQueue() {
                   </p>
                 )}
                 <Link
-                  href={`/dashboard/admin/projects/${diagnostic.projectId}/delivery`}
+                  href={`/dashboard/admin/projects/${diagnostic.projectId}`}
                   className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-primary-container hover:underline"
                 >
                   Open project <ArrowRight size={14} />

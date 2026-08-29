@@ -129,7 +129,7 @@ export default function AdminDeliveryPage() {
                       >
                         <td data-label="Project" className="p-4 font-semibold">
                           <Link
-                            href={`/dashboard/admin/projects/${summary.project.id}/delivery`}
+                            href={`/dashboard/admin/projects/${summary.project.id}`}
                             className="hover:text-primary-container"
                           >
                             {summary.project.title || summary.project.id}

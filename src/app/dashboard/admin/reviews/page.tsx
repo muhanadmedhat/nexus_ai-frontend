@@ -1,248 +1,417 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Clock3, RefreshCw, RotateCcw } from "lucide-react";
+import {
+  ArrowRight,
+  ClipboardCheck,
+  FileCheck2,
+  GitPullRequest,
+  Loader2,
+  RefreshCw,
+  WalletCards,
+} from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
-import { DeliveryEmpty, DeliveryError } from "@/components/delivery";
 import { Button } from "@/components/ui/button";
-import { StatsCard } from "@/components/ui/stats-card";
 import { StatusBadge } from "@/components/ui/status-badge";
+import {
+  getAdminPlanningSubmissions,
+  getAdminProjectPlans,
+  getAdminProjects,
+} from "@/services/admin";
 import { listAdminDeliverySubmissions } from "@/services/project-submissions";
-import type { ProjectSubmission, SubmissionStatus } from "@/types/delivery";
+import { listAdminReleaseRequests } from "@/services/release-requests";
+import { formatMoney } from "@/utils/format";
 
-type ReviewFilter = "pending" | "revisions" | "completed" | "all";
+type RawRow = Record<string, unknown>;
+type QueueKind = "planning" | "plan" | "implementation" | "release";
+type QueueFilter = "all" | QueueKind;
 
-const FILTERS: Array<{ value: ReviewFilter; label: string }> = [
-  { value: "pending", label: "Needs review" },
-  { value: "revisions", label: "Changes requested" },
-  { value: "completed", label: "Completed" },
-  { value: "all", label: "All" },
-];
-
-const PENDING_STATUSES = new Set<SubmissionStatus>([
-  "submitted",
-  "under_review",
-]);
-const REVISION_STATUSES = new Set<SubmissionStatus>([
-  "changes_requested",
-  "rejected",
-]);
-const COMPLETED_STATUSES = new Set<SubmissionStatus>([
-  "approved",
-  "superseded",
-]);
-
-function visibleForFilter(submission: ProjectSubmission, filter: ReviewFilter) {
-  if (filter === "pending") return PENDING_STATUSES.has(submission.status);
-  if (filter === "revisions") return REVISION_STATUSES.has(submission.status);
-  if (filter === "completed") return COMPLETED_STATUSES.has(submission.status);
-  return true;
+interface WorkItem {
+  id: string;
+  kind: QueueKind;
+  projectId: string;
+  projectTitle: string;
+  title: string;
+  detail: string;
+  status: string;
+  timestamp: string | null;
+  href: string;
 }
 
-function reviewPriority(status: SubmissionStatus) {
-  if (status === "under_review") return 0;
-  if (status === "submitted") return 1;
-  if (status === "changes_requested") return 2;
-  if (status === "rejected") return 3;
-  if (status === "approved") return 4;
-  if (status === "superseded") return 5;
-  return 6;
+const FILTERS: Array<{
+  value: QueueFilter;
+  label: string;
+  icon?: React.ReactNode;
+}> = [
+  { value: "all", label: "All work" },
+  {
+    value: "planning",
+    label: "Planning deliverables",
+    icon: <ClipboardCheck size={15} />,
+  },
+  { value: "plan", label: "Scrum plans", icon: <FileCheck2 size={15} /> },
+  {
+    value: "implementation",
+    label: "Implementation",
+    icon: <GitPullRequest size={15} />,
+  },
+  {
+    value: "release",
+    label: "Payment releases",
+    icon: <WalletCards size={15} />,
+  },
+];
+
+const KIND_LABELS: Record<QueueKind, string> = {
+  planning: "Planning deliverable",
+  plan: "Scrum plan",
+  implementation: "Implementation submission",
+  release: "Payment release",
+};
+
+const KIND_ICONS: Record<QueueKind, React.ReactNode> = {
+  planning: <ClipboardCheck size={18} />,
+  plan: <FileCheck2 size={18} />,
+  implementation: <GitPullRequest size={18} />,
+  release: <WalletCards size={18} />,
+};
+
+function text(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
+function dateValue(row: RawRow, ...keys: string[]) {
+  for (const key of keys) {
+    const value = text(row[key]);
+    if (value) return value;
+  }
+  return null;
 }
 
 function formatTimestamp(value: string | null) {
-  if (!value) return "Not submitted";
+  if (!value) return "Waiting in queue";
   return new Date(value).toLocaleString(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
   });
 }
 
+function priority(item: WorkItem) {
+  if (item.status === "under_review") return 0;
+  if (item.status === "submitted" || item.status === "generated") return 1;
+  if (item.status === "approved") return 2;
+  return 3;
+}
+
+async function withinLoadWindow<T>(promise: Promise<T>) {
+  let timeout: number | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeout = window.setTimeout(
+          () => reject(new Error("Review source did not respond in time")),
+          10_000,
+        );
+      }),
+    ]);
+  } finally {
+    if (timeout) window.clearTimeout(timeout);
+  }
+}
+
 export default function AdminReviewsPage() {
-  const [submissions, setSubmissions] = useState<ProjectSubmission[]>([]);
-  const loadInFlightRef = useRef(false);
-  const [filter, setFilter] = useState<ReviewFilter>("pending");
+  const [items, setItems] = useState<WorkItem[]>([]);
+  const [filter, setFilter] = useState<QueueFilter>("all");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
 
   const load = useCallback(async (showLoading = false) => {
-    if (loadInFlightRef.current) return;
-    loadInFlightRef.current = true;
     if (showLoading) setLoading(true);
-    try {
-      const result = await listAdminDeliverySubmissions({ limit: 100 });
-      setSubmissions(result.items);
-      setError(null);
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Could not load submission reviews.",
-      );
-    } finally {
-      loadInFlightRef.current = false;
-      setLoading(false);
+
+    const [
+      planningResult,
+      plansResult,
+      implementationResult,
+      releasesResult,
+      projectsResult,
+    ] = await Promise.allSettled([
+      withinLoadWindow(getAdminPlanningSubmissions({ limit: 100 })),
+      withinLoadWindow(getAdminProjectPlans({ limit: 100 })),
+      withinLoadWindow(listAdminDeliverySubmissions({ limit: 100 })),
+      withinLoadWindow(listAdminReleaseRequests({ limit: 100 })),
+      withinLoadWindow(getAdminProjects({ limit: 100 })),
+    ]);
+
+    const failures: string[] = [];
+    if (planningResult.status === "rejected")
+      failures.push("planning deliverables");
+    if (plansResult.status === "rejected") failures.push("Scrum plans");
+    if (implementationResult.status === "rejected")
+      failures.push("implementation submissions");
+    if (releasesResult.status === "rejected")
+      failures.push("payment releases");
+    if (projectsResult.status === "rejected") failures.push("project names");
+
+    const projectNames = new Map<string, string>();
+    if (projectsResult.status === "fulfilled") {
+      for (const project of projectsResult.value.data) {
+        projectNames.set(project.id, project.title);
+      }
     }
+    const projectTitle = (projectId: string, fallback?: unknown) =>
+      text(fallback) ||
+      projectNames.get(projectId) ||
+      `Project ${projectId.slice(0, 8)}`;
+
+    const next: WorkItem[] = [];
+
+    if (planningResult.status === "fulfilled") {
+      for (const row of planningResult.value.data as RawRow[]) {
+        const status = text(row.status);
+        if (!["submitted", "under_review"].includes(status)) continue;
+        const id = text(row.id);
+        const projectId = text(row.projectId);
+        next.push({
+          id,
+          kind: "planning",
+          projectId,
+          projectTitle: projectTitle(projectId, row.projectTitle),
+          title: `${text(row.submissionType).replaceAll("_", " ") || "Planning"} deliverable`,
+          detail: `${text(row.freelancerName) || "Planning freelancer"} · Version ${Number(row.version) || 1}`,
+          status,
+          timestamp: dateValue(row, "submittedAt", "updatedAt", "createdAt"),
+          href: `/dashboard/admin/planning/submissions/${id}`,
+        });
+      }
+    }
+
+    if (plansResult.status === "fulfilled") {
+      for (const row of plansResult.value.data as RawRow[]) {
+        const status = text(row.status);
+        if (!["generated", "under_review"].includes(status)) continue;
+        const id = text(row.id);
+        const projectId = text(row.projectId);
+        next.push({
+          id,
+          kind: "plan",
+          projectId,
+          projectTitle: projectTitle(projectId, row.projectTitle),
+          title: `Scrum plan v${Number(row.version) || 1}`,
+          detail: `${Number(row.milestoneCount) || 0} milestones · ${Number(row.taskCount) || 0} tasks`,
+          status,
+          timestamp: dateValue(row, "updatedAt", "createdAt"),
+          href: `/dashboard/admin/project-plans/${id}`,
+        });
+      }
+    }
+
+    if (implementationResult.status === "fulfilled") {
+      for (const submission of implementationResult.value.items) {
+        if (!["submitted", "under_review"].includes(submission.status))
+          continue;
+        next.push({
+          id: submission.id,
+          kind: "implementation",
+          projectId: submission.projectId,
+          projectTitle: projectTitle(submission.projectId),
+          title: submission.title || "Implementation submission",
+          detail: `Version ${submission.version}${submission.taskId ? ` · Task ${submission.taskId.slice(0, 8)}` : ""}`,
+          status: submission.status,
+          timestamp: submission.submittedAt || submission.updatedAt,
+          href: `/dashboard/admin/submissions/${submission.id}`,
+        });
+      }
+    }
+
+    if (releasesResult.status === "fulfilled") {
+      for (const release of releasesResult.value.items) {
+        if (!["pending", "approved"].includes(release.status)) continue;
+        next.push({
+          id: release.id,
+          kind: "release",
+          projectId: release.projectId,
+          projectTitle: projectTitle(release.projectId),
+          title: formatMoney(Number(release.amount) || 0, release.currency),
+          detail:
+            release.status === "approved"
+              ? "Approved and waiting for release"
+              : release.reason || "Payment release decision required",
+          status: release.status,
+          timestamp: release.updatedAt || release.createdAt,
+          href: "/dashboard/admin/payment-release-requests",
+        });
+      }
+    }
+
+    next.sort((left, right) => {
+      const priorityDifference = priority(left) - priority(right);
+      if (priorityDifference) return priorityDifference;
+      return (
+        new Date(right.timestamp || 0).getTime() -
+        new Date(left.timestamp || 0).getTime()
+      );
+    });
+
+    setItems(next);
+    setErrors(failures);
+    setLoading(false);
   }, []);
 
   useEffect(() => {
-    const initialLoad = window.setTimeout(() => void load(true), 0);
-    const interval = window.setInterval(() => void load(), 10_000);
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible") void load();
-    };
-    window.addEventListener("focus", refreshWhenVisible);
-    document.addEventListener("visibilitychange", refreshWhenVisible);
+    const initial = window.setTimeout(() => void load(true), 0);
+    const interval = window.setInterval(() => void load(), 15_000);
     return () => {
-      window.clearTimeout(initialLoad);
+      window.clearTimeout(initial);
       window.clearInterval(interval);
-      window.removeEventListener("focus", refreshWhenVisible);
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, [load]);
 
   const counts = useMemo(
-    () => ({
-      pending: submissions.filter((item) => PENDING_STATUSES.has(item.status))
-        .length,
-      revisions: submissions.filter((item) =>
-        REVISION_STATUSES.has(item.status),
-      ).length,
-      completed: submissions.filter((item) =>
-        COMPLETED_STATUSES.has(item.status),
-      ).length,
-    }),
-    [submissions],
+    () =>
+      items.reduce(
+        (result, item) => ({
+          ...result,
+          [item.kind]: result[item.kind] + 1,
+        }),
+        { planning: 0, plan: 0, implementation: 0, release: 0 },
+      ),
+    [items],
   );
+
   const visible = useMemo(
     () =>
-      submissions
-        .filter((submission) => visibleForFilter(submission, filter))
-        .sort((left, right) => {
-          const statusDifference =
-            reviewPriority(left.status) - reviewPriority(right.status);
-          if (statusDifference !== 0) return statusDifference;
-          return (
-            new Date(right.updatedAt).getTime() -
-            new Date(left.updatedAt).getTime()
-          );
-        }),
-    [filter, submissions],
+      filter === "all"
+        ? items
+        : items.filter((item) => item.kind === filter),
+    [filter, items],
   );
 
   return (
     <DashboardShell
       role="admin"
-      title="Reviews"
-      subtitle="Live implementation-submission queue with automated evidence and recorded human verdicts."
+      title="Review Queue"
+      subtitle="Every human decision waiting across planning, delivery, and payment."
     >
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatsCard
-          label="Needs human review"
-          value={counts.pending}
-          icon={<Clock3 size={18} />}
-        />
-        <StatsCard
-          label="Revision cycle"
-          value={counts.revisions}
-          icon={<RotateCcw size={18} />}
-        />
-        <StatsCard
-          label="Completed"
-          value={counts.completed}
-          icon={<CheckCircle2 size={18} />}
-        />
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {FILTERS.slice(1).map((entry) => (
+          <button
+            key={entry.value}
+            type="button"
+            onClick={() => setFilter(entry.value)}
+            className="flex items-center justify-between rounded-lg border border-outline-variant/30 bg-surface-container-lowest p-4 text-left transition hover:border-primary-container/40 hover:bg-surface-container-low"
+          >
+            <span>
+              <span className="flex items-center gap-2 text-sm font-semibold text-on-surface">
+                {entry.icon}
+                {entry.label}
+              </span>
+              <span className="mt-1 block text-xs text-on-surface-variant">
+                Needs a decision
+              </span>
+            </span>
+            <span className="font-headline text-2xl font-semibold text-on-surface">
+              {counts[entry.value as QueueKind]}
+            </span>
+          </button>
+        ))}
       </div>
 
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2" aria-label="Review status filter">
-          {FILTERS.map((option) => (
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant/30 pb-4">
+        <div className="flex flex-wrap gap-2" aria-label="Review queue type">
+          {FILTERS.map((entry) => (
             <button
-              key={option.value}
+              key={entry.value}
               type="button"
-              aria-pressed={filter === option.value}
-              onClick={() => setFilter(option.value)}
-              className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
-                filter === option.value
-                  ? "border-primary-container bg-primary-container text-on-primary"
-                  : "border-outline-variant bg-surface-container-lowest text-on-surface-variant hover:border-primary-container hover:text-primary-container"
+              aria-pressed={filter === entry.value}
+              onClick={() => setFilter(entry.value)}
+              className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                filter === entry.value
+                  ? "bg-primary-container text-on-primary"
+                  : "text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
               }`}
             >
-              {option.label}
+              {entry.label}
             </button>
           ))}
         </div>
         <Button
+          type="button"
           size="sm"
           variant="outline"
           onClick={() => void load(true)}
-          disabled={loading}
         >
           <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
           Refresh
         </Button>
       </div>
 
-      <div className="mt-4">
-        {error && submissions.length > 0 && (
-          <div className="mb-4">
-            <DeliveryError message={error} onRetry={() => void load(true)} />
-          </div>
-        )}
-        {error && submissions.length === 0 ? (
-          <DeliveryError message={error} onRetry={() => void load(true)} />
-        ) : loading && submissions.length === 0 ? (
-          <p className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-8 text-center text-sm text-on-surface-variant card-shadow">
-            Loading review queue...
+      {errors.length ? (
+        <p className="mt-4 rounded-lg border border-error/20 bg-error/5 px-4 py-3 text-sm text-error">
+          Could not refresh {errors.join(", ")}. The other queues are still
+          current.
+        </p>
+      ) : null}
+
+      {loading && items.length === 0 ? (
+        <div className="flex justify-center py-20 text-on-surface-variant">
+          <Loader2 className="mr-2 animate-spin" /> Loading review work...
+        </div>
+      ) : visible.length === 0 ? (
+        <div className="py-16 text-center">
+          <p className="font-semibold text-on-surface">No decisions waiting</p>
+          <p className="mt-1 text-sm text-on-surface-variant">
+            This queue refreshes when planning or implementation work is
+            submitted.
           </p>
-        ) : visible.length === 0 ? (
-          <DeliveryEmpty
-            title={
-              filter === "pending"
-                ? "No submissions need review"
-                : "No matching submissions"
-            }
-            description="The queue updates automatically when a freelancer submits work or a decision changes."
-          />
-        ) : (
-          <ol className="space-y-3" aria-live="polite">
-            {visible.map((submission) => (
-              <li key={submission.id}>
-                <Link
-                  href={`/dashboard/admin/submissions/${submission.id}`}
-                  className="flex flex-col gap-4 rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-5 card-shadow transition-colors hover:bg-surface-container-low focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:flex-row sm:items-center sm:justify-between"
-                >
+        </div>
+      ) : (
+        <ol className="divide-y divide-outline-variant/30" aria-live="polite">
+          {visible.map((item) => (
+            <li key={`${item.kind}:${item.id}`} className="py-4">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex min-w-0 items-start gap-3">
+                  <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-container/10 text-primary-container">
+                    {KIND_ICONS[item.kind]}
+                  </span>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="truncate font-semibold text-on-surface">
-                        {submission.title || "Untitled submission"}
-                      </h2>
-                      <span className="text-xs text-on-surface-variant">
-                        Version {submission.version}
-                      </span>
+                      <p className="text-xs font-semibold uppercase text-on-surface-variant">
+                        {KIND_LABELS[item.kind]}
+                      </p>
+                      <StatusBadge status={item.status} />
                     </div>
+                    <h2 className="mt-1 font-semibold text-on-surface">
+                      {item.title}
+                    </h2>
                     <p className="mt-1 text-sm text-on-surface-variant">
-                      Submitted {formatTimestamp(submission.submittedAt)}
+                      {item.projectTitle} · {item.detail}
                     </p>
-                    <p className="mt-1 font-mono text-xs text-on-surface-variant">
-                      Project {submission.projectId.slice(0, 8)}
-                      {submission.taskId
-                        ? ` · Task ${submission.taskId.slice(0, 8)}`
-                        : ""}
+                    <p className="mt-1 text-xs text-on-surface-variant">
+                      {formatTimestamp(item.timestamp)}
                     </p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-3">
-                    <StatusBadge status={submission.status} />
-                    <span className="text-sm font-semibold text-primary-container">
-                      Open review →
-                    </span>
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ol>
-        )}
-      </div>
+                </div>
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  <Link
+                    href={`/dashboard/admin/projects/${item.projectId}`}
+                    className="rounded-lg px-3 py-2 text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"
+                  >
+                    Project workspace
+                  </Link>
+                  <Link
+                    href={item.href}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-primary-container px-3 py-2 text-sm font-semibold text-on-primary"
+                  >
+                    Review <ArrowRight size={15} />
+                  </Link>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
     </DashboardShell>
   );
 }

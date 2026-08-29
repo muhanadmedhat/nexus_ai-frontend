@@ -13,14 +13,11 @@ import {
   Users,
   ClipboardCheck,
   Cpu,
-  GitBranch,
-  GitPullRequest,
-  ListChecks,
   Gauge,
-  Star,
   MailCheck,
   UserCheck,
   AlertTriangle,
+  WalletCards,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Logo } from "@/components/common/logo";
@@ -30,6 +27,7 @@ interface NavItem {
   label: string;
   href: string;
   icon: React.ReactNode;
+  group?: string;
 }
 
 const NAV_ITEMS: Record<UserRole, NavItem[]> = {
@@ -80,50 +78,38 @@ const NAV_ITEMS: Record<UserRole, NavItem[]> = {
   ],
   admin: [
     {
-      label: "Dashboard",
+      label: "Overview",
       href: "/dashboard/admin",
       icon: <LayoutDashboard size={20} />,
+      group: "Operations",
     },
     {
       label: "Projects",
       href: "/dashboard/admin/projects",
       icon: <FolderOpen size={20} />,
     },
-    { label: "Activity", href: "/messages", icon: <Bell size={20} /> },
     {
-      label: "Submissions",
-      href: "/dashboard/admin/planning/submissions",
+      label: "Review Queue",
+      href: "/dashboard/admin/reviews",
       icon: <ClipboardCheck size={20} />,
     },
+    { label: "Activity", href: "/messages", icon: <Bell size={20} /> },
     {
-      label: "Scrum Plans",
-      href: "/dashboard/admin/project-plans",
-      icon: <CheckSquare size={20} />,
+      label: "Freelancers",
+      href: "/dashboard/admin/freelancers",
+      icon: <ShieldCheck size={20} />,
+      group: "People",
     },
     {
-      label: "Delivery",
-      href: "/dashboard/admin/delivery",
-      icon: <ListChecks size={20} />,
-    },
-    {
-      label: "Task Matching",
-      href: "/dashboard/admin/implementation-matching",
-      icon: <GitPullRequest size={20} />,
-    },
-    {
-      label: "Repositories",
-      href: "/dashboard/admin/repositories",
-      icon: <GitBranch size={20} />,
-    },
-    {
-      label: "Evaluations",
-      href: "/dashboard/admin/evaluations",
-      icon: <Gauge size={20} />,
+      label: "Users",
+      href: "/dashboard/admin/users",
+      icon: <Users size={20} />,
     },
     {
       label: "Escrow",
       href: "/dashboard/admin/payments",
-      icon: <CreditCard size={20} />,
+      icon: <WalletCards size={20} />,
+      group: "Finance",
     },
     {
       label: "Revenue",
@@ -131,46 +117,35 @@ const NAV_ITEMS: Record<UserRole, NavItem[]> = {
       icon: <Gauge size={20} />,
     },
     {
-      label: "Releases",
-      href: "/dashboard/admin/payment-release-requests",
-      icon: <CreditCard size={20} />,
-    },
-    {
-      label: "Freelancers",
-      href: "/dashboard/admin/freelancers",
-      icon: <ShieldCheck size={20} />,
-    },
-    {
-      label: "Assessments",
-      href: "/dashboard/admin/assessments",
-      icon: <ClipboardCheck size={20} />,
-    },
-    {
-      label: "Agents",
-      href: "/dashboard/admin/agents",
-      icon: <Cpu size={20} />,
-    },
-    {
-      label: "Agent Jobs",
-      href: "/dashboard/admin/agent-jobs",
-      icon: <ListChecks size={20} />,
-    },
-    {
       label: "Automation Issues",
       href: "/dashboard/admin/automation-incidents",
       icon: <AlertTriangle size={20} />,
+      group: "System",
     },
     {
-      label: "Reviews",
-      href: "/dashboard/admin/reviews",
-      icon: <Star size={20} />,
-    },
-    {
-      label: "Users",
-      href: "/dashboard/admin/users",
-      icon: <Users size={20} />,
+      label: "AI Operations",
+      href: "/dashboard/admin/agents",
+      icon: <Cpu size={20} />,
     },
   ],
+};
+
+const ADMIN_ROUTE_ALIASES: Record<string, string[]> = {
+  "/dashboard/admin/projects": [
+    "/dashboard/admin/matching",
+    "/dashboard/admin/delivery",
+    "/dashboard/admin/implementation-matching",
+    "/dashboard/admin/repositories",
+  ],
+  "/dashboard/admin/reviews": [
+    "/dashboard/admin/planning/submissions",
+    "/dashboard/admin/project-plans",
+    "/dashboard/admin/submissions",
+    "/dashboard/admin/evaluations",
+    "/dashboard/admin/payment-release-requests",
+  ],
+  "/dashboard/admin/freelancers": ["/dashboard/admin/assessments"],
+  "/dashboard/admin/agents": ["/dashboard/admin/agent-jobs"],
 };
 
 interface SidebarProps {
@@ -208,35 +183,48 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
 
         {/* Navigation */}
         <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
-          {navItems.map((item) => {
+          {navItems.map((item, index) => {
             const isDashboardHome =
               item.href === "/dashboard/customer" ||
               item.href === "/dashboard/freelancer" ||
               item.href === "/dashboard/admin";
+            const routeMatches = (href: string) =>
+              pathname === href || pathname?.startsWith(href + "/");
             const isActive = isDashboardHome
               ? pathname === item.href
-              : pathname === item.href || pathname?.startsWith(item.href + "/");
+              : routeMatches(item.href) ||
+                (role === "admin" &&
+                  (ADMIN_ROUTE_ALIASES[item.href] ?? []).some(routeMatches));
+            const showGroup =
+              item.group &&
+              (index === 0 || navItems[index - 1]?.group !== item.group);
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={onMobileClose}
-                className={clsx(
-                  "flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium transition-all",
-                  isActive
-                    ? "bg-primary-container text-on-primary-container"
-                    : "text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface",
-                )}
-              >
-                <span
+              <div key={item.href}>
+                {showGroup ? (
+                  <p className="mb-1 mt-5 px-4 text-[11px] font-semibold uppercase text-outline first:mt-0">
+                    {item.group}
+                  </p>
+                ) : null}
+                <Link
+                  href={item.href}
+                  onClick={onMobileClose}
                   className={clsx(
-                    isActive ? "text-on-primary-container" : "text-outline",
+                    "flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium transition-all",
+                    isActive
+                      ? "bg-primary-container text-on-primary-container"
+                      : "text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface",
                   )}
                 >
-                  {item.icon}
-                </span>
-                {item.label}
-              </Link>
+                  <span
+                    className={clsx(
+                      isActive ? "text-on-primary-container" : "text-outline",
+                    )}
+                  >
+                    {item.icon}
+                  </span>
+                  {item.label}
+                </Link>
+              </div>
             );
           })}
         </nav>

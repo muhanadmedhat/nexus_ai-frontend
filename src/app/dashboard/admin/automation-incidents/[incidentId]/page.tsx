@@ -300,7 +300,7 @@ export default function AutomationIncidentDetailPage() {
             <dd className="mt-1 font-semibold text-on-surface">
               {incident.projectId ? (
                 <Link
-                  href={`/dashboard/admin/projects/${incident.projectId}/delivery`}
+                  href={`/dashboard/admin/projects/${incident.projectId}`}
                   className="text-primary-container hover:underline"
                 >
                   Open project

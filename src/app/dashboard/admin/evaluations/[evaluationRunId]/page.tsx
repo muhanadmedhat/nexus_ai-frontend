@@ -86,10 +86,15 @@ export default function AdminEvaluationDetail() {
       subtitle="AI evaluation of a freelancer submission."
     >
       <Link
-        href="/dashboard/admin/evaluations"
+        href={
+          run?.projectId
+            ? `/dashboard/admin/projects/${run.projectId}#reviews`
+            : "/dashboard/admin/reviews"
+        }
         className="mb-4 inline-flex items-center gap-1.5 text-sm text-on-surface-variant hover:text-primary"
       >
-        <ArrowLeft size={16} /> Back to queue
+        <ArrowLeft size={16} />
+        {run?.projectId ? "Project workspace" : "Review queue"}
       </Link>
 
       {loading ? (

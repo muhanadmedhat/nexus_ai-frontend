@@ -156,10 +156,15 @@ export default function AdminProjectPlanDetail() {
       subtitle="Approve AI-generated milestones and tasks before implementation starts."
     >
       <Link
-        href="/dashboard/admin/project-plans"
+        href={
+          plan?.projectId
+            ? `/dashboard/admin/projects/${plan.projectId}`
+            : "/dashboard/admin/reviews"
+        }
         className="mb-4 inline-flex items-center gap-1.5 text-sm text-on-surface-variant hover:text-primary"
       >
-        <ArrowLeft size={16} /> Back to queue
+        <ArrowLeft size={16} />
+        {plan?.projectId ? "Project workspace" : "Review queue"}
       </Link>
 
       {loading ? (

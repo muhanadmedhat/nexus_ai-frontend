@@ -356,12 +356,12 @@ export default function AdminSubmissionReviewPage() {
       <Link
         href={
           detail?.projectId
-            ? `/dashboard/admin/projects/${detail.projectId}/delivery`
-            : "/dashboard/admin/delivery"
+            ? `/dashboard/admin/projects/${detail.projectId}`
+            : "/dashboard/admin/projects"
         }
         className="mb-4 inline-flex items-center gap-1.5 text-sm text-on-surface-variant hover:text-primary-container"
       >
-        <ArrowLeft size={16} /> Back to project delivery
+        <ArrowLeft size={16} /> Back to project workspace
       </Link>
 
       {loading && !detail ? (

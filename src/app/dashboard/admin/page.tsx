@@ -5,14 +5,13 @@ import Link from "next/link";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { getAdminStats, type AdminStats } from "@/services/admin";
 import {
+  AlertTriangle,
   BarChart3,
   CheckCircle2,
   ClipboardCheck,
   Cpu,
   CreditCard,
-  FileCheck,
   FolderKanban,
-  ListChecks,
   Loader2,
   ShieldCheck,
   Sparkles,
@@ -181,28 +180,22 @@ export default function AdminDashboardPage() {
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <WorkspaceButton
-            href="/dashboard/admin/matching"
+            href="/dashboard/admin/projects"
             title="Projects"
             icon={<FolderKanban size={20} />}
             metric={`${planningProjects} planning`}
+          />
+          <WorkspaceButton
+            href="/dashboard/admin/reviews"
+            title="Review Queue"
+            icon={<ClipboardCheck size={20} />}
+            metric="Decisions"
           />
           <WorkspaceButton
             href="/dashboard/admin/freelancers"
             title="Freelancers"
             icon={<ShieldCheck size={20} />}
             metric={`${freelancers.assessmentSubmitted} waiting`}
-          />
-          <WorkspaceButton
-            href="/dashboard/admin/assessments"
-            title="Assessments"
-            icon={<ClipboardCheck size={20} />}
-            metric={`${assessments.submitted} submitted`}
-          />
-          <WorkspaceButton
-            href="/dashboard/admin/project-plans"
-            title="Scrum Plans"
-            icon={<FileCheck size={20} />}
-            metric={`${projects.implementationReady ?? 0} ready`}
           />
           <WorkspaceButton
             href="/dashboard/admin/payments"
@@ -217,10 +210,16 @@ export default function AdminDashboardPage() {
             metric={`${users.total} users`}
           />
           <WorkspaceButton
-            href="/dashboard/admin/agent-jobs"
-            title="Agent Jobs"
-            icon={<ListChecks size={20} />}
+            href="/dashboard/admin/agents"
+            title="AI Operations"
+            icon={<Cpu size={20} />}
             metric={`${agents.queued} queued`}
+          />
+          <WorkspaceButton
+            href="/dashboard/admin/automation-incidents"
+            title="Automation Issues"
+            icon={<AlertTriangle size={20} />}
+            metric="Recovery"
           />
           <WorkspaceButton
             href="/dashboard/admin/stats"
