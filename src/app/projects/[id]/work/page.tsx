@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import {
   ArrowLeft,
   CheckCircle,
+  Download,
   ExternalLink,
   MessageSquareWarning,
   PackageCheck,
@@ -41,6 +42,8 @@ import { listRevisionRequests } from "@/services/revisions";
 import { listProjectReleaseRequests } from "@/services/release-requests";
 import {
   decideProjectHandoff,
+  downloadProjectSource,
+  getDeliveryEvidenceRequirements,
   getProjectHandoff,
   rateProjectContributor,
   type ProjectHandoffOverview,
@@ -291,6 +294,9 @@ function FinalDeliveryPanel({
   const [ratingComments, setRatingComments] = useState<Record<string, string>>({});
   const handoff = overview?.handoff ?? null;
   const report = handoff?.verificationReport;
+  const evidenceRequirements = getDeliveryEvidenceRequirements(
+    handoff?.metadata?.deliveryContract,
+  );
 
   const decide = async (decision: "accepted" | "changes_requested") => {
     if (decision === "changes_requested" && !feedback.trim()) {
@@ -332,6 +338,32 @@ function FinalDeliveryPanel({
       onUpdated();
     } catch (error) {
       toast.error("Could not submit rating", error instanceof Error ? error.message : "Try again.");
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  const downloadSource = async () => {
+    setWorking("source-download");
+    try {
+      const { blob, fileName } = await downloadProjectSource(projectId);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      toast.success(
+        "Verified source downloaded",
+        `Commit ${handoff?.integrationCommitSha?.slice(0, 12) ?? ""} is ready.`,
+      );
+    } catch (error) {
+      toast.error(
+        "Could not download source",
+        error instanceof Error ? error.message : "Try again.",
+      );
     } finally {
       setWorking(null);
     }
@@ -399,25 +431,34 @@ function FinalDeliveryPanel({
               Implementation was funded before task work began. Each implementer
               release is created only after approved work is integrated; the
               principal reviewer allocation is released when you accept this final
-              delivery.
+              delivery, and any unused allocation is returned to your project
+              escrow.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            {handoff.repositoryUrl && (
-              <a href={handoff.repositoryUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-semibold text-primary-container hover:underline">
-                Open source repository <ExternalLink size={14} />
-              </a>
-            )}
-            {handoff.liveUrl && (
+            {evidenceRequirements.sourceArchive &&
+              ["client_review", "accepted"].includes(handoff.status) && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  loading={working === "source-download"}
+                  disabled={working !== null}
+                  onClick={() => void downloadSource()}
+                >
+                  <Download size={15} /> Download verified source
+                </Button>
+              )}
+            {evidenceRequirements.liveUrl && handoff.liveUrl && (
               <a href={handoff.liveUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-semibold text-primary-container hover:underline">
                 Open live delivery <ExternalLink size={14} />
               </a>
             )}
-            {handoff.artifactUrls?.map((url, index) => (
-              <a key={url} href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-semibold text-primary-container hover:underline">
-                Artifact {index + 1} <ExternalLink size={14} />
-              </a>
-            ))}
+            {evidenceRequirements.artifactUrls &&
+              handoff.artifactUrls?.map((url, index) => (
+                <a key={url} href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-semibold text-primary-container hover:underline">
+                  Artifact {index + 1} <ExternalLink size={14} />
+                </a>
+              ))}
           </div>
 
           {overview?.clientCanDecide && (

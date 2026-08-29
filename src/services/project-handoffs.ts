@@ -22,6 +22,11 @@ export interface DeliveryContractItem {
   title: string;
   status: string;
   evidence: string | null;
+  responsibleTasks?: Array<{
+    taskId: string;
+    taskTitle: string;
+    roleKey: string | null;
+  }>;
 }
 
 export interface DeliveryContract {
@@ -31,6 +36,12 @@ export interface DeliveryContract {
   repositoryUrl: string | null;
   branch: string;
   evaluatedCommitSha: string;
+  evidenceRequirements?: {
+    liveUrl: boolean;
+    artifactUrls: boolean;
+    sourceArchive: boolean;
+  };
+  responsibilityVersion?: number;
   verifiedAt: string;
 }
 
@@ -104,6 +115,65 @@ export async function rateProjectContributor(
 
 export async function retryProjectHandoff(projectId: string) {
   return mutate<ProjectHandoff>(`/projects/${projectId}/handoff/retry`, {});
+}
+
+export function getDeliveryEvidenceRequirements(
+  contract: DeliveryContract | null | undefined,
+) {
+  if (contract?.evidenceRequirements) return contract.evidenceRequirements;
+  const deliverables = (contract?.deliverables ?? [])
+    .map((item) => item.title)
+    .join(' ')
+    .toLowerCase();
+  return {
+    liveUrl:
+      /\b(live|deployed|deployment|hosted|hosting|production)\b/.test(
+        deliverables,
+      ) || /\bworking (website|web app|application)\b/.test(deliverables),
+    artifactUrls:
+      /\b(figma|prototype|wireframe|mockup|design file|documentation|docs|manual|report)\b/.test(
+        deliverables,
+      ),
+    sourceArchive: /\b(source|source code|codebase|repository|repo)\b/.test(
+      deliverables,
+    ),
+  };
+}
+
+export async function downloadProjectSource(projectId: string) {
+  try {
+    const response = await api.get<Blob>(`/projects/${projectId}/handoff/source`, {
+      responseType: 'blob',
+    });
+    const disposition = response.headers['content-disposition'] as
+      | string
+      | undefined;
+    const fileName =
+      disposition?.match(/filename="?([^";]+)"?/i)?.[1] ??
+      `project-source-${projectId}.zip`;
+    return { blob: response.data, fileName };
+  } catch (error) {
+    const responseData = (
+      error as { response?: { data?: unknown } }
+    ).response?.data;
+    if (responseData instanceof Blob) {
+      let payload: { message?: string | string[] } | null = null;
+      try {
+        payload = JSON.parse(await responseData.text()) as {
+          message?: string | string[];
+        };
+      } catch {
+        payload = null;
+      }
+      const message = Array.isArray(payload?.message)
+        ? payload.message.join(', ')
+        : payload?.message;
+      if (message) throw new Error(message);
+    }
+    throw new Error(
+      getApiErrorMessage(error, 'Could not download verified source'),
+    );
+  }
 }
 
 async function request<T>(url: string): Promise<T> {

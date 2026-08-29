@@ -42,6 +42,21 @@ function ContractList({
                     {item.evidence}
                   </p>
                 )}
+                {(item.responsibleTasks?.length ?? 0) > 0 && (
+                  <p className="mt-1 text-xs text-on-surface-variant">
+                    Responsible:{" "}
+                    {item.responsibleTasks
+                      ?.map(
+                        (task) =>
+                          `${task.taskTitle}${
+                            task.roleKey
+                              ? ` (${task.roleKey.replace(/_/g, " ")})`
+                              : ""
+                          }`,
+                      )
+                      .join(" · ")}
+                  </p>
+                )}
               </div>
             </li>
           );

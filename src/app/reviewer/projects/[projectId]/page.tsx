@@ -22,7 +22,10 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { useToast } from "@/components/ui/toast";
 import { useActionDialog } from "@/components/ui/action-dialog";
 import { DeliveryContractView } from "@/components/delivery";
-import type { DeliveryContract } from "@/services/project-handoffs";
+import {
+  getDeliveryEvidenceRequirements,
+  type DeliveryContract,
+} from "@/services/project-handoffs";
 import {
   getReviewerImplementationRatings,
   getReviewerOverview,
@@ -214,6 +217,14 @@ export default function ReviewerProjectPage() {
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const handoffContract = handoff
+    ? ((record(handoff.metadata).deliveryContract as
+        | DeliveryContract
+        | undefined) ?? null)
+    : null;
+  const handoffEvidenceRequirements = getDeliveryEvidenceRequirements(
+    handoffContract,
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -739,12 +750,33 @@ export default function ReviewerProjectPage() {
       .filter(Boolean);
     if (
       decision === "approved" &&
-      (handoffSummary.trim().length < 20 ||
-        (!handoffLiveUrl.trim() && artifactUrls.length === 0))
+      handoffSummary.trim().length < 20
     ) {
       toast.error(
         "Complete the client handoff",
-        "Add a useful summary and at least one client-accessible live or artifact URL.",
+        "Add a useful client-facing summary of at least 20 characters.",
+      );
+      return;
+    }
+    if (
+      decision === "approved" &&
+      handoffEvidenceRequirements.liveUrl &&
+      !handoffLiveUrl.trim()
+    ) {
+      toast.error(
+        "Live delivery required",
+        "The client selected a live delivery, so add its accessible URL.",
+      );
+      return;
+    }
+    if (
+      decision === "approved" &&
+      handoffEvidenceRequirements.artifactUrls &&
+      artifactUrls.length === 0
+    ) {
+      toast.error(
+        "Delivery artifact required",
+        "The client selected an artifact or documentation deliverable, so add its URL.",
       );
       return;
     }
@@ -1380,30 +1412,41 @@ export default function ReviewerProjectPage() {
                         className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-on-surface"
                       />
                     </label>
-                    <label className="text-sm text-on-surface-variant">
-                      Live URL (required unless an artifact is provided)
-                      <input
-                        value={handoffLiveUrl}
-                        onChange={(event) =>
-                          setHandoffLiveUrl(event.target.value)
-                        }
-                        placeholder="https://..."
-                        className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-on-surface"
-                      />
-                    </label>
-                    <label className="text-sm text-on-surface-variant sm:col-span-2">
-                      Artifact or documentation URLs (one per line; required
-                      unless a live URL is provided)
-                      <textarea
-                        value={handoffArtifactUrls}
-                        onChange={(event) =>
-                          setHandoffArtifactUrls(event.target.value)
-                        }
-                        rows={2}
-                        placeholder="https://..."
-                        className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-on-surface"
-                      />
-                    </label>
+                    {handoffEvidenceRequirements.liveUrl && (
+                      <label className="text-sm text-on-surface-variant">
+                        Live URL required by the delivery contract
+                        <input
+                          value={handoffLiveUrl}
+                          onChange={(event) =>
+                            setHandoffLiveUrl(event.target.value)
+                          }
+                          placeholder="https://..."
+                          className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-on-surface"
+                        />
+                      </label>
+                    )}
+                    {handoffEvidenceRequirements.artifactUrls && (
+                      <label className="text-sm text-on-surface-variant sm:col-span-2">
+                        Artifact or documentation URLs required by the delivery
+                        contract (one per line)
+                        <textarea
+                          value={handoffArtifactUrls}
+                          onChange={(event) =>
+                            setHandoffArtifactUrls(event.target.value)
+                          }
+                          rows={2}
+                          placeholder="https://..."
+                          className="mt-1 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-on-surface"
+                        />
+                      </label>
+                    )}
+                    {handoffEvidenceRequirements.sourceArchive && (
+                      <p className="self-end text-sm leading-6 text-on-surface-variant sm:col-span-2">
+                        Source code will be packaged from the exact verified
+                        commit and delivered privately through Nexus. No client
+                        GitHub account is required.
+                      </p>
+                    )}
                   </div>
                 )}
                 {[
