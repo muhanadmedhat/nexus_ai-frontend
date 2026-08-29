@@ -109,6 +109,25 @@ export interface AssessmentSummary {
   targetSeniority?: string | null;
   resultRole?: string | null;
   resultSeniority?: string | null;
+  result?: AssessmentCandidateResult | null;
+}
+
+export interface AssessmentCandidateResult {
+  gradingComplete: boolean;
+  recommendation: "pass" | "needs_review" | "fail" | null;
+  feedback: string | null;
+  manualReviewRequired: boolean;
+  automationDecision: "approved" | "rejected" | "needs_review" | null;
+  graderConfidence: number | null;
+  integrityWarningCount: number;
+  performance: {
+    questionsEvaluated: number;
+    strongAnswers: number;
+    partialAnswers: number;
+    weakAnswers: number;
+  };
+  strengths: string[];
+  improvements: string[];
 }
 
 export interface AntiCheatConfig {

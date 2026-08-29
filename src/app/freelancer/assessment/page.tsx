@@ -86,7 +86,8 @@ export default function AssessmentLobbyPage() {
   }, [load]);
 
   useEffect(() => {
-    if (phaseFor(verification) !== "preparing") return;
+    const phase = phaseFor(verification);
+    if (phase !== "preparing" && phase !== "submitted") return;
     const interval = window.setInterval(load, 5000);
     return () => window.clearInterval(interval);
   }, [verification, load]);
@@ -240,8 +241,18 @@ export default function AssessmentLobbyPage() {
         />
       ) : phase === "submitted" ? (
         <LobbyState
-          title="Your assessment is submitted"
-          detail="It's with our team for review. We'll update your status once it's done."
+          title={
+            assessment?.result?.gradingComplete
+              ? "Your grading result is ready"
+              : "Your assessment is submitted"
+          }
+          detail={
+            assessment?.result?.gradingComplete
+              ? resultTitle
+                ? `You were ranked as ${resultTitle} with a score of ${assessment.score ?? "pending"}. A human approval check is still open; you do not need to retake the assessment.`
+                : `Your score is ${assessment.score ?? "ready"}. A human approval check is still open; you do not need to retake the assessment.`
+              : "Your answers are saved and grading is in progress. This page checks automatically for the result."
+          }
           actionLabel="View result"
           href="/freelancer/assessment/result"
         />

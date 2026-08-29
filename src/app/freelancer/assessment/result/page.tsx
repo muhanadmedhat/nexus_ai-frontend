@@ -3,7 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { clsx } from "clsx";
-import { Loader2, AlertCircle, CheckCircle2, Clock, XCircle } from "lucide-react";
+import {
+  Loader2,
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+  RefreshCw,
+  XCircle,
+} from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
 import { getVerification, getCurrentAssessment } from "@/services/assessments";
@@ -42,6 +49,7 @@ export default function AssessmentResultPage() {
   const load = useCallback(() => {
     Promise.all([getVerification(), getCurrentAssessment().catch(() => null)])
       .then(([v, current]) => {
+        setError(null);
         setVerification(v);
         const s = current?.eventsSummary;
         setWarnings(s ? s.focusLost + s.fullscreenExit : null);
@@ -62,6 +70,18 @@ export default function AssessmentResultPage() {
 
   const status = verification?.verificationStatus;
   const assessment = verification?.assessment ?? null;
+  const gradingComplete = assessment?.result?.gradingComplete === true;
+
+  useEffect(() => {
+    if (
+      status !== "assessment_submitted" &&
+      status !== "interview_pending"
+    ) {
+      return;
+    }
+    const interval = window.setInterval(load, 8000);
+    return () => window.clearInterval(interval);
+  }, [load, status]);
 
   return (
     <DashboardShell
@@ -104,13 +124,32 @@ export default function AssessmentResultPage() {
           assessment={assessment}
           warnings={warnings}
         />
-      ) : status === "assessment_submitted" || status === "interview_pending" ? (
+      ) : status === "interview_pending" ? (
         <ResultCard
           tone="pending"
-          heading="Submitted — pending review"
-          sub="Thanks for completing your assessment. Our team is reviewing it and your status will update here."
+          heading="Assessment review passed"
+          sub="Your grading and admin review are complete. Your verification is now at the interview stage, and this page will keep updating automatically."
           assessment={assessment}
           warnings={warnings}
+          onRefresh={load}
+        />
+      ) : status === "assessment_submitted" && gradingComplete ? (
+        <ResultCard
+          tone="pending"
+          heading="Your grading result is ready"
+          sub="Your score and platform rank are already stored. A human approval check is still open; you do not need to retake the assessment."
+          assessment={assessment}
+          warnings={warnings}
+          onRefresh={load}
+        />
+      ) : status === "assessment_submitted" ? (
+        <ResultCard
+          tone="pending"
+          heading="Submitted — grading in progress"
+          sub="Your answers were saved successfully. This page checks for the grading result every few seconds, so you do not have to rely on notifications."
+          assessment={assessment}
+          warnings={warnings}
+          onRefresh={load}
         />
       ) : (
         <ResultShell
@@ -152,12 +191,14 @@ function ResultCard({
   sub,
   assessment,
   warnings,
+  onRefresh,
 }: {
   tone: "success" | "error" | "pending";
   heading: string;
   sub: string;
   assessment: AssessmentSummary | null;
   warnings: number | null;
+  onRefresh?: () => void;
 }) {
   const toneStyles = {
     success: { icon: CheckCircle2, iconCls: "text-primary-container", bg: "bg-primary-container/15" },
@@ -176,6 +217,7 @@ function ResultCard({
     assessment?.resultRole,
     assessment?.resultSeniority,
   );
+  const result = assessment?.result ?? null;
   if (targetTitle) rows.push({ label: "Assessment taken", value: targetTitle });
   if (resultTitle) rows.push({ label: "Platform rank", value: resultTitle });
   if (assessment?.score != null) rows.push({ label: "Score", value: assessment.score });
@@ -184,6 +226,12 @@ function ResultCard({
   const submitted = formatDateTime(assessment?.submittedAt);
   if (submitted) rows.push({ label: "Submitted", value: submitted });
   if (warnings != null) rows.push({ label: "Focus warnings", value: String(warnings) });
+  if (result?.graderConfidence != null) {
+    rows.push({
+      label: "Grading confidence",
+      value: `${Math.round(result.graderConfidence * 100)}%`,
+    });
+  }
 
   return (
     <div className="mx-auto max-w-2xl rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow sm:p-8">
@@ -208,12 +256,108 @@ function ResultCard({
         </dl>
       ) : null}
 
-      <div className="mt-6">
+      {result?.feedback && (
+        <section className="mt-6 border-y border-outline-variant/30 py-4">
+          <h3 className="font-semibold text-on-surface">Overall feedback</h3>
+          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-on-surface-variant">
+            {result.feedback}
+          </p>
+        </section>
+      )}
+
+      {result?.performance.questionsEvaluated ? (
+        <section className="mt-6">
+          <h3 className="font-semibold text-on-surface">Answer breakdown</h3>
+          <p className="mt-1 text-sm text-on-surface-variant">
+            A high-level view of the grading evidence. Answer keys and private
+            rubrics stay protected.
+          </p>
+          <dl className="mt-3 grid grid-cols-2 gap-x-5 gap-y-3 border-y border-outline-variant/30 py-4 sm:grid-cols-4">
+            <div>
+              <dt className="text-xs text-on-surface-variant">Evaluated</dt>
+              <dd className="mt-1 text-lg font-semibold text-on-surface">
+                {result.performance.questionsEvaluated}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-on-surface-variant">Strong</dt>
+              <dd className="mt-1 text-lg font-semibold text-primary-container">
+                {result.performance.strongAnswers}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-on-surface-variant">Partial</dt>
+              <dd className="mt-1 text-lg font-semibold text-on-surface">
+                {result.performance.partialAnswers}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-on-surface-variant">Improve</dt>
+              <dd className="mt-1 text-lg font-semibold text-error">
+                {result.performance.weakAnswers}
+              </dd>
+            </div>
+          </dl>
+        </section>
+      ) : null}
+
+      {(result?.strengths.length ?? 0) > 0 && (
+        <section className="mt-6">
+          <h3 className="font-semibold text-on-surface">Demonstrated well</h3>
+          <ul className="mt-2 list-disc space-y-2 pl-5 text-sm leading-6 text-on-surface-variant">
+            {result?.strengths.map((item, index) => (
+              <li key={`strength-${index}`}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {(result?.improvements.length ?? 0) > 0 && (
+        <section className="mt-6">
+          <h3 className="font-semibold text-on-surface">What to improve</h3>
+          <ul className="mt-2 list-disc space-y-2 pl-5 text-sm leading-6 text-on-surface-variant">
+            {result?.improvements.map((item, index) => (
+              <li key={`improvement-${index}`}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {result?.manualReviewRequired && (
+        <section className="mt-6 border-l-2 border-secondary pl-4">
+          <h3 className="font-semibold text-on-surface">
+            Why approval is still pending
+          </h3>
+          <p className="mt-1 text-sm leading-6 text-on-surface-variant">
+            Grading is finished, but automatic approval could not make the
+            final verification decision. An admin is checking grading
+            confidence, session integrity, and required matching details. Your
+            score and assessed position will remain visible while that happens.
+          </p>
+          {result.integrityWarningCount > 0 && (
+            <p className="mt-2 text-sm font-medium text-on-surface">
+              Session integrity signals recorded: {result.integrityWarningCount}
+            </p>
+          )}
+        </section>
+      )}
+
+      <div className="mt-6 flex flex-wrap gap-3">
         <Link href="/freelancer/verification" className="inline-block">
           <Button variant="outline" className="w-auto px-5 py-2.5">
             Back to verification
           </Button>
         </Link>
+        {onRefresh && (
+          <Button
+            type="button"
+            variant="outline"
+            className="w-auto px-5 py-2.5"
+            onClick={onRefresh}
+          >
+            <RefreshCw size={15} /> Refresh result
+          </Button>
+        )}
       </div>
     </div>
   );
