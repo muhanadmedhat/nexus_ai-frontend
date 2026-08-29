@@ -21,7 +21,10 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useToast } from "@/components/ui/toast";
 import { useActionDialog } from "@/components/ui/action-dialog";
+import { DeliveryContractView } from "@/components/delivery";
+import type { DeliveryContract } from "@/services/project-handoffs";
 import {
+  getReviewerImplementationRatings,
   getReviewerOverview,
   getReviewerHandoff,
   getReviewerMatchingRun,
@@ -39,12 +42,14 @@ import {
   reviewReviewerHandoff,
   reviewReviewerMatchingRun,
   reviewReviewerSubmission,
+  rateReviewerImplementationContributor,
   retargetReviewerSubmissionPullRequest,
   retryReviewerSubmissionEvaluation,
   type ReviewerPlanDetail,
   type ReviewerPlanningSubmissionDetail,
   type ReviewerMatchingRun,
   type ReviewerMatchingRunDetail,
+  type ReviewerImplementationRatings,
 } from "@/services/reviewer";
 
 type Row = Record<string, unknown>;
@@ -175,6 +180,13 @@ export default function ReviewerProjectPage() {
   const [submissions, setSubmissions] = useState<Row[]>([]);
   const [releases, setReleases] = useState<Row[]>([]);
   const [handoff, setHandoff] = useState<Row | null>(null);
+  const [implementationRatings, setImplementationRatings] =
+    useState<ReviewerImplementationRatings | null>(null);
+  const [implementationRatingValues, setImplementationRatingValues] = useState<
+    Record<string, number>
+  >({});
+  const [implementationRatingComments, setImplementationRatingComments] =
+    useState<Record<string, string>>({});
   const [handoffTaskId, setHandoffTaskId] = useState("");
   const [handoffSummary, setHandoffSummary] = useState("");
   const [handoffLiveUrl, setHandoffLiveUrl] = useState("");
@@ -215,6 +227,7 @@ export default function ReviewerProjectPage() {
         getReviewerSubmissions(projectId),
         getReviewerReleaseRequests(projectId),
         getReviewerHandoff(projectId),
+        getReviewerImplementationRatings(projectId),
       ]);
       const [
         overviewResult,
@@ -224,6 +237,7 @@ export default function ReviewerProjectPage() {
         submissionsResult,
         releasesResult,
         handoffResult,
+        implementationRatingsResult,
       ] = results;
       if (overviewResult.status === "rejected") throw overviewResult.reason;
 
@@ -244,6 +258,24 @@ export default function ReviewerProjectPage() {
       const handoffResultValue =
         handoffResult.status === "fulfilled" ? handoffResult.value : null;
       setHandoff(handoffResultValue);
+      const implementationRatingsValue =
+        implementationRatingsResult.status === "fulfilled"
+          ? implementationRatingsResult.value
+          : null;
+      setImplementationRatings(implementationRatingsValue);
+      setImplementationRatingValues(
+        Object.fromEntries(
+          (implementationRatingsValue?.contributors ?? [])
+            .filter(
+              (contributor) =>
+                !contributor.rating && contributor.recommendedRating,
+            )
+            .map((contributor) => [
+              contributor.userId,
+              contributor.recommendedRating as number,
+            ]),
+        ),
+      );
       setHandoffSummary(
         handoffResultValue?.reviewerApprovedAt
           ? text(handoffResultValue.summary)
@@ -748,6 +780,25 @@ export default function ReviewerProjectPage() {
     );
   };
 
+  const submitImplementationRating = async (userId: string) => {
+    const rating = implementationRatingValues[userId];
+    if (!rating) {
+      toast.error("Choose a rating", "Select a score from 1 to 5.");
+      return;
+    }
+    await act(`implementation-rating:${userId}`, () =>
+      rateReviewerImplementationContributor(projectId, {
+        ratedUserId: userId,
+        rating,
+        comment: implementationRatingComments[userId]?.trim() || undefined,
+      }),
+      {
+        title: "Freelancer rating saved",
+        message: "The confirmed rating is now part of their platform record.",
+      },
+    );
+  };
+
   const act = async <T,>(
     id: string,
     operation: () => Promise<T>,
@@ -1191,6 +1242,131 @@ export default function ReviewerProjectPage() {
                       : ""}
                   </p>
                 )}
+                <DeliveryContractView
+                  contract={
+                    (record(handoff.metadata).deliveryContract as
+                      | DeliveryContract
+                      | undefined) ?? null
+                  }
+                />
+                {implementationRatings?.ratingsOpen &&
+                  implementationRatings.contributors.length > 0 && (
+                    <section className="border-y border-outline-variant/30 py-4">
+                      <h3 className="font-semibold text-on-surface">
+                        Implementation team ratings
+                      </h3>
+                      <p className="mt-1 text-sm leading-6 text-on-surface-variant">
+                        The suggested score is the rounded average of your saved
+                        task reviews. Confirm it or adjust it before submitting.
+                      </p>
+                      <div className="mt-3 divide-y divide-outline-variant/30">
+                        {implementationRatings.contributors.map(
+                          (contributor) => (
+                            <div key={contributor.userId} className="py-4">
+                              <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                  <p className="font-medium text-on-surface">
+                                    {contributor.name}
+                                  </p>
+                                  <p className="text-xs capitalize text-on-surface-variant">
+                                    {contributor.roleKeys
+                                      .join(" · ")
+                                      .replace(/_/g, " ")}
+                                  </p>
+                                </div>
+                                {contributor.taskAverageScore !== null && (
+                                  <span className="text-sm font-semibold text-primary-container">
+                                    Task average {Math.round(contributor.taskAverageScore)}/100
+                                  </span>
+                                )}
+                              </div>
+                              <ul className="mt-2 space-y-1 text-xs text-on-surface-variant">
+                                {contributor.tasks.map((task) => (
+                                  <li key={task.taskId}>
+                                    {task.title}: {task.reviewScore === null ? "not scored" : `${Math.round(task.reviewScore)}/100`}
+                                  </li>
+                                ))}
+                              </ul>
+                              {contributor.rating ? (
+                                <div className="mt-3 inline-flex items-center gap-2 font-semibold text-primary-container">
+                                  <Star size={16} fill="currentColor" />
+                                  {contributor.rating.rating}/5 saved
+                                </div>
+                              ) : (
+                                <div className="mt-3 space-y-3">
+                                  <div className="flex flex-wrap gap-2">
+                                    {[1, 2, 3, 4, 5].map((value) => (
+                                      <button
+                                        key={value}
+                                        type="button"
+                                        aria-pressed={
+                                          implementationRatingValues[
+                                            contributor.userId
+                                          ] === value
+                                        }
+                                        onClick={() =>
+                                          setImplementationRatingValues(
+                                            (current) => ({
+                                              ...current,
+                                              [contributor.userId]: value,
+                                            }),
+                                          )
+                                        }
+                                        className={`rounded-md border px-3 py-1.5 text-sm font-semibold ${
+                                          implementationRatingValues[
+                                            contributor.userId
+                                          ] === value
+                                            ? "border-primary-container bg-primary-container text-on-primary"
+                                            : "border-outline-variant text-on-surface-variant"
+                                        }`}
+                                      >
+                                        {value}/5
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <input
+                                    value={
+                                      implementationRatingComments[
+                                        contributor.userId
+                                      ] ?? ""
+                                    }
+                                    onChange={(event) =>
+                                      setImplementationRatingComments(
+                                        (current) => ({
+                                          ...current,
+                                          [contributor.userId]:
+                                            event.target.value,
+                                        }),
+                                      )
+                                    }
+                                    maxLength={4000}
+                                    placeholder="Optional final feedback"
+                                    className="w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface"
+                                  />
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    loading={
+                                      working ===
+                                      `implementation-rating:${contributor.userId}`
+                                    }
+                                    disabled={working !== null}
+                                    onClick={() =>
+                                      void submitImplementationRating(
+                                        contributor.userId,
+                                      )
+                                    }
+                                  >
+                                    <Star size={15} /> Save freelancer rating
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    </section>
+                  )}
                 {text(handoff.status) === "reviewer_review" && (
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="text-sm text-on-surface-variant">

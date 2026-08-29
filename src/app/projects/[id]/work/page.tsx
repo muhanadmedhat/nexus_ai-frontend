@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useToast } from "@/components/ui/toast";
 import {
+  DeliveryContractView,
   DeliveryEmpty,
   DeliveryRetryBanner,
   EvidenceList,
@@ -327,7 +328,7 @@ function FinalDeliveryPanel({
         rating,
         comment: ratingComments[userId]?.trim() || undefined,
       });
-      toast.success("Rating submitted", "Thank you for reviewing this contributor.");
+      toast.success("Rating submitted", "Your principal reviewer rating is saved.");
       onUpdated();
     } catch (error) {
       toast.error("Could not submit rating", error instanceof Error ? error.message : "Try again.");
@@ -389,6 +390,18 @@ function FinalDeliveryPanel({
               <ul className="mt-2 list-disc space-y-1 pl-5">{report?.findings?.map((item) => <li key={item}>{item}</li>)}</ul>
             </div>
           )}
+          <DeliveryContractView
+            contract={handoff.metadata?.deliveryContract}
+          />
+          <div className="border-y border-outline-variant/30 py-3 text-sm text-on-surface-variant">
+            <p className="font-semibold text-on-surface">Escrow lifecycle</p>
+            <p className="mt-1 leading-6">
+              Implementation was funded before task work began. Each implementer
+              release is created only after approved work is integrated; the
+              principal reviewer allocation is released when you accept this final
+              delivery.
+            </p>
+          </div>
           <div className="flex flex-wrap gap-3">
             {handoff.repositoryUrl && (
               <a href={handoff.repositoryUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-semibold text-primary-container hover:underline">
@@ -425,8 +438,8 @@ function FinalDeliveryPanel({
           {overview?.ratingsOpen && overview.contributors.length > 0 && (
             <div className="space-y-3">
               <div>
-                <h4 className="font-semibold text-on-surface">Rate the project team</h4>
-                <p className="mt-1 text-sm text-on-surface-variant">One saved review per contributor; ratings update their verified platform record.</p>
+                <h4 className="font-semibold text-on-surface">Rate your principal reviewer</h4>
+                <p className="mt-1 text-sm text-on-surface-variant">Review the person responsible for planning oversight, implementation review, integration, and this final handoff.</p>
               </div>
               {overview.contributors.map((contributor) => (
                 <div key={contributor.userId} className="rounded-lg border border-outline-variant/30 p-4">

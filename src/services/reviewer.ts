@@ -1,5 +1,9 @@
 import { api, getApiErrorMessage } from "@/lib/api";
 import { getFreelancerAssignedProjects } from "@/services/matching";
+import type {
+  DeliveryContract,
+  ProjectRating,
+} from "@/services/project-handoffs";
 
 type ApiData<T> = { status: string; data: T };
 type Paged<T> = { data: T[]; total?: number };
@@ -196,6 +200,34 @@ export interface ReviewerPlanningSubmissionDetail {
   aiOverrideReason?: string | null;
 }
 
+export interface ReviewerImplementationRatingContributor {
+  userId: string;
+  freelancerProfileId: string;
+  name: string;
+  roleKeys: string[];
+  rating: ProjectRating | null;
+  recommendedRating: number | null;
+  taskAverageScore: number | null;
+  tasks: Array<{
+    taskId: string;
+    title: string;
+    roleKey: string | null;
+    reviewScore: number | null;
+  }>;
+}
+
+export interface ReviewerImplementationRatings {
+  ratingsOpen: boolean;
+  contributors: ReviewerImplementationRatingContributor[];
+}
+
+export interface ReviewerHandoff extends Record<string, unknown> {
+  metadata?: {
+    deliveryContract?: DeliveryContract;
+    [key: string]: unknown;
+  } | null;
+}
+
 export async function getReviewerProjects() {
   try {
     return await request<ReviewerProject[]>("/reviewer/projects");
@@ -357,9 +389,22 @@ export async function getReviewerReleaseRequests(projectId: string) {
 }
 
 export async function getReviewerHandoff(projectId: string) {
-  return request<Record<string, unknown> | null>(
+  return request<ReviewerHandoff | null>(
     `/reviewer/projects/${projectId}/handoff`,
   );
+}
+
+export async function getReviewerImplementationRatings(projectId: string) {
+  return request<ReviewerImplementationRatings>(
+    `/reviewer/projects/${projectId}/ratings`,
+  );
+}
+
+export async function rateReviewerImplementationContributor(
+  projectId: string,
+  input: { ratedUserId: string; rating: number; comment?: string },
+) {
+  return mutate(`/reviewer/projects/${projectId}/ratings`, "post", input);
 }
 
 export async function reviewReviewerHandoff(

@@ -18,6 +18,22 @@ export interface ProjectContributor {
   rating: ProjectRating | null;
 }
 
+export interface DeliveryContractItem {
+  title: string;
+  status: string;
+  evidence: string | null;
+}
+
+export interface DeliveryContract {
+  deliverables: DeliveryContractItem[];
+  acceptanceCriteria: DeliveryContractItem[];
+  integrationChecks: DeliveryContractItem[];
+  repositoryUrl: string | null;
+  branch: string;
+  evaluatedCommitSha: string;
+  verifiedAt: string;
+}
+
 export interface ProjectHandoff {
   id: string;
   projectId: string;
@@ -44,6 +60,10 @@ export interface ProjectHandoff {
   clientReviewDueAt: string | null;
   clientFeedback: string | null;
   clientAcceptedAt: string | null;
+  metadata?: {
+    deliveryContract?: DeliveryContract;
+    [key: string]: unknown;
+  } | null;
   createdAt: string;
   updatedAt: string;
 }
