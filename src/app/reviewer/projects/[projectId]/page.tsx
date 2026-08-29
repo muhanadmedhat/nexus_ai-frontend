@@ -1084,6 +1084,8 @@ export default function ReviewerProjectPage() {
               .map((item) => {
                 const branchSync = record(record(item.metadata).branchSync);
                 const branchConflict = text(branchSync.status) === "conflict";
+                const branchUpdateRequested =
+                  text(branchSync.status) === "update_requested";
                 return (
                   <div
                     key={text(item.id)}
@@ -1091,6 +1093,8 @@ export default function ReviewerProjectPage() {
                       "flex flex-wrap items-center justify-between gap-3 rounded-lg p-4 " +
                       (branchConflict
                         ? "border border-error/30 bg-error/5"
+                        : branchUpdateRequested
+                          ? "border border-primary/30 bg-primary/5"
                         : "bg-surface-container-low")
                     }
                   >
@@ -1102,11 +1106,16 @@ export default function ReviewerProjectPage() {
                         {branchConflict && (
                           <StatusBadge status="merge_conflict" />
                         )}
+                        {branchUpdateRequested && (
+                          <StatusBadge status="syncing_main" />
+                        )}
                       </div>
                       <p className="text-sm text-on-surface-variant">
                         {branchConflict
                           ? text(branchSync.message) ||
                             "The freelancer must update the feature branch from main."
+                          : branchUpdateRequested
+                            ? "Nexus asked GitHub to update this feature branch from main. A fresh evaluation will start when the new commit appears."
                           : text(item.summary)}
                       </p>
                     </div>

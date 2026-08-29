@@ -274,6 +274,7 @@ function SubmissionReceipt({
       ? (submission.metadata.branchSync as Record<string, unknown>)
       : null;
   const branchConflict = branchSync?.status === "conflict";
+  const branchUpdateRequested = branchSync?.status === "update_requested";
   const branchConflictMessage =
     typeof branchSync?.message === "string" ? branchSync.message : null;
 
@@ -302,6 +303,25 @@ function SubmissionReceipt({
               ? "The principal reviewer rejected this version. Review the feedback below before creating a revised submission."
               : `This submission is ${submission.status.replace(/_/g, " ")}.`}
       </p>
+
+      {branchUpdateRequested && (
+        <div className="mt-4 rounded-lg border border-primary/30 bg-primary/5 p-4">
+          <p className="font-semibold text-on-surface">
+            Nexus is updating your feature branch
+          </p>
+          <p className="mt-1 text-sm leading-6 text-on-surface-variant">
+            The project main branch advanced while this work was under review.
+            GitHub accepted an automatic branch update. No action is required
+            from you unless a conflict notice replaces this message.
+          </p>
+          <p className="mt-2 text-sm leading-6 text-on-surface">
+            After GitHub creates the new commit, Nexus will pin that exact
+            commit, run a fresh AI evaluation, and return it to the principal
+            reviewer. The existing task, pull request, and submission remain
+            unchanged.
+          </p>
+        </div>
+      )}
 
       {branchConflict && !integrationFailed && (
         <div className="mt-4 rounded-lg border border-error/30 bg-error/5 p-4">

@@ -134,8 +134,10 @@ export function canSubmitTask(options: {
     return {
       allowed: false,
       reason: names.length
-        ? `Waiting on ${names.join(", ")} to be approved first.`
-        : "Waiting on dependency tasks that have not loaded yet.",
+        ? "Waiting on " +
+          names.join(", ") +
+          " to be approved and merged into the project main branch. Your submission remains locked so you do not build against stale prerequisite code."
+        : "Waiting for Nexus to verify the blocking dependency tasks and their integration state.",
     };
   }
 
