@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Lock, Send, Save } from "lucide-react";
+import { ArrowLeft, ExternalLink, Lock, Send, Save } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -257,6 +257,16 @@ function SubmissionReceipt({
         ];
       })
     : [];
+  const integration =
+    submission.metadata?.integration &&
+    typeof submission.metadata.integration === "object" &&
+    !Array.isArray(submission.metadata.integration)
+      ? (submission.metadata.integration as Record<string, unknown>)
+      : null;
+  const integrationFailed =
+    submission.status === "approved" && integration?.status === "failed";
+  const integrationError =
+    typeof integration?.error === "string" ? integration.error : null;
 
   return (
     <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
@@ -276,11 +286,44 @@ function SubmissionReceipt({
         submission.status === "under_review"
           ? "Your answers and evidence are locked while evaluation and principal review are in progress. This page updates automatically when a decision is made."
           : submission.status === "approved"
-            ? "The principal reviewer approved this task. Its allocated amount is now included in your approved earnings."
+            ? integrationFailed
+              ? "The principal reviewer approved this task and its payment remains recorded. The pull request still needs conflict resolution before it can join main."
+              : "The principal reviewer approved this task. Its allocated amount is now included in your approved earnings."
             : submission.status === "rejected"
               ? "The principal reviewer rejected this version. Review the feedback below before creating a revised submission."
               : `This submission is ${submission.status.replace(/_/g, " ")}.`}
       </p>
+
+      {integrationFailed && (
+        <div className="mt-4 rounded-lg border border-error/30 bg-error/5 p-4">
+          <p className="font-semibold text-on-surface">
+            Resolve conflicts on your feature branch
+          </p>
+          <p className="mt-1 text-sm leading-6 text-on-surface-variant">
+            {integrationError || "GitHub could not merge this pull request."}
+          </p>
+          <p className="mt-2 text-sm leading-6 text-on-surface">
+            Merge the latest main into{" "}
+            <span className="font-mono text-xs">
+              {submission.branchName || "your feature branch"}
+            </span>
+            , resolve the conflicts, and push that branch. Do not push directly
+            to main. Nexus will automatically evaluate the new commit and send
+            it back to the principal reviewer; you do not need to create a new
+            task or submission.
+          </p>
+          {submission.pullRequestUrl && (
+            <a
+              href={submission.pullRequestUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-primary-container hover:underline"
+            >
+              <ExternalLink size={16} /> Open pull request
+            </a>
+          )}
+        </div>
+      )}
 
       <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2">
         {submission.summary && (
@@ -319,7 +362,14 @@ function SubmissionReceipt({
           <div className="sm:col-span-2">
             <dt className="font-semibold text-on-surface">Pull request</dt>
             <dd className="mt-1 break-all text-primary-container">
-              {submission.pullRequestUrl}
+              <a
+                href={submission.pullRequestUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="hover:underline"
+              >
+                {submission.pullRequestUrl}
+              </a>
             </dd>
           </div>
         )}

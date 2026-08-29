@@ -116,6 +116,7 @@ export interface SubmissionDetail extends ProjectSubmission {
       targetReady: boolean;
       historyReady: boolean;
       evaluationCurrent: boolean;
+      mergeConflict: boolean;
       canRetarget: boolean;
       blocker: string | null;
       error: string | null;

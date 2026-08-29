@@ -8,6 +8,7 @@ import {
   BriefcaseBusiness,
   CheckCircle2,
   Clock3,
+  ExternalLink,
   Loader2,
   RefreshCw,
   ShieldAlert,
@@ -56,6 +57,14 @@ type Criterion = {
 };
 
 const text = (value: unknown) => (typeof value === "string" ? value : "");
+const record = (value: unknown): Row =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Row)
+    : {};
+
+function submissionIntegration(item: Row) {
+  return record(record(item.metadata).integration);
+}
 
 /**
  * Strips retrieval-algorithm wording from the run summary. Reviewers were shown
@@ -806,7 +815,7 @@ export default function ReviewerProjectPage() {
               Some reviewer data could not be refreshed: {loadError}
             </p>
           )}
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
             {Object.entries(attention).map(([key, value]) => (
               <div
                 key={key}
@@ -995,6 +1004,67 @@ export default function ReviewerProjectPage() {
                     }
                     approveLabel="Approve and start matching"
                   />
+                );
+              })}
+          </Queue>
+
+          <Queue
+            title="Integration issues"
+            empty="No approved pull request needs conflict resolution."
+          >
+            {submissions
+              .filter(
+                (item) =>
+                  text(item.status) === "approved" &&
+                  text(submissionIntegration(item).status) === "failed",
+              )
+              .map((item) => {
+                const integration = submissionIntegration(item);
+                const pullRequestUrl = text(item.pullRequestUrl);
+                return (
+                  <div
+                    key={text(item.id)}
+                    className="rounded-lg border border-error/30 bg-error/5 p-4"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium text-on-surface">
+                            {text(item.title) || "Approved implementation"}
+                          </p>
+                          <StatusBadge status="integration_failed" />
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-on-surface-variant">
+                          {text(integration.error) ||
+                            "GitHub could not merge this pull request."}
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-on-surface">
+                          Approval and payment remain recorded. The freelancer
+                          must merge main into{" "}
+                          <span className="font-mono text-xs">
+                            {text(item.branchName) || "the feature branch"}
+                          </span>
+                          , resolve the conflicts there, and push. Nexus will
+                          reopen and evaluate only this submission.
+                        </p>
+                      </div>
+                      {isHttpUrl(pullRequestUrl) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            window.open(
+                              pullRequestUrl,
+                              "_blank",
+                              "noopener,noreferrer",
+                            )
+                          }
+                        >
+                          <ExternalLink size={16} /> Open pull request
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                 );
               })}
           </Queue>

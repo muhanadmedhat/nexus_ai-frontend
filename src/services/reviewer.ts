@@ -25,6 +25,7 @@ export interface ReviewerAttention {
   generatedPlans: number;
   matchingRuns: number;
   submissionsAwaitingReview: number;
+  integrationIssues: number;
   releaseRequests: number;
   openTasks: number;
   finalHandoffsAwaitingReview: number;
@@ -238,6 +239,7 @@ function emptyReviewerAttention(): ReviewerAttention {
     generatedPlans: 0,
     matchingRuns: 0,
     submissionsAwaitingReview: 0,
+    integrationIssues: 0,
     releaseRequests: 0,
     openTasks: 0,
     finalHandoffsAwaitingReview: 0,
