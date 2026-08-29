@@ -1081,29 +1081,46 @@ export default function ReviewerProjectPage() {
                   (status === "changes_requested" && !item.reviewedBy)
                 );
               })
-              .map((item) => (
-                <div
-                  key={text(item.id)}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-surface-container-low p-4"
-                >
-                  <div>
-                    <p className="font-medium text-on-surface">
-                      {text(item.title) || "Implementation submission"}
-                    </p>
-                    <p className="text-sm text-on-surface-variant">
-                      {text(item.summary)}
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    loading={working === item.id}
-                    onClick={() => void openSubmission(item)}
+              .map((item) => {
+                const branchSync = record(record(item.metadata).branchSync);
+                const branchConflict = text(branchSync.status) === "conflict";
+                return (
+                  <div
+                    key={text(item.id)}
+                    className={
+                      "flex flex-wrap items-center justify-between gap-3 rounded-lg p-4 " +
+                      (branchConflict
+                        ? "border border-error/30 bg-error/5"
+                        : "bg-surface-container-low")
+                    }
                   >
-                    Inspect and review
-                  </Button>
-                </div>
-              ))}
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium text-on-surface">
+                          {text(item.title) || "Implementation submission"}
+                        </p>
+                        {branchConflict && (
+                          <StatusBadge status="merge_conflict" />
+                        )}
+                      </div>
+                      <p className="text-sm text-on-surface-variant">
+                        {branchConflict
+                          ? text(branchSync.message) ||
+                            "The freelancer must update the feature branch from main."
+                          : text(item.summary)}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      loading={working === item.id}
+                      onClick={() => void openSubmission(item)}
+                    >
+                      Inspect and review
+                    </Button>
+                  </div>
+                );
+              })}
           </Queue>
 
           <Queue

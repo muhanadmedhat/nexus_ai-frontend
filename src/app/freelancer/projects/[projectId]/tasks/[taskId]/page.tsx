@@ -267,6 +267,15 @@ function SubmissionReceipt({
     submission.status === "approved" && integration?.status === "failed";
   const integrationError =
     typeof integration?.error === "string" ? integration.error : null;
+  const branchSync =
+    submission.metadata?.branchSync &&
+    typeof submission.metadata.branchSync === "object" &&
+    !Array.isArray(submission.metadata.branchSync)
+      ? (submission.metadata.branchSync as Record<string, unknown>)
+      : null;
+  const branchConflict = branchSync?.status === "conflict";
+  const branchConflictMessage =
+    typeof branchSync?.message === "string" ? branchSync.message : null;
 
   return (
     <section className="rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-6 card-shadow">
@@ -293,6 +302,36 @@ function SubmissionReceipt({
               ? "The principal reviewer rejected this version. Review the feedback below before creating a revised submission."
               : `This submission is ${submission.status.replace(/_/g, " ")}.`}
       </p>
+
+      {branchConflict && !integrationFailed && (
+        <div className="mt-4 rounded-lg border border-error/30 bg-error/5 p-4">
+          <p className="font-semibold text-on-surface">
+            Your feature branch conflicts with main
+          </p>
+          <p className="mt-1 text-sm leading-6 text-on-surface-variant">
+            {branchConflictMessage ||
+              "GitHub could not update this pull request automatically."}
+          </p>
+          <p className="mt-2 text-sm leading-6 text-on-surface">
+            Merge the latest main into{" "}
+            <span className="font-mono text-xs">
+              {submission.branchName || "your feature branch"}
+            </span>
+            , resolve the conflicts, and push that branch. Keep the existing
+            pull request open. Nexus will detect and reevaluate the new commit.
+          </p>
+          {submission.pullRequestUrl && (
+            <a
+              href={submission.pullRequestUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-primary-container hover:underline"
+            >
+              <ExternalLink size={16} /> Open pull request
+            </a>
+          )}
+        </div>
+      )}
 
       {integrationFailed && (
         <div className="mt-4 rounded-lg border border-error/30 bg-error/5 p-4">
