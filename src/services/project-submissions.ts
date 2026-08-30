@@ -59,6 +59,7 @@ export interface SubmissionListParams {
 }
 
 export interface CreateSubmissionPayload {
+  idempotencyKey?: string;
   taskId: string;
   milestoneId?: string;
   repositoryId?: string;

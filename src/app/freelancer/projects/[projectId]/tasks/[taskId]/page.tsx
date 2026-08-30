@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, ExternalLink, Lock, Send, Save } from "lucide-react";
@@ -533,6 +533,7 @@ export default function FreelancerTaskWorkPage() {
 
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState<"draft" | "submit" | null>(null);
+  const createRequestId = useRef<string | null>(null);
 
   useEffect(() => {
     if (!projectId || !taskId) return;
@@ -817,7 +818,9 @@ export default function FreelancerTaskWorkPage() {
   /** Empty fields are simply omitted when creating. */
   const buildCreatePayload = useCallback((): CreateSubmissionPayload => {
     const values = formValues();
+    createRequestId.current ??= crypto.randomUUID();
     return {
+      idempotencyKey: createRequestId.current,
       taskId,
       milestoneId: task?.milestoneId ?? undefined,
       submissionType: form.submissionType,
@@ -866,6 +869,7 @@ export default function FreelancerTaskWorkPage() {
           ...buildCreatePayload(),
           status: "draft",
         });
+        createRequestId.current = null;
       }
       toast.success(
         "Draft saved",
@@ -917,6 +921,7 @@ export default function FreelancerTaskWorkPage() {
           ...buildCreatePayload(),
           status: "submitted",
         });
+        createRequestId.current = null;
       }
       toast.success("Submitted for review", "An evaluation has been queued.");
       refresh();
