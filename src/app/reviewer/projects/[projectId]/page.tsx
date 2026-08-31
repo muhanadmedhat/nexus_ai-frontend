@@ -247,6 +247,11 @@ export default function ReviewerProjectPage() {
   const handoffEvidenceRequirements = getDeliveryEvidenceRequirements(
     handoffContract,
   );
+  const handoffStatus = text(handoff?.status);
+  const handoffCanBeManuallyApproved = [
+    "reviewer_review",
+    "verification_failed",
+  ].includes(handoffStatus);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -897,7 +902,9 @@ export default function ReviewerProjectPage() {
       return;
     }
     const report = (handoff.verificationReport ?? {}) as Row;
-    const manualReview = text(report.recommendation) === "manual_review";
+    const manualReview =
+      handoffStatus === "verification_failed" ||
+      !["approve"].includes(text(report.recommendation));
     if (
       decision === "approved" &&
       manualReview &&
@@ -1523,7 +1530,17 @@ export default function ReviewerProjectPage() {
                       </div>
                     </section>
                   )}
-                {text(handoff.status) === "reviewer_review" && (
+                {handoffStatus === "verification_failed" && (
+                  <div className="rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm text-on-surface">
+                    <p className="font-semibold">Manual approval available</p>
+                    <p className="mt-1 text-on-surface-variant">
+                      AI verification requested changes. You can route a
+                      revision, or inspect the integrated commit and approve it
+                      with at least 20 characters of review evidence.
+                    </p>
+                  </div>
+                )}
+                {handoffCanBeManuallyApproved && (
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="text-sm text-on-surface-variant">
                       Client-facing summary
@@ -1621,14 +1638,16 @@ export default function ReviewerProjectPage() {
                   </label>
                 )}
                 <div className="flex flex-wrap gap-3">
-                  {text(handoff.status) === "reviewer_review" && (
+                  {handoffCanBeManuallyApproved && (
                     <Button
                       loading={working === `handoff:${text(handoff.id)}`}
                       disabled={working !== null}
                       onClick={() => void decideHandoff("approved")}
                     >
-                      <CheckCircle2 size={16} /> Send verified delivery to
-                      client
+                      <CheckCircle2 size={16} />{" "}
+                      {handoffStatus === "verification_failed"
+                        ? "Approve with manual override"
+                        : "Send verified delivery to client"}
                     </Button>
                   )}
                   {[
